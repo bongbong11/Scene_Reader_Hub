@@ -1,0 +1,151 @@
+import {createCommonForm} from './forms/common.js';
+import {createWorldForm} from './forms/world.js';
+import {createCharacterForm} from './forms/character.js';
+import {createSettingsForm} from './forms/settings.js';
+import {createBackupForm} from './forms/backup.js';
+import {createFormBindings} from './forms/bind.js';
+import {selectCapabilities} from '../shared/capabilities.js';
+import { notifySceneReaderToast } from './toasts.js';
+import { latestStateEventForChat } from "../character/state-contract.js";
+import { MEMORY_REFERENCE_ENABLED } from "../context/memory.js";
+// User actions and form state; dependencies are explicit and supplied by the application.
+import { debugReportText } from "../debug/report.js";
+import { characterErrorReport } from './character-error.js';
+import { compilerRequest, createRecordBank } from "../character/records.js";
+import { archiveRecordVersion } from "../character/versions.js";
+import { bindCharacterTransfer } from './character-transfer.js';
+import { openPersonPreview } from './person-preview.js';
+import { WORLD_COMPILER_PROMPT, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from '../world/advanced.js';
+import { SEASONAL_OPTIONS } from '../world/seasonal.js';
+export function createUiController(deps) {
+const services=Object.create(deps);
+Object.defineProperty(services,'nextMutation',{configurable:true,get:()=>nextMutation});
+Object.defineProperty(services,'worldTask',{configurable:true,get:()=>worldTask});
+Object.defineProperty(services,'captureCharacterError',{configurable:true,get:()=>captureCharacterError});
+Object.defineProperty(services,'invalidatePreparedJudgment',{configurable:true,get:()=>invalidatePreparedJudgment});
+Object.defineProperty(services,'characterFormSignature',{configurable:true,get:()=>characterFormSignature});
+Object.defineProperty(services,'setFormValues',{configurable:true,get:()=>setFormValues});
+Object.defineProperty(services,'renderWorldControls',{configurable:true,get:()=>renderWorldControls});
+Object.defineProperty(services,'showWorldEditor',{configurable:true,get:()=>showWorldEditor});
+Object.defineProperty(services,'showAdvancedWorldEditor',{configurable:true,get:()=>showAdvancedWorldEditor});
+Object.defineProperty(services,'showWorldList',{configurable:true,get:()=>showWorldList});
+Object.defineProperty(services,'characterEntries',{configurable:true,get:()=>characterEntries});
+Object.defineProperty(services,'updateSheetButton',{configurable:true,get:()=>updateSheetButton});
+Object.defineProperty(services,'showCharacterEditor',{configurable:true,get:()=>showCharacterEditor});
+Object.defineProperty(services,'showVersionEditor',{configurable:true,get:()=>showVersionEditor});
+Object.defineProperty(services,'closeCharacterEditor',{configurable:true,get:()=>closeCharacterEditor});
+Object.defineProperty(services,'showSavedPerson',{configurable:true,get:()=>showSavedPerson});
+Object.defineProperty(services,'showVersionPreview',{configurable:true,get:()=>showVersionPreview});
+Object.defineProperty(services,'loreKey',{configurable:true,get:()=>loreKey});
+Object.defineProperty(services,'renderEditorLore',{configurable:true,get:()=>renderEditorLore});
+Object.defineProperty(services,'refreshEditorLore',{configurable:true,get:()=>refreshEditorLore});
+Object.defineProperty(services,'beginLoreRefresh',{configurable:true,get:()=>beginLoreRefresh});
+Object.defineProperty(services,'ensureLoreLoaded',{configurable:true,get:()=>ensureLoreLoaded});
+Object.defineProperty(services,'characterForm',{configurable:true,get:()=>characterForm});
+Object.defineProperty(services,'taskStatus',{configurable:true,get:()=>taskStatus});
+Object.defineProperty(services,'saveCharacterEntry',{configurable:true,get:()=>saveCharacterEntry});
+Object.defineProperty(services,'analyzeAndSaveCharacter',{configurable:true,get:()=>analyzeAndSaveCharacter});
+Object.defineProperty(services,'deleteCharacterEntry',{configurable:true,get:()=>deleteCharacterEntry});
+Object.defineProperty(services,'downloadJson',{configurable:true,get:()=>downloadJson});
+Object.defineProperty(services,'saveGlobal',{configurable:true,get:()=>saveGlobal});
+Object.defineProperty(services,'saveRetrievalSettings',{configurable:true,get:()=>saveRetrievalSettings});
+Object.defineProperty(services,'saveRetrievalSetting',{configurable:true,get:()=>saveRetrievalSetting});
+Object.defineProperty(services,'retrievalSecretState',{configurable:true,get:()=>retrievalSecretState});
+Object.defineProperty(services,'savePreference',{configurable:true,get:()=>savePreference});
+Object.defineProperty(services,'saveInjectionMode',{configurable:true,get:()=>saveInjectionMode});
+Object.defineProperty(services,'saveWorldInjectionMode',{configurable:true,get:()=>saveWorldInjectionMode});
+Object.defineProperty(services,'endActiveEvent',{configurable:true,get:()=>endActiveEvent});
+Object.defineProperty(services,'bindForm',{configurable:true,get:()=>bindForm});
+Object.defineProperty(services,'selectedStateCapture',{configurable:true,get:()=>selectedStateCapture,set:value=>{selectedStateCapture=value}});
+Object.defineProperty(services,'characterEditorRevision',{configurable:true,get:()=>characterEditorRevision,set:value=>{characterEditorRevision=value}});
+Object.defineProperty(services,'editorLore',{configurable:true,get:()=>editorLore,set:value=>{editorLore=value}});
+Object.defineProperty(services,'availableEditorLore',{configurable:true,get:()=>availableEditorLore,set:value=>{availableEditorLore=value}});
+Object.defineProperty(services,'initialEditorLoreKeys',{configurable:true,get:()=>initialEditorLoreKeys,set:value=>{initialEditorLoreKeys=value}});
+Object.defineProperty(services,'loreLoadingPromise',{configurable:true,get:()=>loreLoadingPromise,set:value=>{loreLoadingPromise=value}});
+Object.defineProperty(services,'lastCharacterError',{configurable:true,get:()=>lastCharacterError,set:value=>{lastCharacterError=value}});
+Object.defineProperty(services,'worldBusy',{configurable:true,get:()=>worldBusy,set:value=>{worldBusy=value}});
+Object.defineProperty(services,'worldEditorRevision',{configurable:true,get:()=>worldEditorRevision,set:value=>{worldEditorRevision=value}});
+Object.defineProperty(services,'mutationSequences',{configurable:true,get:()=>mutationSequences,set:value=>{mutationSequences=value}});
+const {nextMutation,invalidatePreparedJudgment} = createCommonForm(selectCapabilities(services,["invalidateReasonerJobs","mutationSequences","record"]));
+const {worldTask,renderWorldControls,showWorldEditor,showAdvancedWorldEditor,showWorldList} = createWorldForm(selectCapabilities(services,["availableWorlds","document","escapeHtml","loadCustomWorlds","preferences","worldBusy","worldEditorRevision"]));
+const {captureCharacterError,characterFormSignature,characterEntries,updateSheetButton,showCharacterEditor,showVersionEditor,closeCharacterEditor,showSavedPerson,showVersionPreview,loreKey,renderEditorLore,refreshEditorLore,beginLoreRefresh,ensureLoreLoaded,characterForm,taskStatus,saveCharacterEntry,analyzeAndSaveCharacter,deleteCharacterEntry} = createCharacterForm(selectCapabilities(services,["StaleRunError","availableEditorLore","characterAnalysisSelection","characterEditorId","characterEditorKind","characterEditorRevision","characterStore","clearInjection","connectionRequestService","deriveEnglishCore","document","editorLore","escapeHtml","getContext","initialEditorLoreKeys","invalidatePreparedJudgment","jobs","lastCharacterError","linkedCharacterBooks","loadReasonerProfiles","loreLoadingPromise","normalizeCharacterStore","persistChat","profileStatus","record","renderCharacterStore","requestWithConnectionProfile","saveCharacterStore","settings","sha256Hex","stableFingerprint","stateChatKey","suggestNpcAliases","updateActivity","window","worldInfoModule"]));
+const {setFormValues,saveGlobal,saveRetrievalSettings,saveRetrievalSetting,retrievalSecretState,savePreference,saveInjectionMode,saveWorldInjectionMode,endActiveEvent} = createSettingsForm(selectCapabilities(services,["ADVANCED_ELEMENTS","RETRIEVAL_PROVIDERS","applyStoredInjection","archiveCurrentEvent","chatRecords","clearInjection","debugInjectionArmed","document","fetch","getRequestHeaders","invalidateReasonerJobs","judgeInFlight","macroAvailable","nextMutation","ownerUnlocked","persistChat","preferences","queueWrite","record","renderAll","renderOwnerMode","renderReasonerProfiles","renderWorldControls","saveServerSettings","saveSettingsDebounced","settings","stateChatKey","updateKeyStatus","updateStatus","vectorRetrieval","window"]));
+const {downloadJson} = createBackupForm(selectCapabilities(services,["document"]));
+const {bindForm} = createFormBindings(selectCapabilities(services,["ADVANCED_ELEMENTS","JEV_KEY_STORAGE","OWNER_PASSWORD_HASH","OWNER_PROMPT_STORAGE","OWNER_UNLOCK_STORAGE","RETRIEVAL_PROVIDERS","StaleRunError","applyStoredInjection","availableEditorLore","backupList","beginLoreRefresh","captureCharacterError","characterAnalysisSelection","characterEditorKind","characterEditorRevision","characterForm","characterStore","clearInjection","closeCharacterEditor","collectCurrentEmotion","connectionRequestService","copyText","debugInjectionArmed","diagnosticChecks","diagnosticEvents","diagnosticSnapshot","dialog","document","downloadJson","editorLore","endActiveEvent","ensureLoreLoaded","escapeHtml","fetch","getContext","getRequestHeaders","hydrateServerState","initialEditorLoreKeys","invalidatePreparedJudgment","invalidateReasonerJobs","jobs","lastCharacterError","lastDebugFrame","loadCustomWorlds","loadReasonerProfiles","localStorage","loreKey","normalizeCharacterStore","normalizeContinuity","ownerPrompt","ownerUnlocked","persistChat","preferences","privateOwnerPrompt","reasonerProfileError","reasonerProfiles","reconcileInjection","record","renderAll","renderBackups","renderCharacterStore","renderJudgment","renderOwnerMode","renderProfiles","renderReasonerProfiles","requestWithConnectionProfile","retrievalSecretState","runJudge","runUiTask","saveCharacterStore","saveCustomWorlds","saveGlobal","saveInjectionMode","savePreference","saveRetrievalSetting","saveRetrievalSettings","saveServerChat","saveServerSettings","saveSession","saveWorldInjectionMode","selectedStateCapture","serverKeyStatus","setFormValues","settings","sha256Hex","showCharacterEditor","showSavedPerson","showVersionEditor","showVersionPreview","showWorldEditor","showWorldList","stateChatKey","storagePost","taskStatus","testConnection","updateKeyStatus","updateSheetButton","updateStatus","vectorRetrieval","window","worldEditorRevision","worldTask"]));
+
+const selectedStateCapture = () => latestStateEventForChat(deps.record(),deps.getContext().chat || [],deps.stableFingerprint)?.capture || null;
+let characterEditorRevision = 0;
+let editorLore = [];
+let availableEditorLore = [];
+let initialEditorLoreKeys = null;
+let loreLoadingPromise = null;
+let lastCharacterError = null;
+let worldBusy = false;
+let worldEditorRevision = 0;
+const mutationSequences = new WeakMap();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const routed={};
+if(deps.hub)for(const [name,handler]of Object.entries({saveGlobal,savePreference,saveInjectionMode,saveWorldInjectionMode,endActiveEvent,saveCharacterEntry,analyzeAndSaveCharacter,deleteCharacterEntry})){
+ const command='ui.'+name;deps.hub.commands.register(command,handler);routed[name]=(...args)=>deps.hub.commands.dispatch(command,...args);Object.defineProperty(services,name,{configurable:true,get:()=>routed[name]});
+}
+return {...routed,setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm,...routed};
+}

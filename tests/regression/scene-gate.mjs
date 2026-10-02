@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import {sceneGateRequest,resolveSceneGate} from '../../src/scene/intimacy-gate.js';
+import {buildPausedInjection} from '../../prompt-library.js';
+
+const request=sceneGateRequest({model:'jev',transcript:'[1] USER: A kiss.\n[2] CHARACTER: They begin explicit sexual activity.',people:[{id:'wade',name:'Wade'}]});
+assert.ok(Object.hasOwn(request.questions.scene_evidence.criteria,'2'));
+const judge=(level,phase,evidence,previous='normal')=>resolveSceneGate({scene_level:{choice:level},scene_phase:{choice:phase},scene_evidence:{choice:evidence},scene_participant_0:{choice:'yes'}},request,previous);
+assert.equal(judge('2','normal','1').route,'normal','kissing does not pause the route');
+assert.equal(judge('3','active','none').route,'normal','an active answer needs cited RP evidence');
+assert.equal(judge('3','active','99').route,'normal','fabricated evidence is rejected');
+assert.deepEqual(judge('3','active','2'),{route:'paused',transition:'entered',level:3,phase:'active',evidence:'2',participantIds:['wade']});
+assert.equal(judge('0','unclear','none','paused').route,'paused','unclear does not silently resume');
+assert.equal(judge('2','paused','2','paused').route,'paused','temporary interruption stays in scene');
+assert.equal(judge('0','ended','2','paused').transition,'exited','confirmed scene end resumes ordinary flow');
+assert.equal(judge('4','ended','2','paused').route,'paused','contradictory level and phase cannot end the scene');
+assert.equal(judge('unclear','ended','2','paused').route,'paused','unknown level cannot authorize scene exit');
+assert.equal(judge('invalid','ended','2','paused').route,'paused','invalid level cannot authorize scene exit');
+const prompt=buildPausedInjection({settings:{},referenceLines:['<CHARACTER_REFERENCE>Stored reference.</CHARACTER_REFERENCE>']});
+assert.match(prompt,/Stored reference/);
+assert.match(prompt,/NSFW, and character-specific kink instructions/);
+assert.ok(!prompt.includes('CHARACTER_EXECUTION'));
+console.log('Scene gate transitions and paused injection passed.');

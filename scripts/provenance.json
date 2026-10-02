@@ -1,0 +1,14 @@
+{
+  "sceneRepository": "https://github.com/bongbong11/-_-",
+  "sceneCommit": "74eeeb0ed5b848aa36f6e037e3f7b1df7cd76695",
+  "sceneVersion": "0.26.2",
+  "characterRepository": "https://github.com/bongbong11/Character_Reasoner",
+  "characterCommit": "3d3787e512052ff4de787dde2ca86f1b9523c0e5",
+  "sharedPluginVersion": "0.7.0",
+  "sharedPluginFiles": {
+    "server-plugin/index.cjs": "ce3f024b7d5d1539afc4020ad73ca0f89cce1e54aa82d44d0dc9cba2abb5f4f1",
+    "server-plugin/package.json": "2eee364133eacccd9ddea7d527302c73eedf2cd69e02d7ce9e5ce31d24851b69",
+    "server-plugin/retrieval-cache.cjs": "fe3546ae43881614d52f668a30ce70281657eb38d8237f8608a31d9435873066",
+    "server-plugin/storage.cjs": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873"
+  }
+}

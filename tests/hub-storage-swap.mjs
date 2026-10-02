@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
+import {fixture} from './regression/audit-v012.mjs';
+const require=createRequire(import.meta.url),plugin=require('../server-plugin/index.cjs');
+const routes={};await plugin.init({get:(name,fn)=>{routes['GET '+name]=fn;},post:(name,fn)=>{routes['POST '+name]=fn;}});
+const directory=await mkdtemp(join(tmpdir(),'scene-hub-swap-'));
+const previousStorage=globalThis.localStorage,storageValues=new Map();
+globalThis.localStorage={getItem:key=>storageValues.get(key)||null,setItem:(key,value)=>storageValues.set(key,String(value)),removeItem:key=>storageValues.delete(key)};
+const user={directories:{root:directory,vectors:join(directory,'vectors')}};
+async function call(route,body={}){const response={statusCode:200,status(code){this.statusCode=code;return this;},json(value){this.value=value;return this;}};await routes['POST /storage/'+route]({user,body},response);if(response.statusCode!==200)throw new Error(response.value.error);return response.value;}
+try {
+ const f=fixture();f.ctx.characters=[null,{avatar:'Hunter.png'}];
+ const chatKey=f.run('stateChatKey()'),legacyChatKey=f.run('legacyStateChatKey()');
+ assert.equal(chatKey,'character-avatar:Hunter.png|chat:room-A');
+ const oldChat=JSON.parse(f.run('JSON.stringify(record(true))'));
+ oldChat.preferences.characterVolume='generous';oldChat.preferences.settingsContract=4;
+ oldChat.marker='existing-user-chat';oldChat.preferences.selectedWorldId='my-world';
+ oldChat.lastJudgment={payload:'Existing prepared scene',worldPayload:'Existing world',inputKey:'existing',judgedAt:'2026-10-02T13:00:00Z'};
+ const oldBank={schemaVersion:7,enabled:true,characters:[],npcs:[],persona:null,recordGroups:[],updatedAt:'existing-user-bank'};
+ const oldHistory=[{inputKey:'existing',assistantIndex:0,before:{},after:{},plan:{},judgment:oldChat.lastJudgment}];
+ const oldSettings={global:{enabled:true,autoJudge:true,recentTurns:3},worlds:[{id:'my-world',name:'My World',prompt:'Existing custom world',hint:'',franchise:false}],owner:{unlocked:false,prompt:''},schemaVersion:1,updatedAt:'existing-user-settings'};
+ await call('settings',{settings:oldSettings});await call('transaction',{chatKey,chat:oldChat,history:oldHistory});await call('characters',{chatKey,value:oldBank});await call('key',{key:'test-existing-key'});
+ const hash=createHash('sha256').update(chatKey).digest('hex');
+ const sessionFile=join(directory,'scene-reader','sessions',hash+'.json'),bankFile=join(directory,'scene-reader','characters',hash+'.json');
+ const sessionBefore=await readFile(sessionFile),bankBefore=await readFile(bankFile);
+ f.sandbox.fetch=async(url,options)=>({ok:true,json:()=>call(url.split('/').at(-1),JSON.parse(options.body))});
+ assert.equal(await f.run('hydrateServerState()'),true);
+ assert.equal(f.run('record().marker'),'existing-user-chat');assert.equal(f.run('record().lastJudgment.payload'),'Existing prepared scene');
+ assert.equal(f.run('record().preferences.selectedWorldId'),'my-world');
+ assert.equal(f.run('loadCustomWorlds()[0].id'),'my-world');
+ assert.equal(f.run('serverKeyStatus'),'저장됨 ····-key');
+ assert.deepEqual(await readFile(sessionFile),sessionBefore,'Hub first read keeps existing server session bytes');
+ assert.deepEqual(await readFile(bankFile),bankBefore,'Hub first read keeps existing bank bytes');
+ await f.run('persistChat()');
+ const returned=await call('bootstrap',{chatKey,legacyChatKey});
+ assert.equal(returned.chat.marker,oldChat.marker);assert.equal(returned.chat.lastJudgment.payload,oldChat.lastJudgment.payload);
+ assert.deepEqual(returned.characters,oldBank);assert.deepEqual(returned.history,oldHistory);
+ assert.deepEqual(returned.settings,oldSettings,'global settings, world IDs and private settings remain in the shared namespace');
+ assert.equal(returned.storageVersion,3);
+ f.run("record().generatedCast=[{kind:'npc',profile:{id:'preserved-actor',role:'witness',status:'active'}}];record().drawOpportunityKey='durable-ticket';");
+ await f.run('persistChat()');
+ const hubStored=await call('bootstrap',{chatKey,legacyChatKey});
+ assert.equal(hubStored.chat.generatedCast[0].profile.id,'preserved-actor');
+ assert.equal(hubStored.chat.drawOpportunityKey,'durable-ticket');
+ await f.run('hydrateServerState()');
+ assert.equal(f.run('record().generatedCast[0].profile.id'),'preserved-actor');
+
+ console.log('Shared storage swap passed: stable chat identity, existing settings/world/session/bank/history/key, non-destructive first read and legacy-readable Hub write on unchanged plugin 0.7.0.');
+} finally {if(previousStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=previousStorage;await rm(directory,{recursive:true,force:true});}

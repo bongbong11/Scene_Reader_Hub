@@ -1,0 +1,60 @@
+name: Sync Character Reasoner core
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: character-core-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: scene-reader
+      - uses: actions/checkout@v4
+        with:
+          repository: bongbong11/Character_Reasoner
+          ref: main
+          path: character-reasoner
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check source and compare core
+        id: compare
+        shell: bash
+        run: |
+          node character-reasoner/test.mjs
+          if cmp -s character-reasoner/core/index.js scene-reader/src/vendor/character-reasoner/index.js; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Sync and build install files
+        if: steps.compare.outputs.changed == 'true'
+        run: |
+          cd scene-reader
+          node scripts/sync-character-core.mjs ../character-reasoner
+          node scripts/sync-character-core.mjs ../character-reasoner --check
+          python3 scripts/package.py
+          python3 scripts/release-check.py
+          node scripts/check.mjs
+      - name: Browser integration
+        if: steps.compare.outputs.changed == 'true'
+        run: |
+          cd scene-reader
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+          node tests/browser.mjs
+      - name: Publish tested core copy
+        if: steps.compare.outputs.changed == 'true'
+        run: |
+          cd scene-reader
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/vendor/character-reasoner docs/provenance.json downloads
+          git commit -m 'Sync validated Character Reasoner core'
+          git push origin HEAD:main

@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const baseline=JSON.parse(await readFile(new URL('./fixtures/upstream-parity.json',import.meta.url),'utf8'));
+import {fixture as hubFixture} from './regression/audit-v012.mjs';
+const OriginalDate=Date,originalRandom=Math.random;
+const fixed=Date.parse('2026-10-02T13:00:00Z');
+globalThis.Date=class extends OriginalDate {constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};
+Math.random=()=>0.2;
+function normalize(value){return JSON.parse(JSON.stringify(value));}
+// 0.1.3 intentionally changes draw identity, sampling and diagnostics. Preserve
+// exact baseline parity for all other requests, decisions, storage and prompts;
+// the new behavior has end-to-end assertions in hub-draw-opportunities.mjs.
+function unchanged(value,parent='') {
+ if(Array.isArray(value))return value.map(item=>unchanged(item,parent));
+ if(!value||typeof value!=='object')return value;
+ const excluded=new Set(['drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey']);
+ return Object.fromEntries(Object.entries(value).filter(([key])=>!excluded.has(key)&&!(parent==='rolls'&&key==='npc')).map(([key,item])=>[key,unchanged(item,key)]));
+}
+try {
+
+ for(const {scenario,outcome:expected} of baseline.baselines) {  const outcomes=[];
+  for(const makeFixture of [hubFixture]) {
+   const f=makeFixture(),requests=[],prompts={};
+   f.sandbox.Date=globalThis.Date;
+   f.ctx.chat=[{is_user:true,mes:'I open the office door and greet Hunter.'}];
+   f.sandbox.scenario=normalize(scenario);
+   f.sandbox.mockJev=async body=>{
+    requests.push(normalize(body));
+    return {model:'jev-latest',answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>{
+     let choice=Object.keys(q.criteria||{})[0];
+     if(key==='scene_level')choice=scenario.level||'0';
+     else if(key==='scene_phase')choice=scenario.phase||'normal';
+     else if(key==='scene_evidence')choice=Object.keys(q.criteria).find(x=>x!=='none')||'none';
+     else if(key==='scene_participants')choice='none';
+     else if(q.criteria?.none)choice='none';
+     else if(q.criteria?.no)choice='no';
+     else if(q.criteria?.hold)choice='hold';
+     return [key,q.type==='noul'?{noul:0,confidence:1}:{choice,confidence:1}];
+    }))};
+   };
+   f.sandbox.setExtensionPrompt=async(key,value)=>{prompts[key]=value;};
+   f.run('record(true);Object.assign(record().preferences,scenario.preferences);macroAvailable=true;callJev=mockJev;');
+   const result=await f.run('runJudge({force:true})');
+   assert.ok(result,scenario.name+' completes');
+   outcomes.push({judgment:normalize(result),chat:normalize(f.run('record()')),requests,prompts});
+  }
+  assert.deepEqual(unchanged(outcomes[0]),unchanged(expected),scenario.name+': same Jev input, judgment, persistent state and host prompt registrations');
+
+ }
+} finally {globalThis.Date=OriginalDate;Math.random=originalRandom;}
+console.log('Hub parity passed: unchanged normal, advanced, paused and macro contracts match upstream 0.26.2; new draw identity, sampling and diagnostics are tested separately.');

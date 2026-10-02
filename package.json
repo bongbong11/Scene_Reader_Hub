@@ -1,0 +1,13 @@
+{
+  "name": "sillytavern-scene-reader-hub",
+  "version": "0.1.3",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:parity": "node tests/hub-parity.mjs",
+    "test:hub": "node tests/hub-runtime.mjs"
+  }
+}
