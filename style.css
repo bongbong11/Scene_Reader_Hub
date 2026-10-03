@@ -450,8 +450,8 @@
 
 /* Embedding maintenance is a labeled action, separate from judgment and settings. */
 #scene-reader-dialog .sr-header { flex-wrap: wrap; }
-#scene-reader-dialog .sr-header-actions { align-items: center; flex-wrap: wrap; }
-#scene-reader-dialog .sr-embedding-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 7px 11px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 10px; background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor); font: inherit; font-size: .83rem; cursor: pointer; }
+#scene-reader-dialog .sr-header-actions { align-items: center; flex-wrap: nowrap; margin-inline-start: auto; justify-content: flex-end; max-width: 100%; }
+#scene-reader-dialog .sr-embedding-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 7px 11px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 10px; background: var(--SmartThemeBlurTintColor); color: var(--SmartThemeBodyColor); font: inherit; font-size: .83rem; cursor: pointer; }
 #scene-reader-dialog .sr-embedding-button:hover { border-color: currentColor; }
 #scene-reader-dialog .sr-embedding-button:disabled { opacity: .65; cursor: progress; }
 #scene-reader-dialog .sr-embedding-button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

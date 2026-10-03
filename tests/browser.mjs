@@ -72,7 +72,7 @@ const server=http.createServer(async(req,res)=>{try{
     if(req.url==='/scripts/extensions.js'){res.setHeader('Content-Type','application/javascript');res.end('export const extension_settings={};');return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','application/javascript');res.end("export const world_info={charLore:[{name:'Hunter',extraBooks:['Hunter Extra']}]};export async function loadWorldInfo(name){if(window.mock.loreReady)await window.mock.loreReady;return window.mock.worldBooks[name]||null}");return;}
     if(req.url==='/scripts/personas.js'){res.setHeader('Content-Type','application/javascript');res.end("export const user_avatar='User.png'");return;}
-    if(req.url==='/scripts/extensions/shared.js'){res.setHeader('Content-Type','application/javascript');res.end(`export class ConnectionManagerRequestService {static getSupportedProfiles(){return [{id:'test-profile',name:'테스트 연결',model:'mock-model'}]} static getProfile(){return this.getSupportedProfiles()[0]} static validateProfile(){} static async sendRequest(_id,messages,maxTokens,options){const prompt=messages?.[0]?.content||'';if(prompt.startsWith('Read the finished RP reply')){window.mock.profileStateRequests ||= [];return new Promise(resolve=>window.mock.profileStateRequests.push({messages,maxTokens,options,resolve}));}if(prompt.startsWith('You are a source-grounded character retrieval compiler.')) { const name=prompt.split('ENTITY_NAME: ')[1].split('\\n')[0]; return {content:JSON.stringify({entity_type:'npc',entity_name:name,records:[{type:'knowledge',target:'',when:['office procedure'],rule:name+' knows office procedures.',modality:'fact',basis:'explicit',source_ids:['S001'],knowledge_domain:'professional',knowledge_state:'knows'},{type:'relationship',target:'Hunter',when:['interests change'],rule:name+' may help or oppose Hunter when her own interests change.',modality:'conditional',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}]})}; } if(prompt.startsWith('Read the supplied world prompt as source data.'))return {content:JSON.stringify({short_description:'A quiet garden world with ordinary physical limits.'})};if(prompt.startsWith('You are compiling a roleplay world prompt'))return {content:JSON.stringify({format:'scene-reader-world',version:1,name:'Moonlit Garden',short_description:'A garden whose gate responds to moonlight.',fixed_rules:'The garden remains an ordinary place except for its moonlit gate.',franchise:false,calendar_topics:[],records:[{id:'W001',category:'mechanism',when:'When moonlight reaches the gate.',keywords:['moonlight','gate'],rule:'Moonlight opens the garden gate.',source_quote:'Moonlight opens the garden gate.'}]})};if(prompt.startsWith('Find named individual NPCs'))return {content:'\`\`\`json\\n'+JSON.stringify({npcs:[{name:'Sawyer Valentine',aliases:['Sawyer'],hint:'Hunter colleague'}]})+'\\n\`\`\`'};if(prompt.startsWith('Extract only the confirmed minimum identity'))return {content:JSON.stringify({core:'An established colleague of Hunter.'})};return {content:JSON.stringify({ok:true,anchors:[],new_items:[],affected:[],knowledge_updates:[],possible_followups:[]})}}}`);return;}
+    if(req.url==='/scripts/extensions/shared.js'){res.setHeader('Content-Type','application/javascript');res.end(`export class ConnectionManagerRequestService {static getSupportedProfiles(){return [{id:'test-profile',name:'테스트 연결',model:'mock-model'}]} static getProfile(){return this.getSupportedProfiles()[0]} static validateProfile(){} static async sendRequest(_id,messages,maxTokens,options){window.mock.profileRequestCount=(window.mock.profileRequestCount||0)+1;const prompt=messages?.[0]?.content||'';if(prompt.startsWith('Read the finished RP reply')){window.mock.profileStateRequests ||= [];return new Promise(resolve=>window.mock.profileStateRequests.push({messages,maxTokens,options,resolve}));}if(prompt.startsWith('You are a source-grounded character retrieval compiler.')) { const name=prompt.split('ENTITY_NAME: ')[1].split('\\n')[0]; return {content:JSON.stringify({entity_type:'npc',entity_name:name,records:[{type:'knowledge',target:'',when:['office procedure'],rule:name+' knows office procedures.',modality:'fact',basis:'explicit',source_ids:['S001'],knowledge_domain:'professional',knowledge_state:'knows'},{type:'relationship',target:'Hunter',when:['interests change'],rule:name+' may help or oppose Hunter when her own interests change.',modality:'conditional',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}]})}; } if(prompt.startsWith('Read the supplied world prompt as source data.'))return {content:JSON.stringify({short_description:'A quiet garden world with ordinary physical limits.'})};if(prompt.startsWith('You are compiling a roleplay world prompt'))return {content:JSON.stringify({format:'scene-reader-world',version:1,name:'Moonlit Garden',short_description:'A garden whose gate responds to moonlight.',fixed_rules:'The garden remains an ordinary place except for its moonlit gate.',franchise:false,calendar_topics:[],records:[{id:'W001',category:'mechanism',when:'When moonlight reaches the gate.',keywords:['moonlight','gate'],rule:'Moonlight opens the garden gate.',source_quote:'Moonlight opens the garden gate.'}]})};if(prompt.startsWith('Find named individual NPCs'))return {content:'\`\`\`json\\n'+JSON.stringify({npcs:[{name:'Sawyer Valentine',aliases:['Sawyer'],hint:'Hunter colleague'}]})+'\\n\`\`\`'};if(prompt.startsWith('Extract only the confirmed minimum identity'))return {content:JSON.stringify({core:'An established colleague of Hunter.'})};return {content:JSON.stringify({ok:true,anchors:[],new_items:[],affected:[],knowledge_updates:[],possible_followups:[]})}}}`);return;}
     if(req.url.startsWith('/api/vector/')||req.url.startsWith('/api/secrets/')){
         let raw='';for await(const part of req)raw+=part;const body=raw?JSON.parse(raw):{};
         res.setHeader('Content-Type','application/json');
@@ -124,6 +124,30 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#scene-reader-quick-button').waitFor();
     await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
+    const inferenceRequests=()=>requests.filter(item=>/systemone|\/api\/vector\/|chat-completions\/generate/.test(item.url)).length;
+    assert.equal(inferenceRequests(),0,'startup performs no inference or embedding');
+    assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
+    await page.locator('#scene-reader-quick-button').click();
+    for(const width of [320,390,600,1280]) {
+        await setViewportSize({width,height:850});
+        const layout=await page.locator('.sr-header-actions').evaluate(node=>{
+            const box=node.getBoundingClientRect(),header=node.parentElement.getBoundingClientRect();
+            const buttons=[...node.querySelectorAll('button')].map(button=>{const r=button.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,width:r.width,height:r.height};});
+            return {right:box.right,headerRight:header.right,scroll:node.scrollWidth,client:node.clientWidth,buttons};
+        });
+        assert.ok(layout.headerRight-layout.right<18,'header actions stay right aligned at '+width);
+        assert.ok(layout.scroll<=layout.client+1,'header actions fit at '+width);
+        assert.ok(layout.buttons.every(button=>Math.abs(button.top-layout.buttons[0].top)<2),'header buttons stay on one row at '+width);
+        assert.ok(layout.buttons.every(button=>button.width>=44 && button.height>=44),'touch targets remain usable at '+width);
+        if(width===390){await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot({path:path.join(root,'artifacts','mobile-header.png')});}
+    }
+    await page.locator('#sr-settings-button').click();
+    await page.locator('#sr-close').click();
+    await page.reload();
+    await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
+    assert.equal(inferenceRequests(),0,'opening settings and refreshing perform no inference or embedding');
+    assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
+    await setViewportSize({width:1280,height:850});
     const slashStatus=await page.evaluate(async()=>JSON.parse(await mock.slashCommands['srh-status'].callback({},'')));
     assert.equal(slashStatus.enabled,true);
     assert.equal(slashStatus.chatReady,true);
@@ -867,6 +891,20 @@ try{
     await page.evaluate(()=>mock.profileStateRequests[3].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:90}]})}));
     await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.deepEqual(store.chat.characterStateEvents,[],'reset cannot be undone by a late background response');
+    // Stop during a real automatic preparation waiting for the previous collector.
+    await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter checks the window.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
+    const stoppedRequestCount=await page.evaluate(()=>mock.profileStateRequests.length);
+    const beforeStopJev=requests.filter(request=>request.url.endsWith('/systemone')).length;
+    await page.evaluate(()=>{mock.waitingGeneration=mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
+    await page.evaluate(async()=>{await mock.emit('GENERATION_STOPPED');await mock.waitingGeneration;});
+    assert.equal(await page.evaluate(()=>mock.profileStateRequests.at(-1).options.signal.aborted),true,'host stop aborts the auxiliary model request');
+    await page.evaluate(()=>mock.profileStateRequests.at(-1).resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:99}]})}));
+    assert.equal(requests.filter(request=>request.url.endsWith('/systemone')).length,beforeStopJev,'stopped preparation never starts Jev after the old collector settles');
+    assert.ok(!store.chat.characterStateEvents.some(event=>event.states.some(state=>state.values?.anger===99)),'late stopped collection cannot save');
+    await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);mock.chat.push({is_user:false,mes:'Hunter sits beside the window.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
+    assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),stoppedRequestCount+1,'next intentional generation can collect normally');
+    await page.evaluate(()=>{const request=mock.profileStateRequests.at(-1),people=JSON.parse(request.messages[1].content).people;request.resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,anger:0,joy:0,fear:0,sadness:0,...(person.trackArousal?{a:0,c:90}:{})}))})});});
+    await page.waitForFunction(()=>!document.querySelector('#sr-emotion-now').disabled);
     await page.locator('[data-sr-tab="characters"]').click();
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').uncheck()]);
     assert.equal(await page.locator('#sr-emotion-now').isVisible(),true,'manual recovery remains available in main-output mode');

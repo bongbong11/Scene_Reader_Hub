@@ -48,7 +48,7 @@ async function init() {
     }
     if (deps.event_types.GENERATION_STOPPED) deps.eventSource.on(deps.event_types.GENERATION_STOPPED, () => {
         deps.resetPresetRequest?.();
-        if(deps.hub)deps.hub.invalidate('generation_stopped');else deps.jobs.invalidate();
+        deps.invalidateReasonerJobs({reason:'generation_stopped'});
         deps.updateActivity('생성이 중단되어 판독을 정리했습니다.', {done:true});
         const wasDebug = deps.activeGenerationCycle?.mode === 'ooc_debug';
         deps.pendingGenerationType = '';

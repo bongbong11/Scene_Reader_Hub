@@ -52,6 +52,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             request: deps.requestWithConnectionProfile, service: deps.connectionRequestService,
             profileId, output: text, roster, context, signal:controller.signal,
         });
+        if(controller.signal.aborted)return;
         await deps.waitForOutputChanges();
         if (!deps.pendingProfileStateRequests.has(requestId) || chatKey !== deps.stateChatKey() || !deps.settings.enabled || !deps.characterStore.enabled || (!missingOnly && deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') || deps.settings.reasonerProfileId !== profileId) return;
         const rec = deps.record();

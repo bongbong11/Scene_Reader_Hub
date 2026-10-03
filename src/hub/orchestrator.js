@@ -1,6 +1,7 @@
 import { createEventJournal } from '../debug/events.js';
 import { withDeadline } from '../lifecycle/watchdog.js';
 import { createCommandBus } from './commands.js';
+import { withRequestLifetime } from '../adapters/request-lifetime.js';
 
 // Domain modules choose values. Hub owns run identity, sequencing and completion.
 export function createHub({jobs,getIdentity,StaleRunError,journal=createEventJournal(),now=()=>Date.now()}={}) {
@@ -20,7 +21,7 @@ export function createHub({jobs,getIdentity,StaleRunError,journal=createEventJou
         if(active?.run===run)setState({stage:name,status:'running'});
         event(name,'STAGE_STARTED',{status:'started',module},run);
         try {
-            const result=await withDeadline(task,{stage:name,timeoutMs,abort:error=>{run.timeout=error;run.controller.abort(error);}});
+            const result=await withDeadline(task,{stage:name,timeoutMs,signal:run.controller.signal,abort:error=>{run.timeout=error;run.controller.abort(error);}});
             run.assert();
             event(name,'STAGE_FINISHED',{status:'succeeded',module,durationMs:now()-start},run);
             return result;
@@ -56,8 +57,13 @@ export function createHub({jobs,getIdentity,StaleRunError,journal=createEventJou
         if(preparation?.key===identity.key&&preparation.identity===getIdentity()&&(!preparation.settled||identity.trigger==='interceptor')){
             event('trigger','PREPARATION_JOINED',{trigger:identity.trigger});return preparation.promise;
         }
+        const scope=jobs.begin('generation-preparation');
         const entry={key:identity.key,identity:getIdentity(),request:identity.request,trigger:identity.trigger};
-        entry.promise=Promise.resolve().then(task).catch(error=>{if(preparation===entry)preparation=null;throw error;}).finally(()=>{entry.settled=true;});
+        entry.promise=withRequestLifetime(()=>{scope.assert();return task(scope);},{signal:scope.controller.signal}).catch(error=>{
+            if(preparation===entry)preparation=null;
+            if(!scope.valid()){event('trigger','PREPARATION_CANCELLED',{status:'cancelled'});return null;}
+            throw error;
+        }).finally(()=>{entry.settled=true;scope.finish();});
         preparation=entry;
         event('trigger','PREPARATION_STARTED',{trigger:identity.trigger});
         return entry.promise;

@@ -57,6 +57,7 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
                     },
                     existing_state_refs: { event: rec.eventProfile ? { id: 'event:current', title: rec.eventProfile.title } : null, relationship: rec.relationshipState ? { id: 'relationship:current', ...rec.relationshipState } : null },
             },{signal:controller.signal});
+            if (controller.signal.aborted) return;
             // A late auxiliary result must not race the detached scene transaction.
             if (deps.judgeInFlight) await deps.judgeCompletionPromise;
             const current = deps.record(true);
@@ -78,7 +79,13 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
             catch (storageError) { console.error('[씬판독기] Reasoner 실패 상태 저장 오류', storageError); }
         } finally { if (deps.reasonerJobs.get(chatKey) === job) deps.reasonerJobs.delete(chatKey); }
     })();
-    job.cancel=()=>controller.abort();
+    job.cancel=()=>{
+        controller.abort();
+        // Restore only this request's marker so a later intentional run can retry.
+        if(rec.lastReasonerSource===identity)rec.lastReasonerSource=previousSource;
+        if(rec.lastContinuityTrace?.sourceIdentity===identity && rec.lastContinuityTrace.status==='analyzing')
+            rec.lastContinuityTrace={...rec.lastContinuityTrace,status:'cancelled'};
+    };
     deps.reasonerJobs.set(chatKey, job);
 }
 

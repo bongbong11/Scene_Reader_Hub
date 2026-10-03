@@ -4,6 +4,7 @@ async function generationBoundary(task) {
     const chatKey=deps.stateChatKey();
     try { return await task(); }
     catch(error) {
+        if(error instanceof deps.StaleRunError || error?.name==='AbortError')return;
         if (chatKey!==deps.stateChatKey()) return;
         deps.generationMode='error';
         deps.activeGenerationCycle={mode:'error',chatKey,inputKey:'',startedAt:new Date().toISOString()};
@@ -37,7 +38,8 @@ async function onLorebookUpdated(name, data) {
     deps.renderAll();
 }
 
-async function prepareGeneration(type, data, dryRun) {
+async function prepareGeneration(type, data, dryRun, preparation) {
+    preparation?.assert();
     if (dryRun || data?.quiet_prompt || type === 'quiet') return;
     const startedChatKey = deps.stateChatKey();
     if(deps.isEmbeddingBusy?.()) {
@@ -48,7 +50,9 @@ async function prepareGeneration(type, data, dryRun) {
         return;
     }
     await deps.reconcileInjection();
+    preparation?.assert();
     await deps.waitForOutputChanges();
+    preparation?.assert();
     if (startedChatKey !== deps.stateChatKey()) return;
     if (deps.chatReadyKey !== null && deps.chatReadyKey !== startedChatKey) {
         await deps.clearInjection();
@@ -90,7 +94,7 @@ async function prepareGeneration(type, data, dryRun) {
         }
         deps.generationMode = 'ooc_debug';
         deps.activeGenerationCycle = { mode: 'ooc_debug', inputKey: generationInputKey, startedAt: new Date().toISOString() };
-        await deps.applyStoredInjection({ exactSnapshot: true });
+        await deps.applyStoredInjection({ exactSnapshot: true, validate:()=>preparation?.assert() });
         deps.updateStatus('검사용 OOC · 직전 주입문을 이번 응답에만 유지');
         deps.updateActivity('검사용 OOC · 직전 씬판독기 주입문을 한 번 유지합니다.', { done: true });
         return;
@@ -106,18 +110,21 @@ async function prepareGeneration(type, data, dryRun) {
     deps.generationMode = 'rp';
     deps.activeGenerationCycle = { mode: 'rp', chatKey: deps.stateChatKey(), inputKey: generationInputKey, startedAt: new Date().toISOString() };
     await deps.waitForProfileState();
+    preparation?.assert();
     if (startedChatKey !== deps.stateChatKey() || deps.currentInputKey(pendingUserText,cycleSalt)!==generationInputKey) return;
     if (!deps.settings.autoJudge) {
         const rec = deps.record();
         if (cachedJudgmentMatches(rec, context, generationInputKey)) {
             try {
                 const receipt=await deps.applyStoredInjection({validate:()=>{
+                    preparation?.assert();
                     if(startedChatKey!==deps.stateChatKey() || deps.currentInputKey(pendingUserText,cycleSalt)!==generationInputKey
                         || !cachedJudgmentMatches(deps.record(),deps.recentContext(pendingUserText),generationInputKey))throw new deps.StaleRunError();
                 }});
                 deps.updateStatus(receipt.sourceCurrent&&receipt.payloadChars?'수동 판독 결과 적용':'현재 입력에 적용할 판독 결과 없음');
             } catch(error) {
                 if(!(error instanceof deps.StaleRunError))throw error;
+                if(preparation && !preparation.valid())return;
                 await deps.clearInjection();
                 deps.updateStatus('수동 판독 결과가 바뀌어 이번 주입을 건너뜁니다.');
             }
@@ -130,6 +137,7 @@ async function prepareGeneration(type, data, dryRun) {
     if (['swipe', 'regenerate'].includes(deps.pendingGenerationType) && cachedJudgmentMatches(deps.record(), context, generationInputKey, true)) {
         try {
             const receipt=await deps.applyStoredInjection({validate:()=>{
+                preparation?.assert();
                 if(startedChatKey!==deps.stateChatKey() || deps.currentInputKey(pendingUserText,cycleSalt)!==generationInputKey
                     || !cachedJudgmentMatches(deps.record(),deps.recentContext(pendingUserText),generationInputKey,true))throw new deps.StaleRunError();
             }});
@@ -139,6 +147,7 @@ async function prepareGeneration(type, data, dryRun) {
             return;
         } catch(error) {
             if(!(error instanceof deps.StaleRunError))throw error;
+            if(preparation && !preparation.valid())return;
             deps.updateActivity('기존 판정이 바뀌어 현재 입력을 다시 판독합니다.');
         }
     }
@@ -146,6 +155,7 @@ async function prepareGeneration(type, data, dryRun) {
     const startingContextKey=context?.contextKey||'';
     try {
         let result=await deps.runJudge({ pendingUserText, cycleSalt });
+        preparation?.assert();
         if (!result && deps.settings.enabled && deps.settings.autoJudge && startedChatKey===deps.stateChatKey()
             && deps.activeGenerationCycle?.inputKey===generationInputKey
             && deps.currentInputKey(pendingUserText,cycleSalt)===generationInputKey) {
@@ -155,6 +165,7 @@ async function prepareGeneration(type, data, dryRun) {
             if(changed) {
                 deps.updateActivity('판독 중 기록이 바뀌어 현재 상태로 한 번 다시 판독합니다.');
                 result=await deps.runJudge({ pendingUserText, cycleSalt });
+                preparation?.assert();
             }
             if(!result && !cachedJudgmentMatches(deps.record(),deps.recentContext(pendingUserText),generationInputKey)) {
                 await deps.clearInjection();
@@ -163,6 +174,7 @@ async function prepareGeneration(type, data, dryRun) {
         }
     }
     catch (error) {
+        if(preparation && !preparation.valid())return;
         console.error('[씬판독기] 자동 판독 실패', error);
         if (!error.activityReported) deps.updateActivity(`자동 판독 실패 · ${error.message}`, { error: true });
     }
@@ -205,8 +217,9 @@ async function prepareBeforeGeneration(type,data={},dryRun=false,trigger='after_
     const cycleSalt=deps.generationCycleSalt(deps.getContext().chat,type,data);
     const request={type,data,dryRun,pendingUserText,cycleSalt,inputKey:deps.currentInputKey(pendingUserText,cycleSalt),contextKey:deps.recentContext(pendingUserText).contextKey,sourceKey:deps.sourceRevisionKey(deps.record(),deps.selectedWorld())};
     const key=deps.stableFingerprint({chat:deps.stateChatKey(),inputKey:request.inputKey,contextKey:request.contextKey,sourceKey:request.sourceKey,type});
-    return deps.hub.ensurePrepared({key,trigger,request},async()=>{
-        const result=await prepareGeneration(type,data,dryRun);
+    return deps.hub.ensurePrepared({key,trigger,request},async preparation=>{
+        const result=await prepareGeneration(type,data,dryRun,preparation);
+        preparation.assert();
         request.sourceKey=deps.sourceRevisionKey(deps.record(),deps.selectedWorld());
         return result;
     });
@@ -220,12 +233,13 @@ async function prepareFallbackUnsafe(type='normal') {
         &&deps.sourceRevisionKey(deps.record(),deps.selectedWorld())===prior.sourceKey;
     if(matches()) {
         await deps.hub.waitPrepared();
+        if(deps.hub.pendingRequest()!==prior)return;
         if(!matches())return onBeforeGeneration(type,{},false,'interceptor');
         // Another extension may clear host slots between the two host hooks.
         // Only restore a snapshot that this preparation actually activated.
         if(deps.activeGenerationCycle?.injection?.payload) {
             try {
-                await deps.applyStoredInjection({exactSnapshot:deps.generationMode==='ooc_debug',validate:()=>{if(!matches())throw new deps.StaleRunError();}});
+                await deps.applyStoredInjection({exactSnapshot:deps.generationMode==='ooc_debug',validate:()=>{if(deps.hub.pendingRequest()!==prior || !matches())throw new deps.StaleRunError();}});
             } catch(error) {
                 if(!(error instanceof deps.StaleRunError))deps.updateActivity('주입문 등록 실패 · '+error.message,{error:true});
                 deps.hub.report('injection.register','PROMPT_REGISTRATION_FAILED',{error:String(error.message||error)});
