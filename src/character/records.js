@@ -1,6 +1,7 @@
 import { CORE_SHA256 } from "../vendor/character-reasoner/version.js";
 import { stableFingerprint } from "../decision/policy.js";
-import { API_VERSION, RECORD_VERSION, COMPILER_VERSION, buildSources, promptText, compileResult, hardValidateRecords, validateImport } from "../vendor/character-reasoner/index.js";
+import { singleCharacterCompilerPrompt } from './compiler-prompt.js';
+import { API_VERSION, RECORD_VERSION, COMPILER_VERSION, buildSources, compileResult, hardValidateRecords, validateImport } from "../vendor/character-reasoner/index.js";
 const PREVIOUS_CORE_SHA256 = 'cba337f701c7760b1414e394bb27c24c65ec23e0267197d2b4d8f68b21c35c11';
 const PRIOR_NPC_GUIDANCE_SHA256 = '188587338d3f4cad54d8e6f217418d13b437b18b0ddaaa3ca6d60ee724685783';
 const PRIOR_RELEASE_CORE_SHA256 = 'a47ce2f4e7c738b1095044067ff9a33661f2ee5235b00a2fd77891a8d1fbedd6';
@@ -13,8 +14,7 @@ export function sourceSnapshot(entry) {
 export function recordSourceFingerprint(entry) { return stableFingerprint(sourceSnapshot(entry)); }
 export function compilerRequest(entry) {
     const draft = sourceSnapshot(entry);
-    if (!draft.sources.length) throw new Error('시트 또는 선택한 로어북 원문이 필요합니다.');
-    return { draft, prompt:promptText(draft) };
+    return { draft, prompt:singleCharacterCompilerPrompt(draft) };
 }
 export function createRecordBank(input, entry, analysisId) {
     const draft = sourceSnapshot(entry);

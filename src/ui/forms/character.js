@@ -1,4 +1,5 @@
 import { setCharacterImportMode, characterImportMode } from "../character-import-mode.js";
+import { characterCopyNotice } from '../compiler-copy.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { characterErrorReport } from "../character-error.js";
 import { compilerRequest, createRecordBank } from "../../character/records.js";
@@ -145,6 +146,7 @@ function renderEditorLore(message='') {
         }
     }
     if(node)node.textContent=message || (books.length ? `연결 로어북 ${books.length}개 · 책을 펼쳐 필요한 엔트리만 고르세요.` : '연결된 로어북 없음');
+    characterCopyNotice(deps.document,deps.editorLore);
 }
 
 async function refreshEditorLore() {

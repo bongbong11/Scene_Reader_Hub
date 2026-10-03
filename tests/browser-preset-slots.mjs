@@ -1,0 +1,41 @@
+import assert from 'node:assert/strict';
+
+export async function checkPresetSlots(page,store,requests) {
+    await page.locator('[data-sr-tab="flow"]').click();
+    await page.locator('#sr-injection-mode').evaluate(element=>element.closest('details').open=true);
+    if(!await page.locator('#sr-injection-mode').isVisible())await page.locator('#sr-settings-button').click();
+    const presetBefore=await page.evaluate(()=>JSON.stringify(mock.presetSettings)),saved=JSON.stringify(store.characters);
+    await page.locator('#sr-injection-mode').selectOption('preset');
+    await page.locator('#sr-scene-slot-target').selectOption('main');
+    await page.locator('#sr-scene-slot-side').selectOption('before');
+    await page.waitForFunction(()=>document.getElementById('sr-scene-slot-side').value==='before');
+    await page.locator('#sr-world-injection-mode').selectOption('preset');
+    await page.locator('#sr-world-slot-target').selectOption('world-anchor');
+    await page.locator('#sr-world-slot-side').selectOption('after');
+    await page.waitForFunction(()=>document.getElementById('sr-world-slot-target').value==='world-anchor');
+    const body=await page.evaluate(()=>mock.outbound());
+    const full=body.messages.map(m=>m.content).join('\n');
+    assert.ok(full.indexOf('data-kind="scene"')<full.indexOf('Rules for User.'),'scene block is before the selected prompt');
+    assert.equal(full.split('data-kind="scene"').length-1,1);
+    assert.equal(await page.evaluate(()=>mock.macros['scene-reader']()),'');
+    assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-router']),'');
+    assert.ok((await page.locator('#sr-hub-run-trace').textContent()).includes('프리셋 위치 주입'));
+    const before=requests.filter(r=>r.url.endsWith('/systemone')).length;
+    await page.locator('#sr-clean-legacy-injection').click();
+    await page.waitForFunction(()=>document.querySelector('.sr-toast-message') && [...document.querySelectorAll('.sr-toast-message')].some(n=>n.textContent.includes('이전 임시 주입을 정리')));
+    assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length,before,'cleanup does not perform another judgment');
+    assert.equal(JSON.stringify(store.characters),saved,'cleanup never erases actor storage');
+    assert.equal(await page.evaluate(()=>JSON.stringify(mock.presetSettings)),presetBefore,'settings and cleanup never modify the preset');
+    await page.evaluate(()=>mock.presetSettings.prompt_order[0].order[0].enabled=false);
+    await page.locator('#sr-preset-slots-refresh').click();
+    assert.match(await page.locator('#sr-scene-slot-target option:checked').textContent(),/꺼짐/);
+    const missing=await page.evaluate(()=>mock.outbound());
+    assert.ok(!missing.messages.some(m=>m.content.includes('data-kind="scene"')),'disabled target does not silently fall back');
+    assert.ok(await page.evaluate(()=>SceneReaderHub.diagnostics().events.some(e=>e.code==='PRESET_SLOT_RESULT' && e.reason==='prompt_disabled')));
+    await page.evaluate(()=>mock.presetSettings.prompt_order[0].order[0].enabled=true);
+    await page.locator('#sr-preset-slots-refresh').click();
+    await page.locator('#sr-scene-slot-side').selectOption('after');
+    await page.locator('#sr-world-injection-mode').selectOption('depth');
+    if(await page.locator('#sr-settings-button').isVisible())await page.locator('#sr-settings-button').click();
+    console.log('Browser preset slots passed: saved selectors, exact front/back, blank legacy macro, no double registration, visible per-stage reasons, disabled target stop, and cleanup preserving source presets and character storage.');
+}

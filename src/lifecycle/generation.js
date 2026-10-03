@@ -114,7 +114,7 @@ async function prepareGeneration(type, data, dryRun) {
             }});
             if(!receipt.sourceCurrent || !receipt.payloadChars)throw new deps.StaleRunError();
             deps.updateStatus('리롤·재생성 · 기존 판정과 추첨 재사용');
-            deps.updateActivity(receipt.macroMode||receipt.worldMacroMode?'기존 판정 재사용 · 매크로용 주입문 준비':'기존 판정 재사용 · 주입문 준비', { done: true });
+            deps.updateActivity(receipt.scenePreset||receipt.worldPreset?'기존 판정 재사용 · 프리셋 주입문 준비':'기존 판정 재사용 · 주입문 준비', { done: true });
             return;
         } catch(error) {
             if(!(error instanceof deps.StaleRunError))throw error;

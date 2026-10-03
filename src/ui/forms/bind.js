@@ -1,15 +1,22 @@
 import {buildTurnReport} from '../../debug/turn-report.js';
+import { bindPresetSlots } from '../preset-slots.js';
 import { bindJevSettings } from '../jev-settings.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
 import { debugReportText } from "../../debug/report.js";
 import { bindCharacterTransfer } from "../character-transfer.js";
 import { openPersonPreview } from "../person-preview.js";
-import { WORLD_COMPILER_PROMPT, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from "../../world/advanced.js";
+import { worldCompilerPrompt, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from "../../world/advanced.js";
+import { characterCopyNotice, worldCopyNotice } from '../compiler-copy.js';
 import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
 
 export function createFormBindings(deps) {
 function bindForm() {
+    bindPresetSlots(deps);
+    const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());
+    for(const id of ['sr-world-edit-name','sr-world-edit-prompt','sr-world-advanced-json'])deps.document.getElementById(id)?.addEventListener('input',updateWorldCopy);
+    deps.document.getElementById('sr-world-profile')?.addEventListener('change',updateWorldCopy);
+    deps.document.getElementById('sr-world-advanced')?.addEventListener('toggle',updateWorldCopy);
     deps.document.querySelector('.sr-retrieval-panel')?.addEventListener('toggle',event=>{if(event.target.open)void deps.retrievalSecretState();});
     deps.document.getElementById('sr-retrieval-provider')?.addEventListener('change',event=>deps.runUiTask((async()=>{
         const provider=event.target.value;
@@ -302,16 +309,6 @@ function bindForm() {
             notifySceneReaderToast(deps.window, 'success', `연결 성공 · ${result.profile.model}`, '씬판독기');
         } finally { deps.renderReasonerProfiles(); }
     })(), 'Reasoner 연결 확인에 실패했습니다.'));
-    deps.document.getElementById('sr-copy-macro')?.addEventListener('click', async () => {
-        try {
-            await deps.copyText('{{scene-reader}}');
-            notifySceneReaderToast(deps.window, 'success', '씬판독기 매크로를 복사했습니다.', '씬판독기');
-        } catch { notifySceneReaderToast(deps.window, 'error', '매크로를 복사하지 못했습니다.', '씬판독기'); }
-    });
-    deps.document.getElementById('sr-copy-world-macro')?.addEventListener('click', async () => {
-        try { await deps.copyText('{{scene-reader-world}}'); notifySceneReaderToast(deps.window, 'success', '세계관 매크로를 복사했습니다.', '씬판독기'); }
-        catch { notifySceneReaderToast(deps.window, 'error', '매크로를 복사하지 못했습니다.', '씬판독기'); }
-    });
     deps.dialog.addEventListener('click', (event) => {
         if (event.target.closest('#sr-end-active-event')) { deps.runUiTask(deps.endActiveEvent(), '사건을 종료하지 못했습니다.'); return; }
         const item = event.target.closest('.sr-world-item');
@@ -361,8 +358,9 @@ function bindForm() {
         notifySceneReaderToast(deps.window, 'success', '커스텀 세계관을 저장했습니다.', '씬판독기');
     }), '커스텀 세계관을 저장하지 못했습니다.'));
     deps.document.getElementById('sr-world-advanced-copy')?.addEventListener('click', () => deps.runUiTask((async () => {
-        await deps.copyText(WORLD_COMPILER_PROMPT);
-        notifySceneReaderToast(deps.window, 'success', '분석 명령문을 복사했습니다. 뒤에 세계관 원문을 붙여 주세요.', '씬판독기');
+        const {source}=updateWorldCopy();
+        await deps.copyText(worldCompilerPrompt(source));
+        notifySceneReaderToast(deps.window, 'success', source?'선택한 세계관 원문을 포함해 분석 명령문을 복사했습니다.':'기본 분석 명령문만 복사했습니다. 사용할 세계관 원문을 함께 넣어 주세요.', '씬판독기');
     })(), '분석 명령문을 복사하지 못했습니다.'));
     deps.document.getElementById('sr-world-advanced-file')?.addEventListener('change', event => deps.runUiTask(deps.worldTask(async () => {
         const file = event.target.files?.[0];
@@ -538,6 +536,7 @@ function bindForm() {
     deps.document.getElementById('sr-character-lore-options')?.addEventListener('change',()=>{
         const checked=new Set([...deps.document.querySelectorAll('#sr-character-lore-options input:checked')].map(input=>input.value));
         deps.editorLore=deps.availableEditorLore.filter(item=>checked.has(deps.loreKey(item)));
+        characterCopyNotice(deps.document,deps.editorLore);
         deps.initialEditorLoreKeys=checked;
         deps.document.getElementById('sr-character-lore-count').textContent=`${checked.size}개 엔트리 선택됨`;
         for(const group of deps.document.querySelectorAll('#sr-character-lore-options .sr-character-lore-book')) {

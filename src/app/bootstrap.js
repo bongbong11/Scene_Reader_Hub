@@ -24,6 +24,7 @@ import { createRuntimeState } from '../hub/state.js';
 import { createHub } from '../hub/orchestrator.js';
 import { installGenerationInterceptor } from '../adapters/generation-interceptor.js';
 import { createPromptObserver } from '../injection/receipt.js';
+import { createPresetRequest } from '../injection/preset-request.js';
 import { createTraceView } from '../ui/trace.js';
 import { notifySceneReaderToast, updateSceneReaderToast } from '../ui/toasts.js';
 import { MASCOT_ICON_URL } from '../ui/mascot.js';
@@ -326,11 +327,17 @@ const promptObserver=createPromptObserver({
     report:(...args)=>hub.report(...args),
     updateActivity:(...args)=>updateActivity(...args),updateStatus:(...args)=>updateStatus(...args),
 });
+const presetRequest=createPresetRequest({
+    window,getContext,getCycle:()=>runtime.activeGenerationCycle,getChatKey:()=>stateChatKey(),isEnabled:()=>runtime.settings?.enabled,
+    report:(...args)=>hub.report(...args),verifyRequest:promptObserver.verifyRequest,
+});
 let {init} = createStartup({
     get hub() { return hub; },
-    observeGenerationStart:promptObserver.start,
-    observeFinalPrompt:promptObserver.observe,
-    observeBackendRequest:promptObserver.observeRequest,
+    initPresetRequest:presetRequest.init,
+    resetPresetRequest:presetRequest.reset,
+    observeGenerationStart:(...args)=>{presetRequest.start(...args);promptObserver.start(...args);},
+    observeFinalPrompt:(...args)=>{presetRequest.observeAssembly(...args);return promptObserver.observe(...args);},
+    observeBackendRequest:data=>presetRequest.observeRequest(data)?promptObserver.inspectPrepared(data):promptObserver.observeRequest(data),
     get DEFAULTS() { return DEFAULTS; },
     get MODULE() { return MODULE; },
     get PROMPT_MACRO() { return PROMPT_MACRO; },
@@ -764,6 +771,7 @@ let {sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalC
 
 
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
+    presetPrompts:presetRequest.prompts,
     get hub() { return hub; },
     collectCurrentEmotion,
     get vectorRetrieval() { return vectorRetrieval; },

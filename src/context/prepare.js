@@ -69,7 +69,7 @@ await deps.waitForOutputChanges?.();
         await deps.verifyAppliedJudgment(run, frame.rec.lastJudgment, frame.receipt);
         frame.assertCurrentSnapshot();
         deps.updateStatus('같은 입력 · 기존 판정과 추첨 재사용');
-        deps.updateActivity(frame.receipt.macroMode||frame.receipt.worldMacroMode?'기존 판정 재사용 · 매크로용 주입문 준비':'기존 판정 재사용 · 주입문 준비', { done: true });
+        deps.updateActivity(frame.receipt.scenePreset||frame.receipt.worldPreset?'기존 판정 재사용 · 프리셋 주입문 준비':'기존 판정 재사용 · 주입문 준비', { done: true });
         frame.done=true; frame.result=frame.rec.lastJudgment; return frame.result;
     }
     

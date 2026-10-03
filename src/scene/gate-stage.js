@@ -103,11 +103,11 @@ async function prepareGate(run,frame) {
         if(!frame.receipt?.applied || frame.receipt.inputKey!==frame.inputKey || frame.receipt.sourceKey!==frame.sourceKey)throw new deps.StaleRunError();
         await deps.verifyAppliedJudgment(run, frame.rec.lastJudgment, frame.receipt);
         frame.assertCurrentSnapshot();
-        deps.noteDiagnostic?.('injection_applied',{inputKey: frame.inputKey,payloadChars:frame.receipt.payloadChars,worldChars:frame.receipt.worldChars,macroMode:frame.receipt.macroMode,worldMacroMode:frame.receipt.worldMacroMode});
+        deps.noteDiagnostic?.('injection_applied',{inputKey: frame.inputKey,payloadChars:frame.receipt.payloadChars,worldChars:frame.receipt.worldChars,scenePreset:frame.receipt.scenePreset,worldPreset:frame.receipt.worldPreset});
         deps.renderAll();
         if(frame.sceneGate.transition==='entered')notifySceneReaderToast(deps.window, 'info', '잠깐 비켜드릴게요♡','앗, 둘만의 시간이네요!',{sceneState:'paused'});
         deps.updateStatus(frame.sceneGateError?'장면 확인 실패 · 기존 중단 상태 유지':'현재 장면 · 고정 지침 준비');
-        deps.updateActivity(frame.sceneGateError?'장면 확인 실패 · 기존 중단 상태를 유지하고 고정 지침만 적용했습니다.':frame.receipt.macroMode||frame.receipt.worldMacroMode?'현재 장면 · 고정 지침 준비·매크로 준비':'현재 장면 · 고정 지침과 저장된 인물 참고문 준비',frame.sceneGateError?{error:true}:{done:true});
+        deps.updateActivity(frame.sceneGateError?'장면 확인 실패 · 기존 중단 상태를 유지하고 고정 지침만 적용했습니다.':frame.receipt.scenePreset||frame.receipt.worldPreset?'현재 장면 · 고정 지침 준비·프리셋 주입 준비':'현재 장면 · 고정 지침과 저장된 인물 참고문 준비',frame.sceneGateError?{error:true}:{done:true});
         frame.done=true; frame.result=frame.rec.lastJudgment; return frame.result;
     }
     

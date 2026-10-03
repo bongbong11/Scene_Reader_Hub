@@ -1,4 +1,6 @@
 import { checkBundlesAndProviders } from './browser-bundles-providers.mjs';
+import { checkCompilerCopies } from './browser-compiler-copies.mjs';
+import { checkPresetSlots } from './browser-preset-slots.mjs';
 import { createRecordBank } from '../src/characters/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
@@ -26,9 +28,27 @@ let gateScenario=null;
 let worldChoice='no';
 const host=`<!doctype html><html><meta charset="utf-8"><style>:root{--SmartThemeBodyColor:#eee;--SmartThemeBlurTintColor:#25252b;--SmartThemeBorderColor:#666;--SmartThemeQuoteColor:#9cbfff}body{margin:0;background:#202025;color:var(--SmartThemeBodyColor);font:16px Arial}button,input,select,textarea{box-sizing:border-box;font:inherit}button{cursor:pointer}select,input,textarea{color:inherit;background:var(--SmartThemeBlurTintColor)}.menu_button{border:1px solid var(--SmartThemeBorderColor);border-radius:5px;padding:7px}.text_pole{width:100%;border:1px solid #666;padding:6px}.checkbox_label{display:flex;align-items:center;gap:6px}.checkbox_label input{width:auto}</style><link rel="stylesheet" href="${prefix}style.css"><div id="extensions_settings"></div><div id="extensionsMenu"></div><div id="leftSendForm"><button id="extensionsMenuButton">wand</button></div><textarea id="send_textarea"></textarea><script>
 const listeners=new Map(), prompts={},macros={};
-window.mock={chat:[],prompts,macros,errors:[],worldBooks:{'Hunter Lore':{entries:{1:{uid:1,key:['door'],content:'The council meets tomorrow.'},2:{uid:2,key:['unrelated'],content:'Not relevant.'}}},'Hunter Extra':{entries:{3:{uid:3,constant:true,content:'Hunter owns the house.'}}},'Persona Lore':{entries:{4:{uid:4,key:['friend'],content:'Rosa is a friend of the user persona.'}}},'Persona Specific':{entries:{5:{uid:5,key:['neighbor'],content:'Rosa knows the user persona as a neighbor.'}}}},async emit(name,...args){for(const fn of listeners.get(name)||[])await fn(...args)}};
+window.mock={chat:[],prompts,macros,errors:[],worldBooks:{'Hunter Lore':{entries:{1:{uid:1,key:['door'],content:'The council meets tomorrow.'},2:{uid:2,key:['unrelated'],content:'Not relevant.'}}},'Hunter Extra':{entries:{3:{uid:3,constant:true,content:'Hunter owns the house.'}}},'Persona Lore':{entries:{4:{uid:4,key:['friend'],content:'Rosa is a friend of the user persona.'}}},'Persona Specific':{entries:{5:{uid:5,key:['neighbor'],content:'Rosa knows the user persona as a neighbor.'}}}},async emit(name,...args){if(name==='GENERATION_AFTER_COMMANDS')await mock.emit('GENERATION_STARTED',...args);for(const fn of listeners.get(name)||[])await fn(...args)}};
 window.ctx={characterId:1,characters:[null,{avatar:'Hunter.png',data:{description:'Sawyer Valentine is Hunter’s colleague.',personality:'Hunter speaks carefully under pressure.',extensions:{world:'Hunter Lore'}}}],powerUserSettings:{persona_description_lorebook:'Persona Lore',persona_descriptions:{'User.png':{lorebook:'Persona Specific'}}},chatId:'test-room',name1:'User',name2:'Hunter',chat:mock.chat,extensionPrompts:prompts,saveMetadata:async()=>{},macros:{register(name,value){macros[name]=value.handler},category:{MISC:'misc'}}};
 mock.slashCommands={};ctx.SlashCommandParser={addCommandObject(command){mock.slashCommands[command.name]=command}};ctx.SlashCommand={fromProps:value=>value};ctx.SlashCommandArgument={fromProps:value=>value};ctx.ARGUMENT_TYPE={STRING:'string'};window.SillyTavern={getContext:()=>ctx};window.jQuery=fn=>fn();
+mock.presetSettings={prompts:[{identifier:'main',name:'Main rules',content:'Rules for {{user}}.',role:'system'},{identifier:'world-anchor',name:'World anchor',content:'World anchor rules.',role:'system'}],prompt_order:[{character_id:1,order:[{identifier:'main',enabled:true},{identifier:'world-anchor',enabled:true}]}]};
+mock.promptManager={serviceSettings:mock.presetSettings,activeCharacter:{id:1},getPromptOrderForCharacter(){return this.serviceSettings.prompt_order.find(x=>x.character_id===this.activeCharacter.id)?.order||[]},preparePrompt(prompt){return {...prompt,content:prompt.content.replaceAll('{{user}}',ctx.name1).replaceAll('{{char}}',ctx.name2)}}};
+mock.outbound=async()=>{
+    await mock.emit('GENERATION_STARTED','normal',{},false);
+    const hostText=mock.presetSettings.prompts.filter(p=>mock.promptManager.getPromptOrderForCharacter().some(e=>e.identifier===p.identifier && e.enabled)).map(p=>mock.promptManager.preparePrompt(p).content).join('\\n');
+    const messages=[{role:'system',content:hostText},...Object.values(mock.prompts).filter(p=>typeof p==='string' && p).map(p=>({role:'system',content:p})),...mock.chat.map(m=>({role:m.is_user?'user':'assistant',content:m.mes}))];
+    await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
+    const body={type:'normal',messages};await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);
+    await fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});
+    mock.lastOutbound=body;return body;
+};
+mock.slotText=async kind=>{
+    const body=await mock.outbound(),full=body.messages.map(m=>typeof m.content==='string'?m.content:'').join('\\n');
+    const marker='<SCENE_READER_OUTPUT data-source="scene_reader_hub" data-kind="'+kind+'">',start=full.indexOf(marker);
+    if(start>=0)return full.slice(start+marker.length,full.indexOf('</SCENE_READER_OUTPUT>',start));
+    return mock.prompts[kind==='scene'?'scene-reader-router':'scene-reader-world']||'';
+};
+
 window.toastr=Object.fromEntries(['info','success','error','warning'].map(name=>[name,(message,title='',options={})=>{
     (mock.toasts ||= []).push({level:name,message,options});if(name==='error')mock.errors.push(message);
     let container=document.getElementById('toast-container');if(!container){container=document.createElement('div');container.id='toast-container';document.body.append(container)}
@@ -44,6 +64,8 @@ const server=http.createServer(async(req,res)=>{try{
     if(req.url==='/favicon.ico'){res.statusCode=204;res.end();return;}
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
     if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(`export const eventSource=window.eventSource;export const event_types=new Proxy({},{get:(_,key)=>key});export const chat_metadata={};export function saveSettingsDebounced(){};export function setExtensionPrompt(key,value){window.mock.prompts[key]=value};export function getRequestHeaders(){return {}};export function isStreamingEnabled(){return Boolean(window.mock.streamingEnabled)}`);return;}
+    if(req.url==='/scripts/openai.js'){res.setHeader('Content-Type','application/javascript');res.end('export const oai_settings=window.mock.presetSettings;export const promptManager=window.mock.promptManager;');return;}
+    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true}));return;}
     if(req.url==='/scripts/extensions.js'){res.setHeader('Content-Type','application/javascript');res.end('export const extension_settings={};');return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','application/javascript');res.end("export const world_info={charLore:[{name:'Hunter',extraBooks:['Hunter Extra']}]};export async function loadWorldInfo(name){if(window.mock.loreReady)await window.mock.loreReady;return window.mock.worldBooks[name]||null}");return;}
     if(req.url==='/scripts/personas.js'){res.setHeader('Content-Type','application/javascript');res.end("export const user_avatar='User.png'");return;}
@@ -416,7 +438,7 @@ try{
     await page.locator('.sr-character-turn-card').first().screenshot({path:path.join(root,'artifacts','character-emotion-mobile.png')});
     await page.locator('#sr-settings-button').click();
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-router']), '');
-    await page.locator('#sr-settings-button').click();await page.locator('#sr-injection-mode').evaluate(element=>element.closest('details').open=true);await page.locator('#sr-injection-mode').selectOption('macro');
+    await page.locator('#sr-settings-button').click();await page.locator('#sr-injection-mode').evaluate(element=>element.closest('details').open=true);await page.locator('#sr-injection-mode').selectOption('preset');
     const beforeMacro=requests.filter(r=>r.url.endsWith('/systemone')).length;
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Open the door again.'});await mock.emit('MESSAGE_SENT',3);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.ok(requests.some(r=>r.body.questions?.sexual_0_restraint),'physical self-control becomes an independent next-turn Jev question');
@@ -443,13 +465,13 @@ try{
     assert.ok(!charmRequest?.body.state.memory_reference.entries.some(e=>e.sourceKind==='lorebook'),'disabled character lore is not sent');
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Wade enters the room.'});await mock.emit('MESSAGE_SENT',5);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.ok(requests.some(r=>r.body.state?.character_profiles?.people?.some(person=>person.name==='Wade' && person.profileCandidates.length)),'stored Wade rules reach live Jev selection');
-    assert.match(await page.evaluate(()=>mock.macros['scene-reader']?.()||''),/Wade[^\n]*Wade tends to control his son on family matters\./,'the selected rule reaches the final injection');
+    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/Wade[^\n]*Wade tends to control his son on family matters\./,'the selected rule reaches the final injection');
     gateScenario={level:'3',phase:'active'};
     const beforePause=requests.length;
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Wade and Hunter begin an explicit sexual interaction.'});await mock.emit('MESSAGE_SENT',6);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     const pausedRequests=requests.slice(beforePause).filter(r=>r.url.endsWith('/systemone'));
     assert.equal(pausedRequests.length,1,'confirmed sexual scene uses only the small scene-state check');
-    const pausedPrompt=await page.evaluate(()=>mock.macros['scene-reader']?.()||'');
+    const pausedPrompt=await page.evaluate(async()=>await mock.slotText('scene'));
     assert.match(pausedPrompt,/Wade keeps intimate wishes private/,'participating character reference remains available');
     assert.ok(!pausedPrompt.includes('CHARACTER_EXECUTION'),'dynamic character direction pauses');
     assert.ok(!pausedPrompt.includes('SEXUAL_CONDUCT'),'dynamic physical-conduct routing pauses');
@@ -508,8 +530,8 @@ try{
     await page.locator('#sr-progress-intensity-reset').click();
     assert.equal(store.chat.preferences.progressIntensity,1);
     await page.screenshot({path:path.join(root,'artifacts','mobile-settings.png')});
-    await page.locator('#sr-copy-macro').evaluate(e=>{const d=e.closest('details');if(d)d.open=true;});await page.locator('#sr-copy-macro').click();
-    assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'{{scene-reader}}');
+    assert.equal(await page.locator('#sr-copy-macro').count(),0);
+    assert.equal(await page.evaluate(()=>mock.macros['scene-reader']()),'');
     await page.locator('#sr-close').click();
     await page.waitForFunction(()=>document.getElementById('toast-container')?.parentElement===document.body);
     // Full public Character Reasoner workflow inside the existing character tab.
@@ -594,7 +616,7 @@ try{
     await page.evaluate(()=>{mock.chat.push({is_user:true,name:'User',mes:'Hunter examines the invitation. Is it a trap?'});document.getElementById('send_textarea').value='';});
     const slashJudge=JSON.parse(await page.evaluate(()=>mock.slashCommands['srh-judge'].callback({},'')));
     assert.equal(slashJudge.status,'prepared');
-    await page.waitForFunction(()=>(mock.macros['scene-reader']?.() || '').includes('Hunter suspects the invitation is a trap.'));
+    await page.waitForFunction(async()=>(await mock.slotText('scene')).includes('Hunter suspects the invitation is a trap.'));
     assert.ok(!Object.keys(requests.filter(r=>r.url.endsWith('/systemone')).at(-1).body.questions).some(key=>/response_direction|response_basis/.test(key)));
     assert.ok(store.chat.lastJudgment?.characterInjectionChars<=5000,'character budget is tracked separately from other prompt blocks');
     await page.locator('[data-sr-tab="characters"]').click();
@@ -680,27 +702,27 @@ try{
     await page.locator('#sr-world-profile').selectOption(advancedWorld.id);
     worldChoice='yes';
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'At the moonlit garden gate, Hunter waits.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    await page.waitForFunction(()=>(mock.macros['scene-reader-world']?.()||'').includes('Moonlight opens the garden gate.'));
-    assert.match(await page.evaluate(()=>mock.macros['scene-reader-world']?.()||''),/ordinary place.*Moonlight opens the garden gate/s,'chosen world record reaches the world macro');
-    assert.doesNotMatch(await page.evaluate(()=>mock.macros['scene-reader']?.()||''),/Moonlight opens the garden gate/,'scene instructions do not duplicate the world-rule category');
-    assert.match(await page.evaluate(()=>mock.macros['scene-reader']?.()||''),/Active world: Moonlit Garden/,'scene routing retains only a short world reference');
+    await page.waitForFunction(async()=>(await mock.slotText('world')).includes('Moonlight opens the garden gate.'));
+    assert.match(await page.evaluate(async()=>await mock.slotText('world')),/ordinary place.*Moonlight opens the garden gate/s,'chosen world record reaches the world macro');
+    assert.doesNotMatch(await page.evaluate(async()=>await mock.slotText('scene')),/Moonlight opens the garden gate/,'scene instructions do not duplicate the world-rule category');
+    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/Active world: Moonlit Garden/,'scene routing retains only a short world reference');
     const worldGate=requests.filter(request=>request.url.endsWith('/systemone')).findLast(request=>request.body.state?.world_record_candidates?.length);
     assert.equal(worldGate.body.state.world_record_candidates[0].id,'W001','the scene gate judges bounded world candidates');
     assert.equal(worldGate.body.state.world_context.name,'Moonlit Garden','world selector receives the setting identity');
     assert.match(worldGate.body.state.world_context.short_description,/moonlight/);
     gateScenario={level:'3',phase:'active'};
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'At the moonlit garden gate, the explicit sexual interaction begins.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    await page.waitForFunction(()=>(mock.macros['scene-reader-world']?.()||'').includes('Moonlight opens the garden gate.'));
-    assert.match(await page.evaluate(()=>mock.macros['scene-reader-world']?.()||''),/Moonlight opens the garden gate/,'relevant world records remain in the NSFW route');
+    await page.waitForFunction(async()=>(await mock.slotText('world')).includes('Moonlight opens the garden gate.'));
+    assert.match(await page.evaluate(async()=>await mock.slotText('world')),/Moonlight opens the garden gate/,'relevant world records remain in the NSFW route');
     gateScenario={level:'0',phase:'ended'};
     worldChoice='no';
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'They leave the garden and discuss ordinary work.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    await page.waitForFunction(()=>(mock.macros['scene-reader-world']?.()||'').includes('ordinary place'));
-    assert.doesNotMatch(await page.evaluate(()=>mock.macros['scene-reader-world']?.()||''),/Moonlight opens the garden gate/,'unrelated world rule is omitted');
+    await page.waitForFunction(async()=>(await mock.slotText('world')).includes('ordinary place'));
+    assert.doesNotMatch(await page.evaluate(async()=>await mock.slotText('world')),/Moonlight opens the garden gate/,'unrelated world rule is omitted');
     worldChoice='invalid';
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Hunter returns to the garden.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.equal(store.chat.lastJudgment.worldSelection.status,'fallback');
-    assert.doesNotMatch(await page.evaluate(()=>mock.macros['scene-reader-world']?.()||''),/Moonlight opens the garden gate/,'invalid selector response retains fixed rules without unverified conditional rules');
+    assert.doesNotMatch(await page.evaluate(async()=>await mock.slotText('world')),/Moonlight opens the garden gate/,'invalid selector response retains fixed rules without unverified conditional rules');
     const fallbackRequest=requests.findLast(request=>request.body.state?.character_profiles!==undefined).body;
     assert.equal(fallbackRequest.state.world_rule_selection.status,'fallback');
     assert.equal(fallbackRequest.state.applicable_world_rules.length,0,'progression judge and final injection use the same fallback rules');
@@ -714,8 +736,8 @@ try{
     await page.locator('#sr-season-us_university').check();
     await new Promise((resolve,reject)=>{const started=Date.now();const poll=()=>store.chat.preferences?.seasonalReferences?.length===3?resolve():Date.now()-started>3000?reject(new Error('Seasonal choices were not saved')):setTimeout(poll,20);poll();});
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-30. The American campus prepares for the weekend.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    await page.waitForFunction(()=>(mock.macros['scene-reader-world']?.()||'').includes('Halloween week'));
-    const seasonalPayload=await page.evaluate(()=>mock.macros['scene-reader-world']?.()||'');
+    await page.waitForFunction(async()=>(await mock.slotText('world')).includes('Halloween week'));
+    const seasonalPayload=await page.evaluate(async()=>await mock.slotText('world'));
     assert.match(seasonalPayload,/college-football/);
     assert.match(seasonalPayload,/autumn semester/);
     assert.equal(await page.locator('.sr-tabs [data-sr-tab]').count(),4,'world tools stay within the existing tabs');
@@ -731,7 +753,7 @@ try{
     await page.locator('#sr-world-injection-mode').selectOption('depth');
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-31. They continue across campus.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.match(await page.evaluate(()=>JSON.stringify(mock.prompts)),/Halloween week/,'seasonal world reaches depth injection');
-    assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']?.()||''),'','depth mode leaves no duplicate world macro');
+    assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']()),'','depth mode leaves no duplicate world macro');
     await page.locator('.sr-connection-card > summary').click();
     await page.locator('.sr-retrieval-panel > summary').click();
     assert.equal(await page.locator('#sr-retrieval-vertex-region').inputValue(),'global','fresh settings show the global Vertex region');
@@ -769,7 +791,7 @@ try{
     await page.evaluate(async()=>{mock.streamingEnabled=false;ctx.mainApi='openai';ctx.chatCompletionSettings={n:2};await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),'','multiple completions do not receive unsupported metadata requests');
     await page.evaluate(async()=>{ctx.chatCompletionSettings.n=1;await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    assert.ok(await page.evaluate(()=>mock.prompts['scene-reader-state-capture'].length>0),'single nonstream output resumes state collection');
+    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'single nonstream output resumes state collection inside the scene slot');
     for(const width of [320,390]) {
         await setViewportSize({width,height:850});
         assert.equal(await page.locator('#scene-reader-dialog').evaluate(e=>e.scrollWidth>e.clientWidth+2),false,'search settings overflow at '+width);
@@ -851,11 +873,11 @@ try{
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').uncheck()]);
     assert.equal(await page.locator('#sr-emotion-now').isVisible(),false);
     await page.evaluate(async()=>{mock.streamingEnabled=false;await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    assert.ok(await page.evaluate(()=>mock.prompts['scene-reader-state-capture'].length>0),'turning the option off restores main-model collection');
+    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'turning the option off restores main-model collection inside the scene slot');
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-enabled').uncheck();
     await page.waitForFunction(()=>!JSON.stringify(mock.prompts).includes('Halloween week'));
-    assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']?.()||''),'','disabled extension removes world macro');
+    assert.equal(await page.evaluate(async()=>await mock.slotText('world')),'','disabled extension removes world macro');
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),'','disabled extension also removes state collection');
     store.settings.global.ownerUnlocked=true;
     await page.reload();
@@ -898,7 +920,7 @@ try{
     await page.evaluate(async()=>{await mock.emit('GENERATION_ENDED');mock.chat.push({is_user:true,mes:'Hub fallback test: I ask Hunter to explain the next step.'});await window.SceneReaderHubBeforeGenerate([],4096,()=>{},'normal');});
     assert.ok(requests.filter(r=>r.url.endsWith('/systemone')).length>primaryRequestCount,'missing primary event is prepared through interceptor');
     const receipt=await page.evaluate(async()=>{
-        const prompt=Object.values(mock.prompts).map(value=>typeof value==='string'?value:value.value||'').join('\n')+'\n'+(mock.macros['scene-reader']?.()||'')+'\n'+(mock.macros['scene-reader-world']?.()||'');
+        const prompt=Object.values(mock.prompts).map(value=>typeof value==='string'?value:value.value||'').join('\n')+'\n'+document.getElementById('sr-prompt-preview').textContent;
         await mock.emit('GENERATE_AFTER_DATA',{prompt},false);
         return SceneReaderHub.diagnostics().events.findLast(e=>e.code==='PROMPT_OBSERVED');
     });
@@ -909,16 +931,17 @@ try{
     assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>mock.errors),[]);
     const requestAudit=await page.evaluate(async()=>{
         await mock.emit('GENERATION_STARTED','normal',{},false);
-        const prompt=Object.values(mock.prompts).map(value=>typeof value==='string'?value:value.value||'').join('\n')+'\n'+(mock.macros['scene-reader']?.()||'')+'\n'+(mock.macros['scene-reader-world']?.()||'');
-        const rendered=prompt.replaceAll('{{user}}',ctx.name1).replaceAll('{{char}}',ctx.name2);
-        const messages=[{role:'system',content:rendered}];
+        const messages=[{role:'system',content:mock.promptManager.preparePrompt(mock.presetSettings.prompts[0]).content},...Object.values(mock.prompts).filter(Boolean).map(content=>({role:'system',content}))];
         await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
+        const body={messages};
+        await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);
         const assembled=SceneReaderHub.diagnostics().events.findLast(e=>e.code==='PROMPT_OBSERVED');
-        await mock.emit('CHAT_COMPLETION_SETTINGS_READY',{messages});
+        await fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});
         const included=SceneReaderHub.diagnostics().events.findLast(e=>e.code==='PROMPT_OBSERVED');
-        await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
-        messages[0].content='Removed by a later prompt modifier';
-        await mock.emit('CHAT_COMPLETION_SETTINGS_READY',{messages});
+        await mock.emit('GENERATE_AFTER_DATA',{prompt:body.messages},false);
+        body.messages.splice(0,body.messages.length,{role:'system',content:'Removed by a later prompt modifier'});
+        await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);
+        await fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});
         const missing=SceneReaderHub.diagnostics().events.findLast(e=>e.code==='PROMPT_OBSERVED');
         const lastToast=[...document.querySelectorAll('.sr-toast-message')].at(-1)?.textContent;
         return {assembled,included,missing,lastToast};
@@ -927,6 +950,8 @@ try{
     assert.equal(requestAudit.included.scene,'confirmed');assert.equal(requestAudit.included.phase,'request');
     assert.equal(requestAudit.missing.scene,'unconfirmed');assert.match(requestAudit.lastToast,/확인하지 못/);
     assert.deepEqual(errors,[]);
+    await checkPresetSlots(page,store,requests);
+    await checkCompilerCopies(page,requests,store);
     await checkBundlesAndProviders(page,store,requests,root,setViewportSize);
     assert.deepEqual(errors,[]);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');

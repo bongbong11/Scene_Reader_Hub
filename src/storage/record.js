@@ -1,4 +1,5 @@
-// Extracted from Scene Reader 0.26.2; behavior preserved.
+import { normalizePresetSlot } from '../injection/preset-catalog.js';
+// Shared storage contract retained across extension replacement.
 export function createRecordRepository(deps) {
 function record(create = false) {
     const key = deps.stateChatKey();
@@ -19,7 +20,8 @@ function record(create = false) {
         value.preferences.npcRecordLimit = [2,3,4].includes(Number(value.preferences.npcRecordLimit)) ? Number(value.preferences.npcRecordLimit) : deps.CHAT_DEFAULTS.npcRecordLimit;
         for (const key of ['relationshipPace', 'resolutionPace']) value.preferences[key] = validValue(value.preferences[key], deps.PACE_OPTIONS, deps.CHAT_DEFAULTS[key]);
         value.preferences.physicalIntimacyPace = deps.normalizePhysicalPace(value.preferences.physicalIntimacyPace);
-        for (const key of ['injectionMode', 'worldInjectionMode']) value.preferences[key] = ['depth', 'macro'].includes(value.preferences[key]) ? value.preferences[key] : deps.CHAT_DEFAULTS[key];
+        for (const key of ['injectionMode', 'worldInjectionMode']) value.preferences[key] = value.preferences[key]==='macro' ? 'preset' : ['depth', 'preset'].includes(value.preferences[key]) ? value.preferences[key] : deps.CHAT_DEFAULTS[key];
+        for(const key of ['scenePresetSlot','worldPresetSlot'])value.preferences[key]=normalizePresetSlot(value.preferences[key]);
         value.preferences.selectedWorldId = typeof value.preferences.selectedWorldId === 'string' && value.preferences.selectedWorldId ? value.preferences.selectedWorldId : deps.CHAT_DEFAULTS.selectedWorldId;
         value.preferences.seasonalReferences = [...new Set((Array.isArray(value.preferences.seasonalReferences) ? value.preferences.seasonalReferences : []).filter(key => Object.hasOwn(deps.SEASONAL_OPTIONS, key)))];
         value.preferences.advancedElements = [...new Set((Array.isArray(value.preferences.advancedElements) ? value.preferences.advancedElements : []).filter((key) => deps.ADVANCED_ELEMENTS[key]))];

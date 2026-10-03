@@ -28,11 +28,13 @@ export function createPromptObserver({getExpected,getNames,getCycleId,report,upd
     function inspect(data,dryRun,phase,expected) {
         if(!enabled||dryRun||!expected||(!expected.payload&&!expected.worldPayload))return null;
         const receipt={...observePromptReceipt(data,{...expected,...getNames(),cycleId:getCycleId(),dryRun}),phase};
+        if(expected.slotResults)receipt.slots=expected.slotResults.map(item=>`${item.kind}:${item.status}${item.reason?':'+item.reason:''}`);
+        for(const kind of ['scene','world'])if(expected[kind+'Preset'] && receipt[kind]!=='not_expected' && expected.slotResults?.find(item=>item.kind===kind)?.status==='missing')receipt[kind]='unconfirmed';
         report('injection.consume','PROMPT_OBSERVED',receipt);
         const values=[receipt.scene,receipt.world].filter(value=>value!=='not_expected');
         const confirmed=values.every(value=>value==='confirmed');
         const message=(expected.judgmentWarning?'판독 일부 확인 필요 · ':'')+(confirmed?(phase==='request'?'전송 요청에 주입문 포함 확인':'주입문 조립 확인 · 전송 대기')
-            :'전송문에서 주입문 전체를 확인하지 못했습니다. 실행 기록과 매크로 위치를 확인해 주세요.');
+            :'전송문에서 주입문 전체를 확인하지 못했습니다. 실행 기록과 프리셋 기준 항목을 확인해 주세요.');
         updateStatus(message);
         updateActivity(message,confirmed&&!expected.judgmentWarning?{done:true}:{error:true});
         return receipt;
@@ -43,6 +45,7 @@ export function createPromptObserver({getExpected,getNames,getCycleId,report,upd
         // The host forwards this same message array to its backend request.
         const messages=Array.isArray(data?.prompt)?data.prompt:Array.isArray(data?.messages)?data.messages:null;
         if(enabled&&!dryRun&&expected&&messages)pending={messages,expected};
+        if(messages && (expected?.scenePreset || expected?.worldPreset))return null;
         return inspect(data,dryRun,messages?'assembly':'request',expected);
     }
     function observeRequest(data) {
@@ -51,5 +54,7 @@ export function createPromptObserver({getExpected,getNames,getCycleId,report,upd
         if(getExpected()!==expected)return null;
         return inspect(data,false,'request',expected);
     }
-    return {start,observe,observeRequest};
+    const verifyRequest=data=>inspect(data,false,'request',getExpected());
+    const inspectPrepared=data=>inspect(data,false,'assembly',getExpected());
+    return {start,observe,observeRequest,verifyRequest,inspectPrepared};
 }

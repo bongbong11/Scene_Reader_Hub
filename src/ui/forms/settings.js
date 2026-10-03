@@ -1,3 +1,5 @@
+import { renderPresetSlots } from '../preset-slots.js';
+import { normalizePresetSlot } from '../../injection/preset-catalog.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
 import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
@@ -34,8 +36,9 @@ function setFormValues() {
     setChecked('sr-advanced-enabled', prefs.advancedEnabled);
     setValue('sr-advanced-style', prefs.advancedStyle);
     for (const key of Object.keys(deps.ADVANCED_ELEMENTS)) setChecked(`sr-advanced-${key}`, prefs.advancedElements.includes(key));
-    setValue('sr-injection-mode', deps.macroAvailable ? prefs.injectionMode : 'depth');
-    setValue('sr-world-injection-mode', deps.macroAvailable ? prefs.worldInjectionMode : 'depth');
+    setValue('sr-injection-mode', prefs.injectionMode);
+    setValue('sr-world-injection-mode', prefs.worldInjectionMode);
+    renderPresetSlots(deps);
     setValue('sr-relationship-pace', prefs.relationshipPace);
     setValue('sr-resolution-pace', prefs.resolutionPace);
     setValue('sr-physical-intimacy-pace', prefs.physicalIntimacyPace || 'medium');
@@ -70,8 +73,7 @@ function setFormValues() {
     if (runButton && !deps.judgeInFlight) runButton.disabled = !deps.settings.enabled;
     deps.updateKeyStatus();
     deps.updateStatus();
-    const macroStatus = deps.document.getElementById('sr-macro-status');
-    if (macroStatus) macroStatus.textContent = deps.macroAvailable ? '필요한 위치에 각 매크로를 한 번씩 넣으세요.' : '이 SillyTavern 버전에서는 사용자 매크로를 등록할 수 없습니다.';
+
     const advancedNote = deps.document.getElementById('sr-basic-progression-note');
     if (advancedNote) advancedNote.textContent = prefs.advancedEnabled
         ? '고급 이벤트와 기본 전개 성향이 함께 작동합니다. 서술의 속도와 호흡은 메인 프롬프트에 명시된 지침을 따릅니다.'
@@ -166,32 +168,22 @@ async function savePreference(key, value) {
     });
 }
 
-async function saveInjectionMode(value) {
-    if (value === 'macro' && !deps.macroAvailable) notifySceneReaderToast(deps.window, 'warning', '현재 SillyTavern에서는 사용자 매크로를 등록할 수 없어 기본 위치를 사용합니다.', '씬판독기');
-    const mode = value === 'macro' && deps.macroAvailable ? 'macro' : 'depth';
+async function saveInjectionSetting(modeKey,slotKey,value) {
     const rec=deps.record(true),chatKey=deps.stateChatKey();
-    const current=deps.nextMutation(rec,'injectionMode');
-    const previous=rec.preferences.injectionMode;
-    rec.preferences.injectionMode = mode;
-    try { await deps.persistChat(chatKey,rec); }
-    catch(error) { if(current())rec.preferences.injectionMode=previous; if(chatKey===deps.stateChatKey())setFormValues(); throw error; }
-    if(chatKey!==deps.stateChatKey() || !current())return;
-    await deps.applyStoredInjection();
-    if(chatKey===deps.stateChatKey())setFormValues();
+    return deps.queueWrite(`injection:${chatKey}`,async()=>{
+        const mode=typeof value==='object'?value.mode:value;
+        const previous={mode:rec.preferences[modeKey],slot:rec.preferences[slotKey]};
+        rec.preferences[modeKey]=mode==='preset'?'preset':'depth';
+        if(typeof value==='object')rec.preferences[slotKey]=normalizePresetSlot(value.slot);
+        try {await deps.persistChat(chatKey,rec);}
+        catch(error){rec.preferences[modeKey]=previous.mode;rec.preferences[slotKey]=previous.slot;if(chatKey===deps.stateChatKey())setFormValues();throw error;}
+        if(chatKey!==deps.stateChatKey() || rec!==deps.record())return;
+        await deps.applyStoredInjection();
+        if(chatKey===deps.stateChatKey())setFormValues();
+    });
 }
-
-async function saveWorldInjectionMode(value) {
-    if (value === 'macro' && !deps.macroAvailable) notifySceneReaderToast(deps.window, 'warning', '현재 SillyTavern에서는 사용자 매크로를 등록할 수 없어 기본 위치를 사용합니다.', '씬판독기');
-    const rec=deps.record(true),chatKey=deps.stateChatKey();
-    const current=deps.nextMutation(rec,'worldInjectionMode');
-    const previous=rec.preferences.worldInjectionMode;
-    rec.preferences.worldInjectionMode = value === 'macro' && deps.macroAvailable ? 'macro' : 'depth';
-    try { await deps.persistChat(chatKey,rec); }
-    catch(error) { if(current())rec.preferences.worldInjectionMode=previous; if(chatKey===deps.stateChatKey())setFormValues(); throw error; }
-    if(chatKey!==deps.stateChatKey() || !current())return;
-    await deps.applyStoredInjection();
-    if(chatKey===deps.stateChatKey())setFormValues();
-}
+async function saveInjectionMode(value) {return saveInjectionSetting('injectionMode','scenePresetSlot',value);}
+async function saveWorldInjectionMode(value) {return saveInjectionSetting('worldInjectionMode','worldPresetSlot',value);}
 
 async function endActiveEvent() {
     deps.invalidateReasonerJobs();

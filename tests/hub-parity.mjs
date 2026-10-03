@@ -12,8 +12,8 @@ function normalize(value){return JSON.parse(JSON.stringify(value));}
 // the new behavior has end-to-end assertions in hub-draw-opportunities.mjs.
 function unchanged(value,parent='') {
  if(Array.isArray(value))return value.map(item=>unchanged(item,parent));
- if(!value||typeof value!=='object')return value;
- const excluded=new Set(['drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey']);
+ if(!value||typeof value!=='object')return value==='macro'?'preset':value;
+ const excluded=new Set(['drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot']);
  return Object.fromEntries(Object.entries(value).filter(([key])=>!excluded.has(key)&&!(parent==='rolls'&&key==='npc')).map(([key,item])=>[key,unchanged(item,key)]));
 }
 try {
@@ -44,8 +44,13 @@ try {
    assert.ok(result,scenario.name+' completes');
    outcomes.push({judgment:normalize(result),chat:normalize(f.run('record()')),requests,prompts});
   }
-  assert.deepEqual(unchanged(outcomes[0]),unchanged(expected),scenario.name+': same Jev input, judgment, persistent state and host prompt registrations');
+  // Transport changes intentionally; compare original judgment/storage semantics.
+  const observed=unchanged(outcomes[0]),baseline=unchanged(expected);
+  if(scenario.preferences?.injectionMode==='macro') {
+   delete observed.prompts['scene-reader-state-capture'];delete baseline.prompts['scene-reader-state-capture'];
+  }
+  assert.deepEqual(observed,baseline,scenario.name+': same Jev input, judgment, persistent state and unchanged direct prompt registrations');
 
  }
 } finally {globalThis.Date=OriginalDate;Math.random=originalRandom;}
-console.log('Hub parity passed: unchanged normal, advanced, paused and macro contracts match upstream 0.26.2; new draw identity, sampling and diagnostics are tested separately.');
+console.log('Hub parity passed: normal, advanced and paused judgment/storage match upstream 0.26.2; intentional draw and preset transport changes are tested separately.');

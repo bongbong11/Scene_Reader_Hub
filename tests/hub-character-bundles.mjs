@@ -11,6 +11,7 @@ const names=['Aster','Briar','Cedar'];
 const form={kind:'character',name:'The Archive',castNames:names,importMode:'multi',source:'Aster keeps the north key. Briar tends the south garden. Cedar guards the east bridge.',selectedLore:[],sourceVisibleToMain:true};
 const person=name=>({entity_type:'character',entity_name:name,intimacy_reference:{text:'',source_ids:[]},records:[{type:'core',target:'self',when:['quiet conversation'],rule:`${name} prefers ${name}-only-markers.`,modality:'preference',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}]});
 const file={entities:names.map(person)},empty=defaultCharacterStore();
+for(const input of ['', ' \n\t'])assert.throws(()=>validateRecordBundle(input),/저장할 인물 JSON이 없습니다/,'an empty upload is not misreported as a missing closing brace');
 const initial=JSON.stringify(empty),result=importRecordBundle(empty,file,'Archive file',form);
 assert.equal(JSON.stringify(empty),initial,'import remains staged until the one persistence call');
 assert.equal(result.store.characters.length,3);assert.equal(result.store.recordGroups.length,1);

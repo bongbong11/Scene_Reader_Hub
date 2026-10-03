@@ -1,7 +1,7 @@
 import { setCharacterImportMode, characterImportMode } from './character-import-mode.js';
 import { notifySceneReaderToast } from './toasts.js';
 import { castCompilerPrompt, importRecordBundle, validateRecordBundle } from "../character/bundles.js";
-import { buildSources, promptText } from '../vendor/character-reasoner/index.js';
+import { characterCopyNotice } from './compiler-copy.js';
 import { applyRecordVersion, deleteRecordVersion, bankOutput, allEntries } from "../character/versions.js";
 
 export { renderRecordBundles as renderRecordVersions } from "./record-bundles.js";
@@ -21,7 +21,7 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
     const task=(fn,stage='parse')=>deps.runUiTask((async()=>{
         if(busy) return;
         busy=true;
-        try {await fn();} catch(error){captureCharacterError(error,error.characterStage||stage,{inputLength:el('sr-character-import-json')?.value?.length||0,saved:Boolean(error.characterSaved),applied:Boolean(error.characterApplied)});status(`${error.characterSaved?'저장은 완료됐지만 화면 반영 실패':'저장되지 않음'} · ${error.message}`);throw error;} finally{busy=false;}
+        try {await fn();} catch(error){captureCharacterError(error,error.characterStage||stage,{inputLength:error.characterInputLength ?? (el('sr-character-import-json')?.value?.length||0),saved:Boolean(error.characterSaved),applied:Boolean(error.characterApplied)});status(`${error.characterSaved?'저장은 완료됐지만 화면 반영 실패':'저장되지 않음'} · ${error.message}`);throw error;} finally{busy=false;}
     })(),'인물 기록 작업을 완료하지 못했습니다.');
     async function persist(next, entry) {
         const job=deps.jobs.begin('character-transfer'), chat=deps.stateChatKey();
@@ -46,25 +46,29 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
     const npcSheet=`NPC 시트\n이름: \n역할·소속: \n주요 관계: \n원하는 것과 우선순위: \n평소 행동·대사: \n확인된 지식·능력·접근 범위: \n조건별 반응과 제한: \n지속적인 감정·충동 경향과 자제 방식(있는 경우만): `;
     el('sr-character-npc-template')?.addEventListener('click',()=>task(async()=>{await deps.copyText(npcSheet);status('NPC 시트 서식을 복사했습니다.');},'template'));
     el('sr-character-copy-prompt')?.addEventListener('click',()=>task(async()=>{
-        await ensureLoreLoaded();
+        // No selected lore means no dependency on a background lorebook request.
+        if(characterForm().selectedLore?.length)await ensureLoreLoaded();
         const form=characterForm();
-        let prompt;
-        if(form.kind==='npc'){
-            const hasLore=form.selectedLore.length>0;
-            const sources=hasLore?buildSources('npc','',form.selectedLore):buildSources('npc','[Completed NPC sheet supplied alongside this instruction]',[]);
-            const preface=hasLore?'Use the selected lorebook sheet below as the NPC source. Use its stated name as entity_name.':'The completed NPC sheet is supplied separately with this instruction. Use its stated name as entity_name and treat its contents as source S001.';
-            prompt=preface+'\n\n'+promptText({entity_type:'npc',entity_name:'the name written in the supplied NPC sheet',npc_role:form.npcRole==='villain'?'antagonist':form.npcRole,sources});
-        } else {
-            if(!form.name)throw new Error('먼저 현재 시트를 가져오세요.');
-            prompt=castCompilerPrompt(form);
-        }
+        const prompt=castCompilerPrompt(form);
         await deps.copyText(prompt);
-        status('분석 명령문을 복사했습니다. 완성한 JSON 파일을 업로드하세요.');
+        const notice=characterCopyNotice(deps.document,form.selectedLore);
+        const message=notice.included?'선택한 원문을 포함해 분석 명령문을 복사했습니다.':'기본 분석 명령문만 복사했습니다. 사용할 시트·로어북 원문을 함께 넣어 주세요.';
+        status(message+' 완성한 JSON 파일을 업로드하세요.');
+        notifySceneReaderToast(deps.window,'success',message,'씬판독기');
         if(!el('sr-character-import-name').value.trim())el('sr-character-import-name').value=form.name;
     }),'prompt');
     el('sr-character-import')?.addEventListener('click',()=>task(async()=>{
-        await ensureLoreLoaded();
+        if(!el('sr-character-import-json').value.trim()) {
+            status('저장할 인물 JSON이 없습니다. 파일 업로드 단계의 오류 안내를 확인하고 JSON 파일을 다시 선택하세요.');
+            notifySceneReaderToast(deps.window,'warning','JSON 파일 업로드 후 형식 검사 완료 안내를 확인해 주세요.','씬판독기');
+            return;
+        }
+        if(characterForm().selectedLore?.length)await ensureLoreLoaded();
         const form=characterForm();
+        if(form.kind==='character' && form.importMode==='multi' && !form.cardCast && !form.name) {
+            const context=deps.getContext(),card=context.characters?.[context.characterId];
+            form.cardCast={cardName:card?.data?.name || card?.name || context.name2 || ''};
+        }
         const sourceHash=form.source ? await deps.sha256Hex(form.source) : '';
         const result=importRecordBundle(deps.characterStore,el('sr-character-import-json').value,el('sr-character-import-name').value,{...form,sourceHash});
         if(!await persist(result.store,result.entry))return;
@@ -81,7 +85,9 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
         if(!/\.json$/i.test(file.name))throw new Error('.json 파일을 선택하세요.');
         const chat=deps.stateChatKey(),raw=await file.text();
         if(chat!==deps.stateChatKey())throw new Error('채팅이 바뀌었습니다. 현재 채팅에서 파일을 다시 불러오세요.');
-        const {outputs}=validateRecordBundle(raw);
+        let outputs;
+        try { ({outputs}=validateRecordBundle(raw)); }
+        catch(error) { error.characterInputLength=raw.length; error.characterStage='parse'; throw error; }
         if(characterImportMode(deps.document)==='single' && outputs.length>1)throw new Error('여러 인물이 있는 파일입니다. 다인 캐릭터 탭에서 불러오세요.');
         if(characterImportMode(deps.document)==='multi' && outputs.length<2)throw new Error('다인 캐릭터 파일에는 2명 이상이 필요합니다.');
         if(deps.characterEditorKind && outputs.some(output=>output.entity_type!==deps.characterEditorKind))throw new Error('선택한 인물 종류와 JSON의 인물 종류가 다릅니다.');

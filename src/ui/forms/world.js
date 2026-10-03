@@ -1,4 +1,5 @@
 import { WORLD_COMPILER_PROMPT, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from "../../world/advanced.js";
+import { worldCopyNotice } from '../compiler-copy.js';
 
 export function createWorldForm(deps) {
 async function worldTask(action) {
@@ -23,6 +24,7 @@ function renderWorldControls() {
     }
     const manager = deps.document.getElementById('sr-world-manager-list');
     if (manager) manager.innerHTML = deps.loadCustomWorlds().map((world) => `<button type="button" class="sr-world-item" data-world-id="${deps.escapeHtml(world.id)}"><span>${deps.escapeHtml(world.name)}${world.franchise ? ' · 원작 세계' : ''}${world.advanced ? ' · 고급' : ''}</span><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`).join('') || '<div class="sr-empty-small">저장한 커스텀 세계관 없음</div>';
+    worldCopyNotice(deps.document,worlds);
 }
 
 function showWorldEditor(world = null) {
@@ -40,6 +42,7 @@ function showWorldEditor(world = null) {
     deps.document.getElementById('sr-world-edit-prompt').value = world?.prompt || '';
     deps.document.getElementById('sr-world-edit-franchise').checked = Boolean(world?.franchise);
     deps.document.getElementById('sr-world-editor-title').textContent = world ? `세계관 수정 · ${world.name}` : '새 세계관 작성';
+    worldCopyNotice(deps.document,deps.availableWorlds());
 }
 
 function showAdvancedWorldEditor(world) {
@@ -52,6 +55,7 @@ function showAdvancedWorldEditor(world) {
     deps.document.getElementById('sr-world-advanced-status').textContent = `${world.name} · 기록 ${world.advanced.records.length}개`;
     deps.document.getElementById('sr-world-advanced-delete').hidden = false;
     deps.document.getElementById('sr-world-advanced-cancel').hidden = false;
+    worldCopyNotice(deps.document,deps.availableWorlds());
 }
 
 function showWorldList() {
