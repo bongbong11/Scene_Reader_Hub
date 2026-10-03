@@ -28,7 +28,8 @@ export function validateRecordBundle(input) {
     const values = isBundle ? (Array.isArray(parsed) ? parsed : parsed.entities) : [parsed];
     if (!Array.isArray(values) || !values.length || values.length > 6) throw new Error('인물 묶음에는 1~6명의 인물 JSON이 필요합니다.');
     if (!isBundle && parsed && typeof parsed === 'object' && !parsed.entity_type && (parsed.characters || parsed.personality || parsed.appearance_details)) {
-        throw new Error('JSON 문법은 정상이지만 인물 시트를 정리한 형식입니다. 다인 판독 파일은 entities 배열 안에 인물별 entity_type, entity_name, intimacy_reference, records가 필요합니다. 확장의 다인 캐릭터 분석 명령문 전체로 다시 변환해 주세요.');
+        const format=parsed.characters?'다인 판독 파일은 entities 배열 안에 인물별 entity_type, entity_name, intimacy_reference, records가 필요합니다. 확장의 다인 캐릭터 분석 명령문 전체로 다시 변환해 주세요.':'단일 인물 판독 파일은 인물 객체 하나에 entity_type, entity_name, intimacy_reference, records가 필요합니다. 선택한 캐릭터·페르소나·NPC 탭의 분석 명령문 전체로 다시 변환해 주세요.';
+        throw new Error('JSON 문법은 정상이지만 인물 시트를 정리한 형식입니다. '+format);
     }
     const results = values.map((value,index) => {
         if (isBundle && (!value || typeof value !== 'object' || Array.isArray(value))) throw new Error(`인물 ${index+1}: 객체 형식이 아닙니다. entities 배열에는 인물 객체를 넣어 주세요.`);
