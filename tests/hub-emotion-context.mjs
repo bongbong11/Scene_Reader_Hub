@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import { buildEmotionContext } from '../src/character/state-context.js';
+import { collectProfileOutputState } from '../src/character/state-profile-output.js';
+import { latestStateOutputIndex } from '../src/character/state-message.js';
+import { fixture } from './regression/audit-v012.mjs';
+const user = mes => ({is_user:true,mes,name:'User'}), reply = mes => ({is_user:false,mes,name:'Actor'});
+assert.equal(latestStateOutputIndex([reply('Visible')],null),0,'legacy null exclusion lists remain readable');
+const chat=[user('Too old'),reply('Too old reply'),user('A pointed remark.'),reply('Actor replies sharply. [[SR_STATE]]C0|anger90[[/SR_STATE]]'),
+    {is_system:true,mes:'SYSTEM_SENTINEL'},user('[OOC: OOC_SENTINEL] I ask why.'),reply('Actor softens his reply.'),
+    {is_user:true,extra:{ooc_chat:true},mes:'OOC_SENTINEL'},reply('NON_RP_SENTINEL'),user('I offer an apology.'),reply('Actor accepts with a restrained smile.'),reply('FUTURE_SENTINEL')];
+const context=buildEmotionContext(chat,10,{nonRpOutputIndices:[8]});
+assert.equal(context.earlierReplies,2);assert.ok(context.messages.some(m=>m.text==='Actor replies sharply.'));
+const serialized=JSON.stringify(context);
+for(const word of ['Too old','SYSTEM_SENTINEL','OOC_SENTINEL','NON_RP_SENTINEL','FUTURE_SENTINEL','anger90','restrained smile'])assert.ok(!serialized.includes(word));
+assert.ok(serialized.includes('I ask why.'));assert.ok(serialized.includes('I offer an apology.'));
+assert.ok(context.chars<=8000);assert.equal(buildEmotionContext([user('x'.repeat(8100)),reply('latest')],1).messages.length,0);
+const seen=[],roster=[{code:'C0',id:'a',name:'Actor',trackArousal:false}];
+const result=await collectProfileOutputState({service:{},profileId:'test',roster,output:chat[10].mes,context,request:async(_s,_id,system,body)=>{seen.push({system,body});return {result:{states:[{code:'C0',joy:35}]}};}});
+assert.equal(result.states[0].values.joy,35);assert.deepEqual(seen[0].body.recent_roleplay_context,context.messages);
+assert.match(seen[0].system,/absent person from context alone/);assert.match(seen[0].system,/resolved feeling/);
+const full='Opening speaker expresses fear. '+'.'.repeat(13000)+' Later speaker expresses joy.';
+await collectProfileOutputState({service:{},profileId:'test',roster,output:full,context,request:async(_s,_id,_system,body)=>{assert.equal(body.output,full,'retain both early and late speakers');return {result:{states:[]}};}});
+const huge=await collectProfileOutputState({service:{},profileId:'test',roster,output:'x'.repeat(24001),request:async()=>{throw Error('should not send');}});
+assert.equal(huge.error,'too_long');
+
+const f=fixture(),calls=[];
+f.ctx.chat=[user('Aster insults Briar.'),reply('Briar answers sharply.'),user('Aster apologizes.'),reply('Briar nods.')];
+f.sandbox.pendingRequest=(_s,_id,_system,body)=>new Promise(resolve=>calls.push({body,resolve}));
+f.run(`record(true).preferences.profileEmotionJudgment=false;settings.reasonerProfileId='synthetic';connectionRequestService={};requestWithConnectionProfile=pendingRequest;
+    characterStore={enabled:true,characters:[{id:'b',name:'Briar',kind:'character'}],npcs:[]};record().lastJudgment={characterTrace:[{id:'b',presence:'absent'}]};`);
+const pending=f.run('collectCurrentEmotion()');await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(calls.length,1,'manual recovery works without automatic profile option and rechecks misclassified actors');
+assert.ok(calls[0].body.recent_roleplay_context.some(m=>m.text==='Briar answers sharply.'));
+f.ctx.chat[1].mes='Briar stays silent.';
+calls[0].resolve({result:{states:[{code:'C0',a:0,c:80,joy:50}]}});await pending;
+assert.equal(f.run('latestStateForChat(record(),getContext().chat,stableFingerprint).length'),0,'edited earlier context rejects stale response');
+assert.equal(f.run('record().preferences.profileEmotionJudgment'),false,'manual recovery never switches the automatic collector');
+const tagged=buildEmotionContext([reply('Visible. [[ sr_state ]]C0|anger88[[ /sr_state ]] After. [[SR_STATE]]C0|joy77[[/SR_STATE]]'),reply('Latest.')],1);
+assert.equal(tagged.messages[0].text,'Visible.\nAfter.','variant and duplicate past state blocks are removed together');
+f.ctx.chat.push({...reply('HIDDEN_SENTINEL'),is_hidden:true}, {...reply('FLAGGED_OOC_SENTINEL'),extra:{ooc_chat:true}}, reply('[OOC: PURE_OOC_SENTINEL]'),reply('   '));
+const retry=f.run('collectCurrentEmotion()');await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(calls[1].body.output,'Briar nods.','manual collection finds the latest visible RP output');
+calls[1].resolve({result:{states:[{code:'C0',a:0,c:80,joy:20}]}});await retry;
+assert.equal(f.run('latestStateForChat(record(),getContext().chat,stableFingerprint)[0].values.joy'),20,'state display and collection select the same visible output');
+f.run('record().preferences.profileEmotionJudgment=true; scheduleProfileStateCollection({chatKey:stateChatKey(),outputIndex:4,text:getContext().chat[4].mes,roster:[{code:"C0",id:"b",name:"Briar"}]})');
+assert.equal(calls.length,2,'hidden output cannot trigger background profile requests');
+console.log('Emotion context passed: two earlier RP exchanges, current input, OOC/hidden/non-RP/state/future exclusion, whole-output coverage, bounded requests, mode-independent manual recovery and stale-context rejection.');

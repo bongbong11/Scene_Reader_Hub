@@ -36,10 +36,10 @@ const stateEngineSource=await readFile(new URL('./src/scene/state-effects.js',im
 const runtimeSource=await readFile(new URL('./src/context/messages.js',import.meta.url),'utf8');
 const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 // Existing plugin source remains a byte-preserved compatibility fixture.
-await access(new URL(`./downloads/scene-reader-hub-v${manifest.version}.zip`, import.meta.url));
+await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.1.6');
+assert.equal(manifest.version, '0.1.7');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);

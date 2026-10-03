@@ -123,7 +123,7 @@ function bindForm() {
                 : tab === 'characters' ? key.startsWith('character_') || key.startsWith('sexual_') || ['npc_route', 'npc_presence', 'npc_knowledge_fit'].includes(key)
                     : true;
         const report = { ...buildTurnReport({judgment,tab,related}),
-            ...(tab==='characters'?{characterStateCapture:deps.selectedStateCapture(),characterTrace:(judgment.characterTrace || []).map(person=>({id:person.id,kind:person.kind,presence:person.presence,storedRecordCount:person.storedRecordCount,candidateCount:person.candidateCount,jevSelectedRuleIds:person.jevSelectedRuleIds,profileIds:person.profileIds,injectedRuleIds:person.injectedRuleIds,omittedBySlotRuleIds:person.omittedBySlotRuleIds,omittedRuleIds:person.omittedRuleIds,excludedByPresenceRuleIds:person.excludedByPresenceRuleIds,blockChars:person.blockChars,zeroReason:person.zeroReason})),sexualTrace:judgment.sexualTrace}:{}), };
+            ...(tab==='characters'?{characterStateCapture:deps.selectedStateCapture(),characterTrace:(judgment.characterTrace || []).map(person=>({id:person.id,kind:person.kind,presence:person.presence,storedRecordCount:person.storedRecordCount,candidateCount:person.candidateCount,protection:person.protection,jevSelectedRuleIds:person.jevSelectedRuleIds,profileIds:person.profileIds,injectedRuleIds:person.injectedRuleIds,omittedBySlotRuleIds:person.omittedBySlotRuleIds,omittedRuleIds:person.omittedRuleIds,excludedByPresenceRuleIds:person.excludedByPresenceRuleIds,blockChars:person.blockChars,zeroReason:person.zeroReason})),sexualTrace:judgment.sexualTrace}:{}), };
         await deps.copyText(JSON.stringify(report, null, 2));
         notifySceneReaderToast(deps.window, 'success', '판정 원선택과 최종 조정 결과를 복사했습니다.', '씬판독기');
     })()));

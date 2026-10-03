@@ -1,6 +1,7 @@
 import { checkBundlesAndProviders } from './browser-bundles-providers.mjs';
 import { checkCompilerCopies } from './browser-compiler-copies.mjs';
 import { checkPresetSlots } from './browser-preset-slots.mjs';
+import { checkRecordProtection } from './browser-record-protection.mjs';
 import { createRecordBank } from '../src/characters/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 const require=createRequire(import.meta.url);
 const { chromium }=require('playwright');
-const root=path.resolve(import.meta.dirname,'..');
+const root=process.env.SCENE_READER_INSTALL_ROOT ? path.resolve(process.env.SCENE_READER_INSTALL_ROOT) : path.resolve(import.meta.dirname,'..');
 const prefix='/scripts/extensions/third-party/Scene_Reader_Hub/';
 const wadeSource='Name: Wade\nRole: Businessman.\nHe controls his son.\nHe keeps intimate wishes private unless he chooses to disclose them.';
 const wadeHash=createHash('sha256').update(wadeSource).digest('hex');
@@ -26,6 +27,7 @@ let failCharacterWrite=false;
 let failWorldWrite=false;
 let gateScenario=null;
 let worldChoice='no';
+let recordReview=null;
 const host=`<!doctype html><html><meta charset="utf-8"><style>:root{--SmartThemeBodyColor:#eee;--SmartThemeBlurTintColor:#25252b;--SmartThemeBorderColor:#666;--SmartThemeQuoteColor:#9cbfff}body{margin:0;background:#202025;color:var(--SmartThemeBodyColor);font:16px Arial}button,input,select,textarea{box-sizing:border-box;font:inherit}button{cursor:pointer}select,input,textarea{color:inherit;background:var(--SmartThemeBlurTintColor)}.menu_button{border:1px solid var(--SmartThemeBorderColor);border-radius:5px;padding:7px}.text_pole{width:100%;border:1px solid #666;padding:6px}.checkbox_label{display:flex;align-items:center;gap:6px}.checkbox_label input{width:auto}</style><link rel="stylesheet" href="${prefix}style.css"><div id="extensions_settings"></div><div id="extensionsMenu"></div><div id="leftSendForm"><button id="extensionsMenuButton">wand</button></div><textarea id="send_textarea"></textarea><script>
 const listeners=new Map(), prompts={},macros={};
 window.mock={chat:[],prompts,macros,errors:[],worldBooks:{'Hunter Lore':{entries:{1:{uid:1,key:['door'],content:'The council meets tomorrow.'},2:{uid:2,key:['unrelated'],content:'Not relevant.'}}},'Hunter Extra':{entries:{3:{uid:3,constant:true,content:'Hunter owns the house.'}}},'Persona Lore':{entries:{4:{uid:4,key:['friend'],content:'Rosa is a friend of the user persona.'}}},'Persona Specific':{entries:{5:{uid:5,key:['neighbor'],content:'Rosa knows the user persona as a neighbor.'}}}},async emit(name,...args){if(name==='GENERATION_AFTER_COMMANDS')await mock.emit('GENERATION_STARTED',...args);for(const fn of listeners.get(name)||[])await fn(...args)}};
@@ -97,7 +99,7 @@ const server=http.createServer(async(req,res)=>{try{
         else if(req.url.endsWith('/characters')) { if(failCharacterWrite){failCharacterWrite=false;res.statusCode=500;res.end(JSON.stringify({error:'Simulated failed save'}));return;} store.characters=body.value; }
         else if(req.url.endsWith('/chat'))store.chat=body.value;
         else if(req.url.endsWith('/history'))store.history=body.value;
-        else if(req.url.endsWith('/systemone'))result={answers:Object.fromEntries(Object.entries(body.questions||{}).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:key==='scene_level'&&gateScenario?gateScenario.level:key==='scene_phase'&&gateScenario?gateScenario.phase:key==='scene_evidence'&&gateScenario?Object.keys(q.criteria).filter(value=>value!=='none').at(-1)||'none':key.startsWith('scene_participant_')&&gateScenario?'yes':key.startsWith('world_record_')?worldChoice:key.startsWith('verification_')?'fulfilled':key.endsWith('_presence') && key.startsWith('character_')?'active':key.includes('_affect_')?'visible':key.includes('_profile_slot_1')?Object.keys(q.criteria)[1]||'none':key.endsWith('_response_direction')?'act':({primary_focus:'direct',scene_state:'active',event_state:'none',npc_presence:'none',context_change_source:'none'}[key]||Object.keys(q.criteria)[0]),confidence:1}]))};
+        else if(req.url.endsWith('/systemone'))result={answers:Object.fromEntries(Object.entries(body.questions||{}).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:recordReview?recordReview(key,q):0.9}:{choice:key==='scene_level'&&gateScenario?gateScenario.level:key==='scene_phase'&&gateScenario?gateScenario.phase:key==='scene_evidence'&&gateScenario?Object.keys(q.criteria).filter(value=>value!=='none').at(-1)||'none':key.startsWith('scene_participant_')&&gateScenario?'yes':key.startsWith('world_record_')?worldChoice:key.startsWith('verification_')?'fulfilled':key.endsWith('_presence') && key.startsWith('character_')?'active':key.includes('_affect_')?'visible':key.includes('_profile_slot_1')?Object.keys(q.criteria)[1]||'none':key.endsWith('_response_direction')?'act':({primary_focus:'direct',scene_state:'active',event_state:'none',npc_presence:'none',context_change_source:'none'}[key]||Object.keys(q.criteria)[0]),confidence:1}]))};
         res.end(JSON.stringify(result));return;
     }
     if(req.url.startsWith(prefix)){const file=path.resolve(root,decodeURIComponent(req.url.slice(prefix.length)));if(!file.startsWith(root+path.sep))throw Error('path');res.setHeader('Content-Type',file.endsWith('.css')?'text/css':file.endsWith('.webp')?'image/webp':'application/javascript');res.end(await readFile(file));return;}
@@ -809,7 +811,7 @@ try{
     // Exercise the actual background collector through UI, output hooks and storage.
     await page.locator('[data-sr-tab="characters"]').click();
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').check()]);
-    assert.equal(await page.locator('#sr-emotion-now').isVisible(),true,'manual emotion button is shown only in profile mode');
+    assert.equal(await page.locator('#sr-emotion-now').isVisible(),true,'manual recovery is always available');
     assert.match(await page.locator('.sr-emotion-controls').textContent(),/확장 연결모델/);
     await page.evaluate(async()=>{mock.streamingEnabled=true;await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),'','profile mode never asks the RP model for metadata, including streaming');
@@ -830,6 +832,8 @@ try{
     assert.ok(store.chat.characterStateEvents.some(event=>event.outputIndex===profileOutputIndex&&event.states[0].values.anger===45));
     // Manual recovery requests only missing people and preserves saved values.
     const jevBeforeEmotion=requests.filter(request=>request.url.endsWith('/systemone')).length;
+    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').uncheck()]);
+    assert.equal(await page.locator('#sr-emotion-now').isVisible(),true);
     await page.locator('#sr-emotion-now').click();
     await page.waitForFunction(()=>mock.profileStateRequests.length===2);
     assert.equal(await page.locator('#sr-emotion-now').isDisabled(),true);
@@ -855,6 +859,8 @@ try{
     assert.ok((await neutralCard.locator('.sr-emotion-row strong').allTextContents()).every(text=>text==='0%'));
     await neutralCard.locator(':scope > summary').click();
     await page.locator('.sr-emotion-controls').screenshot({path:path.join(root,'artifacts','emotion-manual-mobile.png')});
+    assert.equal(store.chat.preferences.profileEmotionJudgment,false,'manual recovery preserves the automatic mode');
+    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').check()]);
     // A later request must not revive state after a reply is edited or reset.
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Hunter considers the next step.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);mock.chat.push({is_user:false,mes:'Hunter waits quietly.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),3);
@@ -871,7 +877,7 @@ try{
     assert.deepEqual(store.chat.characterStateEvents,[],'reset cannot be undone by a late background response');
     await page.locator('[data-sr-tab="characters"]').click();
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').uncheck()]);
-    assert.equal(await page.locator('#sr-emotion-now').isVisible(),false);
+    assert.equal(await page.locator('#sr-emotion-now').isVisible(),true,'manual recovery remains available in main-output mode');
     await page.evaluate(async()=>{mock.streamingEnabled=false;await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'turning the option off restores main-model collection inside the scene slot');
     await page.locator('#sr-settings-button').click();
@@ -953,6 +959,7 @@ try{
     await checkPresetSlots(page,store,requests);
     await checkCompilerCopies(page,requests,store);
     await checkBundlesAndProviders(page,store,requests,root,setViewportSize);
+    await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
     assert.deepEqual(errors,[]);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

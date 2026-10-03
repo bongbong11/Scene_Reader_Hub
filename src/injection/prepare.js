@@ -25,6 +25,10 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
                 const prefix=`character_${item.index}_record_`;
                 item.relevance = (frame.liveCharacters[item.index]?.profileCandidates || []).map((record,index)=>({id:record.id,type:record.type,score:frame.details[`${prefix}${index}`]?.certainty ?? 0,selected:frame.details[`${prefix}${index}`]?.effective==='yes',valid:!frame.details[`${prefix}${index}`]?.fallbackApplied}));
             }
+            if (item.recordMode) {
+                const extras = new Set(frame.liveCharacters[item.index]?.protectedCandidateIds || []);
+                item.protection.invalidAnswers = item.relevance.filter(record=>extras.has(record.id)&&!record.valid).length;
+            }
             if(item.profileIds.length || !item.candidateCount)continue;
             const prefix=`character_${item.index}_`;
             const presenceDetail=frame.details[`${prefix}presence`];
@@ -37,6 +41,11 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             const selected=slots.filter(key=>item.recordMode ? frame.details[key]?.effective==='yes' : frame.data.answers?.[key]?.choice && frame.data.answers[key].choice!=='none' && Object.hasOwn(frame.questions[key].criteria,frame.data.answers[key].choice));
             item.zeroReason=invalid.length ? `Jev 선택 응답 누락·형식 오류 ${invalid.length}개` : selected.length ? 'Jev 선택이 판정 기준 또는 코드 후처리에서 제외됨' : 'Jev가 관련 기록을 선택하지 않음';
         }
+        deps.noteDiagnostic?.('character_protection_prepared', {module:'character/record-allocation + character/live',
+            injectedCount:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.injected || 0),0),
+            slotOmissions:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.omittedBySlots || 0),0),
+            lengthOmissions:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.omittedByInjectionChars || 0),0),
+            invalidAnswers:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.invalidAnswers || 0),0) });
         (frame.characterBlock = frame.characterExecution.text);
         (frame.continuityBlock = deps.settings.continuityEnabled
             ? deps.buildContinuityInjection(deps.selectContinuityContext(deps.continuityView(frame.rec), frame.transcript, { opportunity: frame.rec.sceneOpportunity }), frame.chosenContinuity)

@@ -4,14 +4,16 @@ const PROFILE_STATE_SYSTEM = `Read the finished RP reply and return compact JSON
 
 // Optional background collector: reads completed RP with the saved connection
 // profile. The main-output collector remains the default and makes no extra call.
-export async function collectProfileOutputState({ request, service, profileId, output, roster, timeoutMs = 30000 }) {
+export async function collectProfileOutputState({ request, service, profileId, output, roster, context = {messages:[]}, timeoutMs = 30000 }) {
     if (!service || !profileId || !roster.length) return { states: [], error: 'unavailable' };
+    if (String(output || '').length > 24000) return { states: [], error: 'too_long' };
     let timer;
     try {
         const response = await Promise.race([
-            request(service, profileId, PROFILE_STATE_SYSTEM, {
+            request(service, profileId, PROFILE_STATE_SYSTEM + ' Recent RP context is background evidence for understanding this finished reply: read the earlier exchanges to resolve who is addressed, what provoked a feeling, and whether it persists or changed. Only return states supported by the listed person\'s actual expression in output. Never collect an absent person from context alone, copy an old numerical state, or carry a resolved feeling forward without current evidence. Consider every listed person and all four mood fields independently. A subtle feeling may be supported by speech, conduct or restraint; do not require explicit emotion words, and do not invent feelings from stereotypes. Do not copy example values.', {
                 people: roster.map(({ code, name, trackArousal }) => ({ code, name, trackArousal })),
-                output: String(output || '').slice(-12000),
+                recent_roleplay_context: context.messages,
+                output: String(output || ''),
             }, { maxTokens: 1200 }),
             new Promise(resolve => { timer = setTimeout(() => resolve(null), timeoutMs); }),
         ]);

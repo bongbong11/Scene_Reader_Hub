@@ -33,13 +33,12 @@ jobs:
           else
             echo 'changed=true' >> "$GITHUB_OUTPUT"
           fi
-      - name: Sync and build install files
+      - name: Sync and verify GitHub install files
         if: steps.compare.outputs.changed == 'true'
         run: |
           cd scene-reader
           node scripts/sync-character-core.mjs ../character-reasoner
           node scripts/sync-character-core.mjs ../character-reasoner --check
-          python3 scripts/package.py
           python3 scripts/release-check.py
           node scripts/check.mjs
       - name: Browser integration
@@ -55,6 +54,6 @@ jobs:
           cd scene-reader
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/vendor/character-reasoner scripts/provenance.json downloads
+          git add src/vendor/character-reasoner scripts/provenance.json
           git commit -m 'Sync validated Character Reasoner core'
           git push origin HEAD:main

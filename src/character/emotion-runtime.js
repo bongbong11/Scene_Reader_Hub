@@ -1,14 +1,14 @@
-// Extracted from Scene Reader 0.26.2; behavior preserved.
+import { buildEmotionContext } from './state-context.js';
+import { isStateOutput, latestStateOutputIndex } from './state-message.js';
 export function createEmotionRuntime(deps) {
 async function waitForProfileState() {
-    if (deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') return;
     const event = deps.latestStateEventForChat(deps.record(),deps.getContext().chat,deps.stableFingerprint);
     const task = deps.pendingProfileStateRequests.get(event?.capture?.requestId);
     if (task) await task;
 }
 
 function notifyEmotionCapture(status, count=0, selected=true) {
-    const messages={incomplete:'요청한 인물의 감정값 일부가 반환되지 않았습니다. 기존 저장값은 유지했습니다.',timeout:'감정 수집 시간 초과 · 다시 판독해 주세요.',request:'감정 수집 실패 · 확장 연결모델의 응답을 확인하세요.',format:'감정값 형식 확인 필요 · 인물의 감정값 탭을 확인하세요.',unavailable:'감정 수집 실패 · 확장 연결모델 설정을 확인하세요.',save_failed:'감정값을 저장하지 못했습니다. 다시 판독해 주세요.'};
+    const messages={too_long:'답변이 감정 수집 길이 한도를 넘었습니다. 값을 임의로 잘라 수집하지 않았습니다.',incomplete:'요청한 인물의 감정값 일부가 반환되지 않았습니다. 기존 저장값은 유지했습니다.',timeout:'감정 수집 시간 초과 · 다시 판독해 주세요.',request:'감정 수집 실패 · 확장 연결모델의 응답을 확인하세요.',format:'감정값 형식 확인 필요 · 인물의 감정값 탭을 확인하세요.',unavailable:'감정 수집 실패 · 확장 연결모델 설정을 확인하세요.',save_failed:'감정값을 저장하지 못했습니다. 다시 판독해 주세요.'};
     const message=status==='collecting'?'감정 수집 중…':status==='collected'?`${selected?'감정 수집 완료':'다른 스와이프 감정 저장 완료'} · ${count}명`:status==='partial'?`감정 ${count}명 수집 · 일부 값은 형식 확인 필요`:status==='empty'?'감정 수집 완료 · 이번 답변에서 수집할 값 없음':messages[status];
     if(!message)return;
     const level=status==='collecting'||status==='empty'?'info':status==='collected'?'success':'warning';
@@ -16,8 +16,9 @@ function notifyEmotionCapture(status, count=0, selected=true) {
 }
 
 function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, missingOnly = false }) {
-    if (deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output' || !deps.settings.enabled || !deps.characterStore.enabled || !roster?.length || !text.trim()) return;
+    if ((!missingOnly && deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') || !deps.settings.enabled || !deps.characterStore.enabled || !roster?.length || !text.trim()) return;
     const owner = deps.record();
+    if (!isStateOutput(deps.getContext().chat?.[outputIndex],outputIndex,owner.nonRpOutputIndices)) return;
     const fingerprint = deps.stableFingerprint(text);
     const swipeId = deps.selectedStateSwipe(deps.getContext().chat?.[outputIndex]);
     const existing = owner.characterStateEvents?.find(event => event.outputIndex===outputIndex && event.swipeId===swipeId && event.fingerprint===fingerprint);
@@ -35,6 +36,8 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         owner.characterStateRevision=(Number(owner.characterStateRevision)||0)+1;
     }
     const profileId = deps.settings.reasonerProfileId;
+    const context = buildEmotionContext(deps.getContext().chat, outputIndex, {nonRpOutputIndices:owner.nonRpOutputIndices});
+    const contextFingerprint = deps.stableFingerprint(context);
     const requestId = `${Date.now()}:${++deps.profileStateSequence}`;
     const participantIds=[...new Set([...(missingOnly ? existing?.capture?.participantIds || [] : []),...fullRoster.map(person=>person.id)])];
     const capture = { outputIndex, swipeId, fingerprint, requestId, participantIds, status:'collecting', count:preserved.length, source:'profile-output' };
@@ -44,16 +47,17 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         if (!deps.connectionRequestService) await deps.loadReasonerProfiles();
         const result = await deps.collectProfileOutputState({
             request: deps.requestWithConnectionProfile, service: deps.connectionRequestService,
-            profileId, output: text, roster,
+            profileId, output: text, roster, context,
         });
         await deps.waitForOutputChanges();
-        if (!deps.pendingProfileStateRequests.has(requestId) || chatKey !== deps.stateChatKey() || !deps.settings.enabled || !deps.characterStore.enabled || deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output' || deps.settings.reasonerProfileId !== profileId) return;
+        if (!deps.pendingProfileStateRequests.has(requestId) || chatKey !== deps.stateChatKey() || !deps.settings.enabled || !deps.characterStore.enabled || (!missingOnly && deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') || deps.settings.reasonerProfileId !== profileId) return;
         const rec = deps.record();
         if (!rec?.characterStateEvents?.some(event=>event.capture?.requestId===requestId)) return;
         const message = deps.getContext().chat?.[outputIndex];
         const selected = message && deps.selectedStateSwipe(message) === swipeId;
         const reply = selected ? message.mes : message?.swipes?.[swipeId];
         if (typeof reply !== 'string' || deps.stableFingerprint(reply) !== fingerprint) return;
+        if (deps.stableFingerprint(buildEmotionContext(deps.getContext().chat,outputIndex,{nonRpOutputIndices:rec.nonRpOutputIndices})) !== contextFingerprint) return;
         const savedIds=new Set(preserved.map(state=>state.id));
         const states=[...preserved,...result.states.filter(state=>!savedIds.has(state.id))];
         const diagnostics=result.diagnostics ? {...result.diagnostics,actors:(result.diagnostics.actors || []).map(actor=>({...actor,rosterIndex:participantIds.indexOf(roster[actor.rosterIndex]?.id)}))} : null;
@@ -74,7 +78,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         if(chatKey===deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             const rec=deps.record();
             const event=rec?.characterStateEvents?.find(item=>item.outputIndex===outputIndex && item.swipeId===swipeId && item.fingerprint===fingerprint);
-            if(event && missingOnly) {
+            if(event) {
                 event.states=preserved;
                 event.capture={...capture,status:'save_failed',count:preserved.length};
                 if(rec.characterStateCapture?.fingerprint===fingerprint && rec.characterStateCapture?.swipeId===swipeId)rec.characterStateCapture=event.capture;
@@ -93,16 +97,19 @@ async function collectCurrentEmotion() {
     await deps.waitForOutputChanges();
     const rec=deps.record();
     if (!deps.settings.enabled || !deps.characterStore.enabled) throw new Error('씬판독기와 인물 판정을 먼저 켜 주세요.');
-    if (deps.stateCollectorMode(rec?.preferences)!=='profile-output' || !deps.settings.reasonerProfileId) throw new Error('확장 연결모델을 선택하고 감정 판정을 켜 주세요.');
+    if (!deps.settings.reasonerProfileId) throw new Error('설정 → 모델 연결에서 확장 연결 프로필을 먼저 선택하세요.');
     if (rec?.lastJudgment?.sceneIntimacy?.route==='paused' || rec?.sceneIntimacy?.route==='paused') throw new Error('현재 장면에서는 감정 수집을 쉬고 있습니다.');
     const chat=deps.getContext().chat || [];
-    const outputIndex=chat.findLastIndex((message,index)=>!message.is_user && !message.is_system && !(rec.nonRpOutputIndices||[]).includes(index));
+    const outputIndex=latestStateOutputIndex(chat,rec.nonRpOutputIndices);
     const text=String(chat[outputIndex]?.mes || '');
     if (!text.trim()) throw new Error('감정을 읽을 롤플 답변이 없습니다.');
     const entries=[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[]),...(rec.preferences?.allowUserImpersonation && deps.characterStore.persona?[deps.characterStore.persona]:[])];
     let judgment=rec.lastJudgment?.characterTrace?.length ? rec.lastJudgment : {characterTrace:entries.map(entry=>({id:entry.id,presence:'background'}))};
     const capturedIds=new Set(deps.latestStateEventForChat(rec,chat,deps.stableFingerprint)?.capture?.participantIds || []);
     if(capturedIds.size) judgment={...judgment,characterTrace:[...judgment.characterTrace.filter(person=>!capturedIds.has(person.id)),...[...capturedIds].map(id=>({id,presence:'background'}))]};
+    // Recovery rechecks wrongly excluded registered actors from the completed output.
+    // The collector still must find actual participation; this does not change Jev presence.
+    judgment={...judgment,characterTrace:entries.map(entry=>({id:entry.id,presence:judgment.characterTrace.find(p=>p.id===entry.id)?.presence==='active'?'active':'background'}))};
     const roster=deps.stateRoster(deps.characterStore,rec.preferences,judgment);
     if (!roster.length) throw new Error('감정을 읽을 참여 인물이 없습니다. 인물 기록과 판독 결과를 확인하세요.');
     await scheduleProfileStateCollection({chatKey:deps.stateChatKey(),outputIndex,text,roster,missingOnly:true});

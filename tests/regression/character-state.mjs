@@ -125,7 +125,8 @@ const alternate = await collectProfileOutputState({
     request: async (_service, profileId, _system, state, options) => {
         profileCalls++;
         assert.equal(profileId, 'profile-1');
-        assert.deepEqual(Object.keys(state).sort(), ['output', 'people']);
+        assert.deepEqual(Object.keys(state).sort(), ['output', 'people', 'recent_roleplay_context']);
+        assert.deepEqual(state.recent_roleplay_context, []);
         assert.equal(state.output, 'Rowan speaks.');
         assert.equal(options.maxTokens, 1200);
         return { result: { states: [{ code: 'C0', a: 35, c: 70, anger: 10, targets: { anger: 'Felix' } }] } };

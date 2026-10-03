@@ -76,6 +76,12 @@ if (frame.prefs.settingsContract >= 3) {
         if (primary) primary.mainSillyTavernName = deps.getContext().name2 || '';
     }
     if (deps.characterStore.enabled) Object.assign(frame.questions, deps.buildCharacterTurnQuestions(frame.liveCharacters));
+    deps.noteDiagnostic?.('character_protection_candidates', { module:'character/record-protection + record-questions',
+        baselineCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.prefilterStats?.baselineCandidateCount ?? p.profileCandidates.length),0),
+        supplementalCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.protectedCandidateIds?.length || 0),0),
+        requestChars:frame.liveCharacters.reduce((sum,p)=>sum+(p.prefilterStats?.protectedRequestChars || 0),0),
+        unreviewedCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.prefilterStats?.protectedOmittedByChars || 0)+(p.prefilterStats?.protectedOmittedByLimit || 0)+(p.prefilterStats?.protectedOmittedByRequest || 0),0),
+        fallbackCount:frame.liveCharacters.filter(p=>p.prefilterStats?.protectionFallback).length });
     Object.assign(frame.questions, buildSexualQuestions(frame.liveCharacters, frame.prefs.physicalIntimacyPace));
 
     frame.questions.npc_target = {

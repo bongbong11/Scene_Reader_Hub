@@ -19,7 +19,7 @@ jobs:
           python-version: '3.12'
       - name: Source, compatibility and regression tests
         run: node scripts/check.mjs
-      - name: Installation archive verification
+      - name: GitHub installation verification
         run: python scripts/release-check.py
       - name: Browser dependency
         run: |

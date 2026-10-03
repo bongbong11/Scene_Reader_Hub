@@ -1,3 +1,5 @@
+import { latestStateOutputIndex } from './state-message.js';
+
 export const STATE_OPEN = '[[SR_STATE]]';
 export const STATE_CLOSE = '[[/SR_STATE]]';
 export const STATE_MOODS = Object.freeze(['anger', 'joy', 'fear', 'sadness']);
@@ -139,10 +141,7 @@ export const selectedStateSwipe = message => Number.isInteger(message?.swipe_id)
 
 export function latestStateEventForChat(record, chat, fingerprint = null) {
     const messages = Array.isArray(chat) ? chat : [];
-    let latestIndex = -1;
-    for (let index = messages.length - 1; index >= 0; index--) {
-        if (!messages[index]?.is_user && !messages[index]?.is_system && !(record?.nonRpOutputIndices || []).includes(index)) { latestIndex = index; break; }
-    }
+    const latestIndex = latestStateOutputIndex(messages, record?.nonRpOutputIndices);
     const message = messages[latestIndex];
     const matches = (record?.characterStateEvents || []).filter(item => item.outputIndex === latestIndex && (!fingerprint || item.fingerprint === fingerprint(message?.mes || '')));
     return matches.findLast(item => item.swipeId === selectedStateSwipe(message)) || matches.findLast(item => item.swipeId == null) || null;

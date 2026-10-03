@@ -59,7 +59,7 @@ function setFormValues() {
     setChecked('sr-user-impersonation', prefs.allowUserImpersonation);
     setChecked('sr-profile-emotion', prefs.profileEmotionJudgment);
     const emotionNow=deps.document.getElementById('sr-emotion-now');
-    if(emotionNow) emotionNow.hidden=!prefs.profileEmotionJudgment;
+    if(emotionNow) emotionNow.hidden=false;
     for (const [id,key] of [['sr-memory-charm','charmMemory'],['sr-memory-lorebook','lorebookMemory']]) { setChecked(id, MEMORY_REFERENCE_ENABLED && prefs[key]); const input = deps.document.getElementById(id); if (input) input.disabled = !MEMORY_REFERENCE_ENABLED; }
     setChecked('sr-continuity-enabled', deps.settings.continuityEnabled);
     deps.renderReasonerProfiles();
