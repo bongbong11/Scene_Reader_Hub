@@ -213,6 +213,8 @@ let {rememberOocMarker, handleOocOnlySkip} = createOocLifecycle({
 });
 
 let {apiError, pluginError, callJev} = createJevClient({
+    get localStorage() { return localStorage; },
+    get settings() { return runtime.settings; },
     get JEV_API_URL() { return JEV_API_URL; },
     get StaleRunError() { return StaleRunError; },
     get fetch() { return (...args) => fetch(...args); },
@@ -226,6 +228,7 @@ let {reversibleStateSnapshot, restoreReversibleState} = createStateSnapshots({
 });
 
 let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnection} = createStatusUi({
+    get localStorage() { return localStorage; },
     get JEV_MODEL() { return JEV_MODEL; },
     get StaleRunError() { return StaleRunError; },
     get callJev() { return callJev; },

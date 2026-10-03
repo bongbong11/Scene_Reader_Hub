@@ -22,7 +22,7 @@ export function archiveRecordVersion(store, entry, saveName) {
     store.recordGroups ||= [];
     let group=store.recordGroups.find(g=>g.kind===entry.kind && normalized(g.name)===normalized(name));
     if (!group) { group={id:uid(),kind:entry.kind,name,versions:[]}; store.recordGroups.push(group); }
-    const entrySnapshot=Object.fromEntries(['id','kind','name','aliases','source','sourceHash','selectedLore','sourceVisibleToMain','npcRole','antagonist','trackArousal','provenance'].filter(key=>Object.hasOwn(entry,key)).map(key=>[key,structuredClone(entry[key])]));
+    const entrySnapshot=Object.fromEntries(['id','kind','name','aliases','source','sourceHash','selectedLore','sourceVisibleToMain','npcRole','antagonist','trackArousal','provenance','cardCast'].filter(key=>Object.hasOwn(entry,key)).map(key=>[key,structuredClone(entry[key])]));
     const version={id:uid(),savedAt:new Date().toISOString(),entryId:entry.id,entityName:entry.name,entrySnapshot,bank:structuredClone(entry.recordBank)};
     group.versions.unshift(version);
     entry.appliedRecordVersion=version.id;
@@ -43,6 +43,7 @@ export function importRecordVersion(store, input, saveName, form = null) {
         source:form?.source || existing?.source || '',selectedLore:form?.selectedLore || existing?.selectedLore || [],aliases:[...new Set([...(existing?.aliases || []),...(existing && existing.name!==output.entity_name?[existing.name]:[])])],
         sourceVisibleToMain:form?.sourceVisibleToMain ?? existing?.sourceVisibleToMain ?? output.entity_type!=='npc',npcRole:form?.npcRole || existing?.npcRole || (output.entity_type==='npc'?'mixed':''),updatedAt:new Date().toISOString()};
     if(form?.sourceHash)entry.sourceHash=form.sourceHash;
+    if(form?.cardCast)entry.cardCast=structuredClone(form.cardCast);
     entry.antagonist=entry.npcRole==='villain';
     entry.recordBank=form?.source ? createRecordBank(input,entry,uid()) : createImportedRecordBank(input,entry,uid());
     if (entry.profile) {entry.legacyProfile=entry.profile;delete entry.profile;}

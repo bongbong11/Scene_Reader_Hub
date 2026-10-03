@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import { fixture } from './regression/audit-v012.mjs';
+
+const f=fixture(),calls=[],notices=[];
+f.ctx.chat=[{is_user:false,mes:'Aster, Briar and Cedar answer.',swipe_id:0}];
+f.sandbox.people=[{id:'a',kind:'character',name:'Aster'},{id:'b',kind:'npc',name:'Briar',trackArousal:false},{id:'c',kind:'npc',name:'Cedar',trackArousal:true}];
+f.sandbox.window.toastr=Object.fromEntries(['info','success','warning'].map(level=>[level,message=>notices.push({level,message})]));
+f.sandbox.requestPending=(service,profile,system,body)=>new Promise(resolve=>calls.push({body,resolve}));
+f.run(`record(true).preferences.profileEmotionJudgment=true;
+    characterStore={enabled:true,characters:[people[0]],npcs:people.slice(1)};
+    settings.reasonerProfileId='synthetic';connectionRequestService={};requestWithConnectionProfile=requestPending;
+    record().lastJudgment={characterTrace:people.map(p=>({id:p.id,presence:'active'}))};
+    storeStateEvent(record(),{outputIndex:0,swipeId:0,fingerprint:stableFingerprint(getContext().chat[0].mes),
+        states:[{id:'a',values:{a:10,c:90,anger:0,joy:0,fear:0,sadness:0},targets:{}},{id:'c',values:{a:20,c:80,joy:30},targets:{}}],
+        capture:{outputIndex:0,participantIds:['a','b','c'],status:'partial',count:2,diagnostics:{actors:[{rosterIndex:0,accepted:true,reasons:[]},{rosterIndex:1,accepted:false,reasons:['field_format']},{rosterIndex:2,accepted:true,reasons:[]}]}}});`);
+const original=JSON.parse(f.run('JSON.stringify(record().characterStateEvents[0].states)'));
+const first=f.run('collectCurrentEmotion()'),duplicate=f.run('collectCurrentEmotion()');
+await new Promise(resolve=>setTimeout(resolve,0));
+assert.equal(calls.length,1);
+assert.deepEqual(calls[0].body.people.map(p=>p.name),['Briar'],'only the missing person is sent to the collector');
+assert.equal(f.run('record().characterStateEvents[0].states.length'),2,'saved actors remain visible during recovery');
+calls[0].resolve({result:{states:[{code:'C1',anger:55},{code:'C0',a:99,c:1}]}});
+await Promise.all([first,duplicate]);
+const saved=JSON.parse(f.run('JSON.stringify(record().characterStateEvents[0].states)'));
+for(const state of original)assert.deepEqual(saved.find(p=>p.id===state.id),state,'saved actors are never overwritten by a recovery result');
+assert.equal(saved.find(p=>p.id==='b').values.anger,55);
+const revision=f.run('record().characterStateRevision');
+await f.run('collectCurrentEmotion()');
+assert.equal(calls.length,1,'all saved, including zero moods: no extra request');
+assert.equal(f.run('record().characterStateRevision'),revision,'no-op recovery does not invalidate the judgment');
+assert.match(notices.at(-1).message,/이미 저장/);
+
+// Failed and empty retries must retain the two valid actors.
+f.run(`record().characterStateEvents[0].states=record().characterStateEvents[0].states.filter(p=>p.id!=='b');`);
+const failed=f.run('collectCurrentEmotion()');await new Promise(resolve=>setTimeout(resolve,0));
+calls[1].resolve({result:{states:[{code:'C1',anger:999}]}});await failed;
+assert.equal(f.run('record().characterStateEvents[0].states.length'),2);
+const empty=f.run('collectCurrentEmotion()');await new Promise(resolve=>setTimeout(resolve,0));
+calls[2].resolve({result:{states:[]}});await empty;
+assert.equal(f.run('record().characterStateEvents[0].states.length'),2);
+assert.equal(f.run('record().characterStateCapture.status'),'incomplete','no returned actor is never announced as successful recovery');
+const late=f.run('collectCurrentEmotion()');await new Promise(resolve=>setTimeout(resolve,0));
+f.ctx.chat[0].mes='Edited response.';
+calls[3].resolve({result:{states:[{code:'C1',anger:80}]}});await late;
+assert.equal(f.run('latestStateForChat(record(),getContext().chat,stableFingerprint).length'),0,'edited text cannot receive a late result');
+f.ctx.chat[0].mes='Aster, Briar and Cedar answer.';
+f.run('persistChat=async()=>{throw new Error("Synthetic save failure");}');
+const unsaved=f.run('collectCurrentEmotion()');await new Promise(resolve=>setTimeout(resolve,0));
+calls[4].resolve({result:{states:[{code:'C1',anger:25}]}});await unsaved;
+assert.equal(f.run('record().characterStateEvents[0].states.length'),2,'failed save does not lock an unsaved value against later recovery');
+assert.equal(f.run('record().characterStateCapture.status'),'save_failed');
+console.log('Emotion recovery passed: missing actor only, zero-state no-op, preserved values while pending, duplicate clicks, unsolicited rows, failed/empty retry and edited-output isolation.');

@@ -7,6 +7,7 @@ function setFormValues() {
     const prefs = deps.preferences();
     const setValue = (id, value) => { const element = deps.document.getElementById(id); if (element) element.value = value; };
     const setChecked = (id, value) => { const element = deps.document.getElementById(id); if (element) element.checked = Boolean(value); };
+    setValue('sr-jev-provider', deps.settings.jevProviderSelection || 'auto');
     const provider = deps.RETRIEVAL_PROVIDERS[deps.settings.retrievalProvider] ? deps.settings.retrievalProvider : 'transformers';
     setValue('sr-retrieval-provider', provider);
     setValue('sr-retrieval-model', deps.settings.retrievalModel || deps.RETRIEVAL_PROVIDERS[provider].model);

@@ -1,3 +1,4 @@
+import { setCharacterImportMode, characterImportMode } from "../character-import-mode.js";
 import { notifySceneReaderToast } from "../toasts.js";
 import { characterErrorReport } from "../character-error.js";
 import { compilerRequest, createRecordBank } from "../../character/records.js";
@@ -14,7 +15,7 @@ function captureCharacterError(error,stage,meta={}) {
 }
 
 function characterFormSignature() {
-    return JSON.stringify([deps.editorLore, ...['sr-character-name', 'sr-character-aliases', 'sr-character-source', 'sr-character-npc-role'].map(id => deps.document.getElementById(id)?.value || ''), Boolean(deps.document.getElementById('sr-character-source-visible')?.checked)]);
+    return JSON.stringify([deps.editorLore, ...['sr-character-name', 'sr-character-aliases', 'sr-character-source', 'sr-character-npc-role', 'sr-character-cast-names'].map(id => deps.document.getElementById(id)?.value || ''), Boolean(deps.document.getElementById('sr-character-source-visible')?.checked)]);
 }
 
 function characterEntries(kind) {
@@ -47,6 +48,15 @@ function showCharacterEditor(kind, entry = null) {
     deps.document.getElementById('sr-character-editor-title').textContent = `${kind === 'persona' ? '페르소나' : kind === 'npc' ? 'NPC' : '캐릭터'} ${entry ? '수정' : '추가'}`;
     deps.document.getElementById('sr-character-name').value = entry?.name || (kind === 'persona' ? deps.getContext().name1 || '페르소나' : '');
     deps.document.getElementById('sr-character-sheet-step').hidden=kind==='npc';
+    const cast=deps.document.getElementById('sr-character-cast-names');
+    if(cast){cast.value=entry?.cardCast ? entry.name : '';cast.dataset.cardName=entry?.cardCast?.cardName || '';cast.dataset.member=String(Boolean(entry?.cardCast)); }
+    const castRow=deps.document.getElementById('sr-character-cast-row');
+    if(castRow)castRow.hidden=true;
+    const modes=deps.document.getElementById('sr-character-import-modes');
+    if(modes)modes.hidden=kind!=='character';
+    setCharacterImportMode(deps.document,'single');
+    const preview=deps.document.getElementById('sr-character-import-preview');
+    if(preview)preview.innerHTML='';
     deps.document.getElementById('sr-character-npc-step').hidden=kind!=='npc';
     deps.document.getElementById('sr-character-npc-ai-note').hidden=kind!=='npc';
     deps.document.getElementById('sr-character-sheet-ai-note').hidden=kind==='npc';
@@ -178,6 +188,9 @@ async function ensureLoreLoaded(){if(deps.loreLoadingPromise)await deps.loreLoad
 function characterForm() {
     return { kind: deps.characterEditorKind,
         selectedLore: structuredClone(deps.editorLore),
+        importMode: characterImportMode(deps.document),
+        castNames: characterImportMode(deps.document)==='multi' ? deps.document.getElementById('sr-character-cast-names')?.value || '' : '',
+        cardCast: (characterImportMode(deps.document)==='multi' || deps.document.getElementById('sr-character-cast-names')?.dataset.member==='true') && deps.document.getElementById('sr-character-cast-names')?.dataset.cardName ? {cardName:deps.document.getElementById('sr-character-cast-names').dataset.cardName} : null,
         name: String(deps.document.getElementById('sr-character-name')?.value || '').trim(),
         source: String(deps.document.getElementById('sr-character-source')?.value || '').trim(),
         aliases: String(deps.document.getElementById('sr-character-aliases')?.value || '').split(',').map(v => v.trim()).filter(Boolean),

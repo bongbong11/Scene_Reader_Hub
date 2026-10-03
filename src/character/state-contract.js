@@ -21,6 +21,7 @@ function stateFor(code, fields, roster, reject = () => null) {
     const values = { anger: 0, joy: 0, fear: 0, sadness: 0 };
     const targets = {};
     const seen = new Set();
+    let ignoredDisabled = false;
     for (const field of fields) {
         const match = /^([a-z_]+(?:[ -][a-z]+)*)\s*(?:[:=]\s*)?(\d{1,3}(?:\.0+)?)\s*%?\s*(?:@\s*([\p{L}\p{N} .'_-]{1,64}))?$/iu.exec(String(field).trim());
         if (!match) return reject('field_format');
@@ -29,30 +30,46 @@ function stateFor(code, fields, roster, reject = () => null) {
         if (seen.has(key)) return reject('duplicate_field');
         const number = Number(match[2]);
         if (number > 100) return reject('out_of_range');
-        if ((key === 'a' || key === 'c') && !person.trackArousal) return reject('disabled_field');
+        if ((key === 'a' || key === 'c') && !person.trackArousal) { ignoredDisabled = true; continue; }
         seen.add(key);
         values[key] = number;
         if (match[3] && key !== 'c') targets[key] = match[3].trim();
     }
-    if (person.trackArousal && (!seen.has('a') || !seen.has('c'))) return reject('missing_fields');
+    if (ignoredDisabled) {
+        if (!seen.size) return reject('disabled_field');
+        reject('disabled_field_ignored');
+    }
+    if (person.trackArousal && (!seen.has('a') || !seen.has('c'))) {
+        if (!STATE_MOODS.some(key => seen.has(key))) return reject('missing_fields');
+        // A broken optional a/c pair must not erase independently valid moods.
+        // Never invent a missing score or use half a pair for sexual decisions.
+        delete values.a; delete values.c; delete targets.a;
+        reject('missing_fields_ignored');
+    }
     if (!person.trackArousal) { delete values.a; delete values.c; }
     return { id: person.id, values, targets };
 }
 function readRows(rows, roster, format) {
-    const diagnostics = { format, received: rows.length, accepted: 0, rejected: 0, reasons: [] };
+    const diagnostics = { format, received: rows.length, accepted: 0, rejected: 0, reasons: [], actors: [] };
     const reason = value => { if (!diagnostics.reasons.includes(value)) diagnostics.reasons.push(value); return null; };
     if (rows.length > 24) return { states: [], diagnostics: {...diagnostics, rejected: rows.length, reasons:['too_many_rows']} };
     const seen = new Set(), blocked = new Set(), states = [];
     for (const {code, fields, invalid} of rows) {
         const person = findPerson(code, roster);
+        const actor = { rosterIndex: roster.indexOf(person), reasons: [], accepted: false };
+        diagnostics.actors.push(actor);
+        const actorReason = value => { actor.reasons.push(value); return reason(value); };
         if (person && seen.has(person.id)) {
-            blocked.add(person.id); reason('duplicate_person'); continue;
+            blocked.add(person.id); actorReason('duplicate_person'); continue;
         }
         if (person) seen.add(person.id);
-        const state = invalid ? reason(invalid) : stateFor(code, fields, roster, reason);
+        const state = invalid ? actorReason(invalid) : stateFor(code, fields, roster, actorReason);
+        actor.accepted = Boolean(state);
         if (state) states.push(state);
     }
     const accepted = states.filter(state => !blocked.has(state.id));
+    for (const actor of diagnostics.actors) if (blocked.has(roster[actor.rosterIndex]?.id)) { actor.accepted = false; if (!actor.reasons.includes('duplicate_person')) actor.reasons.push('duplicate_person'); }
+    diagnostics.partial = diagnostics.actors.filter(actor => actor.accepted && actor.reasons.length).length;
     diagnostics.accepted = accepted.length;
     diagnostics.rejected = rows.length - accepted.length;
     return { states: accepted, diagnostics };
@@ -64,9 +81,7 @@ export function parseProfileStates(value, roster) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return {invalid:'json_format'};
         const code = item.code ?? item.id ?? item.name;
         const values = item.values && typeof item.values === 'object' ? item.values : item;
-        const person = findPerson(code,roster);
         const fields = Object.entries(values).filter(([key]) => FIELD_NAMES.has(fieldName(key)))
-            .filter(([key]) => person?.trackArousal || !['a','c'].includes(fieldName(key)))
             .map(([key,value]) => `${fieldName(key)}${value}${item.targets?.[key] ? `@${item.targets[key]}` : ''}`);
         return {code,fields};
     }), roster, 'json');

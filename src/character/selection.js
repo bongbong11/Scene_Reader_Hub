@@ -58,11 +58,13 @@ export function selectActiveEntries(store, transcript, primaryCharacterName = ''
         let score = latest >= 0 ? 2000 + (latest / Math.max(1, haystack.length)) * 500 : 0;
         if (carried.has(entry.id)) score = Math.max(score, 1000);
         if (isPrimary(entry)) score = Math.max(score, 4000);
-        if (entry.id === soleCharacterId) score = Math.max(score, 4000);
+        // Card membership supplies candidates, never proof of participation.
+        if (entry.cardCast?.cardName?.trim().toLocaleLowerCase() === primary && primary) score = Math.max(score, 1500);
+        if (entry.id === soleCharacterId && !entry.cardCast) score = Math.max(score, 4000);
         if (allowUserImpersonation && entry.kind === 'persona') score = Math.max(score, 3900);
         return { entry, order, score };
     }).filter((item) => item.score > 0);
-    if (!scored.length && normalized.characters.length === 1) scored.push({ entry: normalized.characters[0], order: 0, score: 500 });
+    if (!scored.length && normalized.characters.length === 1 && !normalized.characters[0].cardCast) scored.push({ entry: normalized.characters[0], order: 0, score: 500 });
     return scored
         .sort((a, b) => b.score - a.score || b.order - a.order)
         .map((item) => item.entry)

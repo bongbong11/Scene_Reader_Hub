@@ -71,7 +71,7 @@ if (frame.prefs.settingsContract >= 3) {
     }) : []);
     for (const person of frame.liveCharacters) person.priorState = frame.priorStates.get(person.id) || null;
     for (const person of frame.liveCharacters) person.sexualConductManaged = sexualEligible(person);
-    if (deps.characterStore.characters.length === 1) {
+    if (deps.characterStore.characters.length === 1 && !deps.characterStore.characters[0].cardCast) {
         const primary = frame.liveCharacters.find((person) => person.id === deps.characterStore.characters[0].id);
         if (primary) primary.mainSillyTavernName = deps.getContext().name2 || '';
     }

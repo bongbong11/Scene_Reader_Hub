@@ -1,4 +1,5 @@
 import {buildTurnReport} from '../../debug/turn-report.js';
+import { bindJevSettings } from '../jev-settings.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
 import { debugReportText } from "../../debug/report.js";
@@ -57,7 +58,10 @@ function bindForm() {
         if(!String(source).trim())throw new Error('현재 인물의 시트 원문을 찾지 못했습니다. 캐릭터 카드나 페르소나 설정을 확인한 뒤 다시 가져오세요.');
         const input=deps.document.getElementById('sr-character-source');
         if(input.value.trim() && !deps.window.confirm('입력 중인 원문을 현재 시트로 바꿀까요?'))return;
-        input.value=source;deps.document.getElementById('sr-character-name').value=name;
+        const cast=deps.document.getElementById('sr-character-cast-names');
+        input.value=source;
+        if(cast?.dataset.member!=='true')deps.document.getElementById('sr-character-name').value=name;
+        if(cast)cast.dataset.cardName=kind==='character'?name:'';
         deps.updateSheetButton();
         deps.document.getElementById('sr-character-sheet-summary').textContent=`${name} · 시트 ${source.length}자 가져옴`;
         deps.characterEditorRevision++;await deps.beginLoreRefresh();deps.taskStatus('현재 시트와 연결 로어북을 가져왔습니다. 분석 명령문을 복사하세요.');
@@ -259,25 +263,7 @@ function bindForm() {
     });
     deps.document.getElementById('sr-progress-intensity-reset')?.addEventListener('click', () => deps.runUiTask(deps.savePreference('progressIntensity', 1).then(deps.setFormValues)));
     deps.document.getElementById('sr-confidence')?.addEventListener('change', (event) => { deps.runUiTask(deps.saveGlobal('showConfidence', event.target.checked).then(deps.renderJudgment)); });
-    deps.document.getElementById('sr-jev-save')?.addEventListener('click', async () => {
-        const input = deps.document.getElementById('sr-jev-key');
-        const key = String(input?.value || '').trim();
-        try {
-            const data = await deps.storagePost('key', { key });
-            deps.serverKeyStatus = data.keyStatus;
-            deps.localStorage.removeItem(deps.JEV_KEY_STORAGE);
-            input.value = '';
-            deps.updateKeyStatus();
-            notifySceneReaderToast(deps.window, 'success', key ? 'Jev 키를 전용 저장소에 저장했습니다.' : '저장된 Jev 키를 삭제했습니다.', '씬판독기');
-        } catch (error) { notifySceneReaderToast(deps.window, 'error', `Jev 키를 저장하지 못했습니다. · ${error.message}`, '씬판독기'); }
-    });
-    deps.document.getElementById('sr-jev-toggle')?.addEventListener('click', () => {
-        const input = deps.document.getElementById('sr-jev-key');
-        if (input) input.type = input.type === 'password' ? 'text' : 'password';
-    });
-    deps.document.getElementById('sr-jev-test')?.addEventListener('click', async () => {
-        try { await deps.testConnection(); } catch (error) { notifySceneReaderToast(deps.window, 'error', error.message, '씬판독기'); }
-    });
+    bindJevSettings(deps);
     deps.document.getElementById('sr-continuity-enabled')?.addEventListener('change', (event) => deps.runUiTask((async () => {
         deps.invalidateReasonerJobs();
         await deps.saveGlobal('continuityEnabled', event.target.checked);
@@ -535,7 +521,7 @@ function bindForm() {
         button.disabled=true; button.textContent='판독 중…';
         deps.runUiTask((async()=>{
             try { await deps.collectCurrentEmotion(); }
-            finally { button.disabled=false; button.textContent='지금 감정 판독'; }
+            finally { button.disabled=false; button.textContent='빠진 감정 수집'; }
         })(),'감정을 판독하지 못했습니다.');
     });
     deps.document.getElementById('sr-profile-emotion')?.addEventListener('change', event => deps.runUiTask((async () => {

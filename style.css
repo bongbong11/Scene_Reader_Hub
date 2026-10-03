@@ -431,3 +431,19 @@
     #scene-reader-dialog #sr-hub-trace-panel { margin-inline: 9px; }
 }
 @media (prefers-reduced-motion: reduce) { #scene-reader-dialog #sr-resize-handle { transition: none; } }
+
+#scene-reader-dialog .sr-record-bundle { margin: 10px 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 12px; overflow: hidden; }
+#scene-reader-dialog .sr-record-bundle > summary { display: flex; align-items: center; gap: 10px; padding: 12px; cursor: pointer; font-weight: 700; min-height: 44px; }
+#scene-reader-dialog .sr-record-bundle > summary::before { content: '›'; font-size: 1.3em; transition: transform .15s; }
+#scene-reader-dialog .sr-record-bundle[open] > summary::before { transform: rotate(90deg); }
+#scene-reader-dialog .sr-record-bundle > summary span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#scene-reader-dialog .sr-record-bundle > summary small { flex-shrink: 0; padding: 3px 8px; border-radius: 20px; background: rgba(140,160,190,.15); font-weight: 400; }
+#scene-reader-dialog .sr-record-bundle-people { margin: 0 12px 10px 22px; padding-left: 12px; border-left: 2px solid var(--SmartThemeBorderColor); }
+#scene-reader-dialog .sr-record-bundle-people .sr-record-person:last-child { border-bottom: 0; }
+
+#scene-reader-dialog .sr-character-import-modes { display: flex; gap: 8px; margin: 4px 0 12px; }
+#scene-reader-dialog .sr-character-import-modes[hidden] { display: none; }
+#scene-reader-dialog .sr-character-import-modes .menu_button { flex: 1; min-height: 42px; }
+#scene-reader-dialog .sr-character-import-modes .active { border-color: var(--SmartThemeQuoteColor); background: rgba(140,160,190,.18); }
+#scene-reader-dialog .sr-import-person-preview { margin: 8px 0; overflow-wrap: anywhere; }
+#scene-reader-dialog .sr-import-person-preview summary { cursor: pointer; padding: 8px 0; }

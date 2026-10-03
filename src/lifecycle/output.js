@@ -27,7 +27,7 @@ async function onCharacterMessageReceived(messageId) {
         if (collectorMode === 'main-output' && deps.activeGenerationCycle?.stateCaptureEnabled) {
             const result = collected;
             if (!String(output.mes || '').trim()) { result.states = []; result.error = 'empty_output'; }
-            rec.characterStateCapture = { outputIndex, status: result.error || (result.diagnostics?.rejected ? 'partial' : result.states.length ? 'collected' : 'empty'), count: result.states.length, source: 'main-output', diagnostics: result.diagnostics || null };
+            rec.characterStateCapture = { outputIndex, participantIds:roster.map(person=>person.id), status: result.error || (result.diagnostics?.rejected || result.diagnostics?.partial ? 'partial' : result.states.length ? 'collected' : 'empty'), count: result.states.length, source: 'main-output', diagnostics: result.diagnostics || null };
             captureChanged = true;
         } else if (collectorMode === 'profile-output') {
             deps.scheduleProfileStateCollection({ chatKey: deps.stateChatKey(), outputIndex, text: String(output.mes || ''), roster });

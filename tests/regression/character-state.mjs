@@ -271,8 +271,9 @@ assert.equal(emotionNotices.filter(item=>item.message==='감정 수집 중…').
 assert.notEqual(manual.run('sourceRevisionKey(record(),null)'),stateRevisionBefore,'manual refresh invalidates judgments prepared with the previous state');
 manualJobs[0]({result:{states:[{code:'C0',a:10,c:90},{code:'C1'}]}});
 await Promise.all([manualA,manualB]);
-assert.equal(emotionNotices.filter(item=>item.level==='success').length,1,'one completion notification follows the stored result');
-assert.match(emotionNotices.at(-1).message,/2명/);
+assert.equal(emotionNotices.filter(item=>item.level==='success').length,0,'a missing third actor is not announced as complete');
+assert.match(emotionNotices.at(-1).message,/일부가 반환되지/);
+assert.equal(manual.run('record().characterStateCapture.count'),2);
 assert.equal(manual.run('record().characterStateEvents.length'),1);
 assert.equal(manual.run('latestStateForChat(record(),getContext().chat,stableFingerprint)[1].values.anger'),0,'neutral NPC states are collected with zero moods');
 manual.sandbox.mockFailure=async()=>{throw new Error('MAX_TOKENS');};

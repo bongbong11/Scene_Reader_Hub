@@ -1,3 +1,4 @@
+import { checkBundlesAndProviders } from './browser-bundles-providers.mjs';
 import { createRecordBank } from '../src/characters/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
@@ -805,20 +806,24 @@ try{
     assert.equal(store.chat.characterStateCapture.status,'collected');
     assert.ok(await page.evaluate(()=>mock.toasts.some(item=>item.level==='success' && item.message.includes('감정 수집 완료'))),'successful background collection shows completion');
     assert.ok(store.chat.characterStateEvents.some(event=>event.outputIndex===profileOutputIndex&&event.states[0].values.anger===45));
-    // The manual button reuses a pending request and replaces this reply's values.
+    // Manual recovery requests only missing people and preserves saved values.
     const jevBeforeEmotion=requests.filter(request=>request.url.endsWith('/systemone')).length;
     await page.locator('#sr-emotion-now').click();
     await page.waitForFunction(()=>mock.profileStateRequests.length===2);
     assert.equal(await page.locator('#sr-emotion-now').isDisabled(),true);
     const manualRequest=await page.evaluate(()=>JSON.parse(mock.profileStateRequests[1].messages[1].content));
     assert.equal(manualRequest.output,'Hunter closes the door, angry about the delay.');
+    assert.ok(!manualRequest.people.some(person=>person.code==='C0'),'the saved actor is not recollected');
     await page.locator('#sr-emotion-now').evaluate(button=>button.click());
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),2,'double clicks never duplicate collection');
-    await page.evaluate(()=>{const people=JSON.parse(mock.profileStateRequests[1].messages[1].content).people;const npc=people.find(person=>!person.trackArousal);mock.profileStateRequests[1].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:35},...(npc?[{code:npc.code}]:[])]})});});
+    await page.evaluate(()=>{const people=JSON.parse(mock.profileStateRequests[1].messages[1].content).people;mock.profileStateRequests[1].resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,...(person.trackArousal?{a:0,c:90}:{})}))})});});
     await page.waitForFunction(()=>!document.querySelector('#sr-emotion-now').disabled);
-    assert.match(await page.locator('#sr-character-turn-results').textContent(),/35%/);
+    assert.match(await page.locator('#sr-character-turn-results').textContent(),/45%/,'the original saved emotion is unchanged');
     assert.equal(requests.filter(request=>request.url.endsWith('/systemone')).length,jevBeforeEmotion,'manual emotion collection makes no Jev call');
     assert.equal(store.chat.characterStateEvents.filter(event=>event.outputIndex===profileOutputIndex).length,1,'manual recheck replaces rather than appends');
+    await page.locator('#sr-emotion-now').click();
+    await page.waitForFunction(()=>!document.querySelector('#sr-emotion-now').disabled);
+    assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),2,'all saved means no further model request');
     const neutralNpc=manualRequest.people.find(person=>!person.trackArousal);
     assert.ok(neutralNpc,'browser scenario includes a moods-only NPC');
     const neutralCard=page.locator('.sr-character-turn-card').filter({has:page.locator('summary', {hasText:neutralNpc.name})}).first();
@@ -921,6 +926,8 @@ try{
     assert.equal(requestAudit.assembled.scene,'confirmed');assert.equal(requestAudit.assembled.phase,'assembly');
     assert.equal(requestAudit.included.scene,'confirmed');assert.equal(requestAudit.included.phase,'request');
     assert.equal(requestAudit.missing.scene,'unconfirmed');assert.match(requestAudit.lastToast,/확인하지 못/);
+    assert.deepEqual(errors,[]);
+    await checkBundlesAndProviders(page,store,requests,root,setViewportSize);
     assert.deepEqual(errors,[]);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

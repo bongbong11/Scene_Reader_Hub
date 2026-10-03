@@ -1,36 +1,22 @@
+import { setCharacterImportMode, characterImportMode } from './character-import-mode.js';
 import { notifySceneReaderToast } from './toasts.js';
-import { compilerRequest } from "../character/records.js";
-import { buildSources, promptText, validateImport } from '../vendor/character-reasoner/index.js';
-import { importRecordVersion, applyRecordVersion, deleteRecordVersion, bankOutput, allEntries } from "../character/versions.js";
+import { castCompilerPrompt, importRecordBundle, validateRecordBundle } from "../character/bundles.js";
+import { buildSources, promptText } from '../vendor/character-reasoner/index.js';
+import { applyRecordVersion, deleteRecordVersion, bankOutput, allEntries } from "../character/versions.js";
 
-export function renderRecordVersions(document, store, esc) {
-    const root=document.getElementById('sr-character-versions');
-    if (!root) return;
-    const entries=allEntries(store);
-    const kind=root.dataset.kind||'character';
-    document.querySelectorAll('[data-record-kind]').forEach(button=>{button.classList.toggle('active',button.dataset.recordKind===kind);button.setAttribute('aria-selected',String(button.dataset.recordKind===kind));});
-    const groups=(store.recordGroups||[]).filter(group=>group.kind===kind);
-    const npcToggle=entry=>kind==='npc'&&entry?`<label class="sr-npc-affect-toggle"><input type="checkbox" data-npc-affect-id="${esc(entry.id)}" ${entry.trackArousal?'checked':''}><span>성적 충동 판독</span></label>`:'';
-    const covered=new Set(groups.flatMap(group=>group.versions.map(version=>version.entryId)));
-    const rows=groups.map(group=>{
-        const entry=entries.find(item=>item.id===group.versions[0]?.entryId && item.kind===kind);
-        const name=entry?.name||group.name;
-        const versions=group.versions.map(version=>{
-            const applied=entries.some(item=>item.appliedRecordVersion===version.id);
-            const date=new Date(version.savedAt).toLocaleString('ko-KR');
-            const actions=[['view','보기'],['edit','수정'],...(applied?[]:[['apply','적용']]),['delete','삭제']];
-            return `<div class="sr-record-version"><span>${esc(date)}${applied?' · 적용 중':''}</span><div class="sr-version-actions">${actions.map(([action,label])=>`<button type="button" class="menu_button" data-record-action="${action}" data-record-group="${esc(group.id)}" data-record-version="${esc(version.id)}">${label}</button>`).join('')}</div></div>`;
-        }).join('');
-        const nameAction=entry?`data-character-view-kind="${esc(kind)}" data-character-view-id="${esc(entry.id)}"`:`data-record-action="view" data-record-group="${esc(group.id)}" data-record-version="${esc(group.versions[0].id)}"`;
-        return `<div class="sr-record-person"><button type="button" class="sr-record-person-name" ${nameAction}>${esc(name)}</button><small>${group.versions.length}개 저장본</small>${npcToggle(entry)}<div class="sr-record-person-versions">${versions}</div></div>`;
-    });
-    for(const entry of entries.filter(item=>item.kind===kind&&!covered.has(item.id)))rows.push(`<div class="sr-record-person"><button type="button" class="sr-record-person-name" data-character-view-kind="${esc(kind)}" data-character-view-id="${esc(entry.id)}">${esc(entry.name)}</button><small>저장된 판독시트 없음</small>${npcToggle(entry)}</div>`);
-    root.innerHTML=rows.join('')||'<p class="sr-help">저장된 인물이 없습니다.</p>';
-}
+export { renderRecordBundles as renderRecordVersions } from "./record-bundles.js";
 
 export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJudgment, downloadJson, ensureLoreLoaded, captureCharacterError, showVersionEditor, showVersionPreview}) {
     const el=id=>deps.document.getElementById(id);
     const status=text=>{if(el('sr-character-import-status'))el('sr-character-import-status').textContent=text;};
+    deps.document.querySelectorAll('[data-character-import-mode]').forEach(button=>button.addEventListener('click',()=>{
+        if(busy)return;
+        setCharacterImportMode(deps.document,button.dataset.characterImportMode);
+        el('sr-character-import-json').value='';
+        el('sr-character-import-preview').innerHTML='';
+        el('sr-character-file-summary').textContent='선택한 파일 없음 · .json';
+        status('선택한 탭의 분석 명령문을 복사하고 완성된 파일을 올리세요.');
+    }));
     let busy=false;
     const task=(fn,stage='parse')=>deps.runUiTask((async()=>{
         if(busy) return;
@@ -70,7 +56,7 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
             prompt=preface+'\n\n'+promptText({entity_type:'npc',entity_name:'the name written in the supplied NPC sheet',npc_role:form.npcRole==='villain'?'antagonist':form.npcRole,sources});
         } else {
             if(!form.name)throw new Error('먼저 현재 시트를 가져오세요.');
-            prompt=compilerRequest(form).prompt;
+            prompt=castCompilerPrompt(form);
         }
         await deps.copyText(prompt);
         status('분석 명령문을 복사했습니다. 완성한 JSON 파일을 업로드하세요.');
@@ -80,25 +66,31 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
         await ensureLoreLoaded();
         const form=characterForm();
         const sourceHash=form.source ? await deps.sha256Hex(form.source) : '';
-        const result=importRecordVersion(deps.characterStore,el('sr-character-import-json').value,el('sr-character-import-name').value,{...form,sourceHash});
+        const result=importRecordBundle(deps.characterStore,el('sr-character-import-json').value,el('sr-character-import-name').value,{...form,sourceHash});
         if(!await persist(result.store,result.entry))return;
-        status(`${result.entry.name} · ${result.entry.recordBank.records.length}개 기록을 날짜별로 저장하고 적용했습니다.`);
+        const label=result.entries.map(entry=>entry.name).join(", ");
+        status(`${label} · ${result.entries.length}명을 묶음으로 저장하고 각각 적용했습니다.`);
         el('sr-character-editor-cancel')?.click();
-        notifySceneReaderToast(deps.window, 'success', `${result.entry.name} 판독시트를 저장·적용했습니다.`, '씬판독기');
+        notifySceneReaderToast(deps.window, 'success', `${label} 판독시트를 저장·적용했습니다.`, '씬판독기');
     },'validate'));
     async function readFile(file) {
         if(!file)return;
         el('sr-character-import-json').value='';
+        if(el('sr-character-import-preview'))el('sr-character-import-preview').innerHTML='';
         el('sr-character-file-summary').textContent=`${file.name} · 아직 저장되지 않음`;
         if(!/\.json$/i.test(file.name))throw new Error('.json 파일을 선택하세요.');
         const chat=deps.stateChatKey(),raw=await file.text();
         if(chat!==deps.stateChatKey())throw new Error('채팅이 바뀌었습니다. 현재 채팅에서 파일을 다시 불러오세요.');
-        const {output,import_log}=validateImport(raw);
-        if(deps.characterEditorKind && output.entity_type!==deps.characterEditorKind)throw new Error('선택한 인물 종류와 JSON의 인물 종류가 다릅니다.');
+        const {outputs}=validateRecordBundle(raw);
+        if(characterImportMode(deps.document)==='single' && outputs.length>1)throw new Error('여러 인물이 있는 파일입니다. 다인 캐릭터 탭에서 불러오세요.');
+        if(characterImportMode(deps.document)==='multi' && outputs.length<2)throw new Error('다인 캐릭터 파일에는 2명 이상이 필요합니다.');
+        if(deps.characterEditorKind && outputs.some(output=>output.entity_type!==deps.characterEditorKind))throw new Error('선택한 인물 종류와 JSON의 인물 종류가 다릅니다.');
         el('sr-character-import-json').value=raw;
-        el('sr-character-file-summary').textContent=`${file.name} · ${output.records.length}개 기록`;
-        if(!el('sr-character-import-name').value.trim())el('sr-character-import-name').value=output.entity_name;
-        status(`형식 검사 완료${import_log.normalizations.length||import_log.when_cleanup.length?' · 안전한 형식 정리 적용':''}. 마지막 버튼을 눌러 저장하세요.`);
+        const preview=el('sr-character-import-preview'),esc=deps.escapeHtml;
+        if(preview)preview.innerHTML=outputs.map(output=>`<details class="sr-import-person-preview"><summary>${esc(output.entity_name)} · ${output.records.length}개 기록 확인</summary><ul>${output.records.map(record=>`<li>${esc(record.rule)}</li>`).join('')}</ul>${output.intimacy_reference?.text?`<p>${esc(output.intimacy_reference.text)}</p>`:''}</details>`).join('');
+        el('sr-character-file-summary').textContent=`${file.name} · ${outputs.length}명 · ${outputs.reduce((sum,output)=>sum+output.records.length,0)}개 기록`;
+        if(!el('sr-character-import-name').value.trim())el('sr-character-import-name').value=file.name.replace(/\.json$/i,'');
+        status(`형식 검사 완료 · ${outputs.map(output=>output.entity_name).join(', ')} — ${outputs.length}명으로 나눠 저장합니다. 묶음 이름을 확인한 뒤 저장하세요.`);
     }
     el('sr-character-import-file-button')?.addEventListener('click',()=>el('sr-character-import-file').click());
     el('sr-character-import-file')?.addEventListener('change',event=>task(async()=>{try{await readFile(event.target.files?.[0]);}finally{event.target.value='';}}));

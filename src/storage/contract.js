@@ -29,6 +29,7 @@ export const DEFAULTS = {
     ownerUnlocked: false,
     continuityEnabled: false,
     reasonerProfileId: '',
+    jevProvider: 'typesafe',
     retrievalProvider: 'transformers',
     retrievalModel: '',
     retrievalVertexAuth: 'express',
