@@ -82,6 +82,39 @@ for(const reason of ['prompt_missing','prompt_disabled','content_not_found','amb
     for(const options of [{type:'quiet'},{type:'normal',dryRun:true},{type:'normal',options:{quiet_prompt:'aux'}}]) {
         runtime.start(options.type,options.options,options.dryRun);const messages=structuredClone(source),body={type:options.type,messages};runtime.observeAssembly({prompt:messages});assert.equal(runtime.observeRequest(body),undefined);
     }
+    async function sendOpenAIRequest(input,options){return win.fetch(input,options);}
+    async function sendGenerationRequest(input,options){return sendOpenAIRequest(input,options);}
+    function prepareBody(){
+        generation={injection:{...expected},stateCaptureEnabled:false};runtime.start('normal');
+        const messages=structuredClone(source),body={type:'normal',messages:messages.filter(Boolean)};
+        runtime.observeAssembly({prompt:messages});assert.equal(runtime.observeRequest(body),true);
+        body.messages=body.messages.filter(message=>!String(message.content).includes('SCENE_READER_OUTPUT'));
+        body.messages.unshift({role:'system',content:'Another extension rule.'});
+        return body;
+    }
+    for(const asRequest of [false,true]) {
+        const body=prepareBody(),raw=JSON.stringify(body),headers={'Content-Type':'application/json','X-Synthetic':'kept'};
+        if(asRequest)await sendGenerationRequest(new Request('https://synthetic.invalid/api/backends/chat-completions/generate',{method:'POST',body:raw,headers}));
+        else await sendGenerationRequest('/api/backends/chat-completions/generate',{method:'POST',body:raw,headers});
+        const sentRequest=sent.at(-1),sentBody=JSON.parse(sentRequest.options?.body??await sentRequest.input.clone().text());
+        assert.match(text(sentBody.messages),/Scene payload/,'main Request still repairs late removal after reading its body');
+        assert.match(text(sentBody.messages),/Another extension rule/);
+        assert.equal(new Headers(sentRequest.options?.headers??sentRequest.input.headers).get('X-Synthetic'),'kept');
+        assert.equal(JSON.stringify(body),raw);
+        assert.deepEqual(verified.at(-1),sentBody);
+    }
+    {
+        const body=prepareBody(),raw=JSON.stringify(body),count=verified.length;
+        let release;
+        const read=new Promise(resolve=>release=resolve);
+        const input={url:'https://synthetic.invalid/api/backends/chat-completions/generate',method:'POST',clone:()=>({text:()=>read})};
+        const sending=sendGenerationRequest(input);
+        prepareBody(); // A new generation becomes ready while the old body is read.
+        release(raw);await sending;
+        assert.equal(verified.length,count,'old asynchronous body reads cannot confirm the new cycle');
+        assert.equal(sent.at(-1).input,input,'old requests are not rebuilt with new cycle content');
+        assert.ok(!events.some(e=>e[1]==='PRESET_SLOT_SEND_ERROR'));
+    }
     runtime.start('normal');const messages=structuredClone(source),body={type:'normal',messages};runtime.observeAssembly({prompt:messages});chatKey='other';assert.equal(runtime.observeRequest(body),undefined);chatKey='room';
     enabled=false;assert.equal(runtime.observeRequest(body),undefined);enabled=true;
     runtime.start('normal');runtime.observeAssembly({prompt:messages});generation={injection:{...expected}};assert.equal(runtime.observeRequest(body),undefined,'replacement preparation invalidates old reference');

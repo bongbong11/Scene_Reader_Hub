@@ -51,15 +51,18 @@ export function createPresetRequest(deps) {
             const address=typeof input==='string'?input:String(input?.url || input?.href || '');
             const method=String(options?.method || input?.method || '').toUpperCase();
             if(active && method==='POST' && /\/api\/backends\/chat-completions\/generate(?:[?#]|$)/.test(address)) {
+                // Capture the caller and owner before reading a Request body:
+                // awaiting clone().text() may drop callers or cross a new cycle.
+                const requestOwner=ready;
+                const frames=String(new Error().stack || '').split('\n');
+                const sender=frames.findIndex(frame=>/\bsendOpenAIRequest\b/.test(frame));
+                const callers=sender<0?[]:frames.slice(sender+1);
+                const mainPath=sender>=0 && callers.some(frame=>/\b(?:sendGenerationRequest|finishGenerating)\b/.test(frame)) && !callers.some(frame=>/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(frame));
                 try {
                     const raw=options?.body ?? (typeof input?.clone==='function'?await input.clone().text():null);
                     if(typeof raw==='string') {
                         const body=JSON.parse(raw);
-                        const frames=String(new Error().stack || '').split('\n');
-                        const sender=frames.findIndex(frame=>/\bsendOpenAIRequest\b/.test(frame));
-                        const callers=sender<0?[]:frames.slice(sender+1);
-                        const mainPath=sender>=0 && callers.some(frame=>/\b(?:sendGenerationRequest|finishGenerating)\b/.test(frame)) && !callers.some(frame=>/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(frame));
-                        if(ready===expected() && (!body.type || TYPES.has(body.type)) && (certified.has(fingerprint(body)) || mainPath)) {
+                        if(active && requestOwner && ready===requestOwner && requestOwner===expected() && (!body.type || TYPES.has(body.type)) && (certified.has(fingerprint(body)) || mainPath)) {
                             const report=apply(body,'send');
                             if(report?.changed){
                                 if(typeof input?.clone==='function' && options?.body===undefined)request=new deps.window.Request(input,{body:JSON.stringify(body)});

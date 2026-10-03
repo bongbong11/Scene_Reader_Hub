@@ -8,6 +8,8 @@ import { characterCopyNotice, worldCopyNotice } from '../src/ui/compiler-copy.js
 for(const kind of ['character','persona','npc']) {
     const basic=compilerRequest({kind,name:'',source:'',selectedLore:[]}).prompt;
     assert.match(basic,/기본 명령문/);assert.match(basic,/원문도 없으면/);
+    assert.doesNotMatch(basic,/Copy entity_type and entity_name exactly as supplied/);
+    assert.match(basic,/never copy ACTUAL_NAME_FROM_SOURCE/);
     const example=extractJsonObject(basic);
     assert.equal(validateImport(example).output.entity_type,kind,'complete example must match the actual importer');
     const source='SYNTHETIC_SHEET_MARKER: Aster waits before answering.';
@@ -16,6 +18,10 @@ for(const kind of ['character','persona','npc']) {
     assert.match(built,/S002/);assert.match(built,/SYNTHETIC_LORE_MARKER/);
     assert.equal(validateImport(extractJsonObject(built)).output.entity_name,'Aster');
     if(kind==='persona')assert.match(built,/not reinterpret persona information/);
+    for(const name of ['Aster "North"','경로\\별명','Aster\nBriar','Aster $& $$ $`']) {
+        const named=compilerRequest({kind,name,source,selectedLore:[]}).prompt;
+        assert.equal(extractJsonObject(named).entity_name,name,'names must remain valid JSON strings in the copied example');
+    }
 }
 for(const withSource of [false,true]) {
     const multi=castCompilerPrompt({kind:'character',name:'',source:withSource?'SYNTHETIC_MULTI_MARKER.':'',selectedLore:[],importMode:'multi',castNames:withSource?['Aster','Briar']:[]});

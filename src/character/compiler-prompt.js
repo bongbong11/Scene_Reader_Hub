@@ -26,6 +26,12 @@ export function singleCharacterCompilerPrompt(draft) {
     const hasName=Boolean(String(draft.entity_name || '').trim());
     const subject=draft.entity_type==='persona'?'페르소나':draft.entity_type==='npc'?'NPC':'단일 캐릭터';
     const nameGuide=hasName ? `출력 이름은 ${JSON.stringify(draft.entity_name)}입니다.` : '출력 entity_name에는 제공된 시트에 명시된 실제 인물 이름을 쓰세요. 아래 ACTUAL_NAME_FROM_SOURCE는 예시 자리 표시자이며 이름이 아닙니다. 이름이 불분명하면 사용자에게 확인하세요.';
+    const name=hasName?draft.entity_name:'ACTUAL_NAME_FROM_SOURCE';
+    // Adapt the copied template here; the pinned character core stays unchanged.
+    const template=promptText({...draft,entity_name:name})
+        .replace(`"entity_name": "${name}"`, ()=>`"entity_name": ${JSON.stringify(name)}`);
+    const instructions=hasName?template:template.replace('Copy entity_type and entity_name exactly as supplied.',
+        'Copy entity_type exactly. For entity_name, use the actual name explicitly given in the source; never copy ACTUAL_NAME_FROM_SOURCE. Ask the user if the name is unclear.');
     return `# 씬판독기 Hub · ${subject} 판독 파일 제작
 목적은 시트를 요약하거나 재포장하는 것이 아니라, 장면별로 선택할 인물 판독 기록을 만드는 것입니다. 이전 대화나 개발 지식은 필요하지 않습니다.
 ${compilerSourceGuide(draft.sources)}
@@ -34,5 +40,5 @@ ${draft.entity_type==='npc' && !draft.sources.length?'Completed NPC sheet suppli
 
 ${CHARACTER_FILE_GUIDE}
 
-${promptText({...draft,entity_name:hasName?draft.entity_name:'ACTUAL_NAME_FROM_SOURCE'})}`;
+${instructions}`;
 }

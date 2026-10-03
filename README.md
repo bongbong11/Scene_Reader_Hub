@@ -4,7 +4,7 @@
 
 > **사용 전 알아두세요.** 실제 인물과 사건을 만들어 내는 것은 롤플레잉 답변을 작성하는 모델입니다. 씬판독기는 어떤 유형의 인물·사건·진행을 사용할지 분류하고 참고할 방향을 전달합니다. 사람이 직접 구상한 전개에 비해 만족스럽지 않을 수 있습니다. 판독 역시 Jev라는 모델이 수행하므로 오판이나 누락이 생길 수 있다는 점을 염두에 두고 사용하세요.
 
-**Hub 0.1.5 · 기능 기준 씬판독기 0.26.2 · 공유 Jev 서버 플러그인 0.7.0**
+**Hub 0.1.6 · 기능 기준 씬판독기 0.26.2 · 공유 Jev 서버 플러그인 0.7.0**
 
 인물 분석 기능은 Hub에 포함되어 있습니다. 기존 씬판독기의 Jev 서버 플러그인 0.7.0을 그대로 사용합니다. 이미 설치한 플러그인은 교체하지 않습니다. 처음 사용하는 분만 아래 플러그인을 설치하세요.
 
@@ -83,7 +83,7 @@ https://github.com/bongbong11/Scene_Reader_Hub.git
 
 판독·검색·저장 등의 알림은 캐릭터 그림과 함께 나타납니다. 진행 중 알림은 실제 작업 단계에 맞춰 바뀌며, 완료·주의·오류 알림은 읽을 시간을 두고 사라집니다. 알림을 누르면 바로 닫을 수 있고 진행 중인 작업은 계속됩니다. 모바일에서는 여백과 그림 크기를 줄여 표시합니다.
 
-수동 설치는 [화면 확장 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-hub-v0.1.5.zip)를 사용하세요. 압축 안의 `Scene_Reader_Hub` 폴더를 SillyTavern의 화면 확장 폴더(`data/default-user/extensions`)에 넣습니다. 사용자 계정을 따로 만들었다면 해당 계정의 `extensions` 폴더를 사용하세요. 기존 씬판독기에서 넘어오면 위 교체 순서를 사용합니다. 이미 Hub를 설치했다면 Hub 폴더의 내용을 업데이트합니다.
+수동 설치는 [화면 확장 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-hub-v0.1.6.zip)를 사용하세요. 압축 안의 `Scene_Reader_Hub` 폴더를 SillyTavern의 화면 확장 폴더(`data/default-user/extensions`)에 넣습니다. 사용자 계정을 따로 만들었다면 해당 계정의 `extensions` 폴더를 사용하세요. 기존 씬판독기에서 넘어오면 위 교체 순서를 사용합니다. 이미 Hub를 설치했다면 Hub 폴더의 내용을 업데이트합니다.
 
 ### 2. Jev 서버 플러그인
 
