@@ -29,7 +29,7 @@ const retrieval=createVectorRetrieval({fetch,getRequestHeaders:()=>({'Content-Ty
 settings.retrievalProvider='vertexai';
 assert.equal(retrieval.config().vertexai_region,'global','new Vertex connection uses the global region');
 settings.retrievalVertexRegion='us-central1';
-assert.equal(retrieval.config().vertexai_region,'us-central1','a saved region takes priority');
+assert.equal(retrieval.config().vertexai_region,'global','legacy region values cannot override the supported global endpoint');
 settings.retrievalVertexRegion='';
 assert.equal(retrieval.config().vertexai_region,'global','an empty region falls back to global');
 settings.retrievalProvider='nanogpt';

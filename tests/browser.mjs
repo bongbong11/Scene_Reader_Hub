@@ -757,23 +757,20 @@ try{
     assert.match(await page.evaluate(()=>JSON.stringify(mock.prompts)),/Halloween week/,'seasonal world reaches depth injection');
     assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']()),'','depth mode leaves no duplicate world macro');
     await page.locator('.sr-connection-card > summary').click();
-    await page.locator('.sr-retrieval-panel > summary').click();
-    assert.equal(await page.locator('#sr-retrieval-vertex-region').inputValue(),'global','fresh settings show the global Vertex region');
+    assert.equal(await page.locator('#sr-retrieval-provider').isVisible(),true);
+    assert.equal(await page.locator('#sr-retrieval-vertex-region').count(),0,'region is fixed, not editable');
     await Promise.all([
         page.waitForResponse(response=>response.url().endsWith('/settings')),
         page.locator('#sr-retrieval-provider').selectOption('vertexai'),
     ]);
-    await page.locator('#sr-retrieval-vertex-region').fill('us-central1');
-    await Promise.all([
-        page.waitForResponse(response=>response.url().endsWith('/settings')),
-        page.locator('#sr-retrieval-vertex-region').dispatchEvent('change'),
-    ]);
-    assert.equal(store.settings.global.retrievalVertexRegion,'us-central1','an existing Vertex region remains saved');
-    assert.equal(await page.locator('#sr-retrieval-vertex-region').inputValue(),'us-central1','saved Vertex region stays visible');
+    assert.equal(store.settings.global.retrievalVertexRegion,'global');
+    assert.equal(store.settings.global.retrievalModel,'gemini-embedding-001');
+    assert.equal(await page.locator('#sr-retrieval-model-row').isVisible(),false);
     await page.locator('#sr-retrieval-provider').selectOption('nanogpt');
     await page.waitForFunction(()=>document.getElementById('sr-retrieval-model').value==='Qwen/Qwen3-Embedding-0.6B');
     assert.equal(store.settings.global.retrievalProvider,'nanogpt');
     assert.equal(store.settings.global.retrievalModel,'Qwen/Qwen3-Embedding-0.6B','provider and model save together');
+    await page.locator('#sr-retrieval-key-row > summary').click();
     await page.locator('#sr-retrieval-key').fill('nano-test-secret');
     await page.locator('#sr-retrieval-key-save').click();
     await page.waitForFunction(()=>document.getElementById('sr-retrieval-key-status').textContent.includes('저장됨'));

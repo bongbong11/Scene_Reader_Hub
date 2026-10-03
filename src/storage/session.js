@@ -3,7 +3,8 @@
 export function createSessionRepository(deps) {
 async function saveServerChat(chatKey = deps.stateChatKey(), value = deps.record()) {
     // A failed write must not permanently block retries for an already loaded store.
-    if (!deps.serverStoreAvailable && deps.storageVersion < 2) throw new Error('서버 저장소 연결이 끊겨 저장하지 못했습니다. 다시 연결한 뒤 저장하세요.');
+    const loaded=deps.storageVersion>=2 && (deps.chatReadyKey===undefined || deps.chatReadyKey===chatKey);
+    if (!deps.serverStoreAvailable && !loaded) throw new Error('서버 저장소 연결이 끊겨 저장하지 못했습니다. 채팅을 다시 불러온 뒤 저장하세요.');
     const snapshot = structuredClone(value);
     await deps.queueWrite(`session:${chatKey}`, () => deps.storagePost('chat', { chatKey, value: snapshot }));
 }
@@ -34,9 +35,11 @@ async function saveSession(chatKey, chat, history) {
 }
 
 async function saveCharacterStore(chatKey = deps.stateChatKey(), value = deps.characterStore) {
-    value.updatedAt = new Date().toISOString();
-    if (!deps.serverStoreAvailable) throw new Error('씬판독기 서버 저장소에 연결되지 않았습니다.');
+    if (deps.chatReadyKey !== undefined && deps.chatReadyKey !== chatKey) throw new Error('현재 채팅의 인물 저장 상태를 읽지 못해 저장을 중단했습니다. 채팅을 다시 열어 주세요.');
+    const loaded = deps.chatReadyKey === chatKey && deps.storageVersion >= 2;
+    if (!deps.serverStoreAvailable && !loaded) throw new Error('씬판독기 서버 저장소에 연결되지 않았습니다.');
     const snapshot = structuredClone(value);
+    snapshot.updatedAt = new Date().toISOString();
     await deps.queueWrite(`characters:${chatKey}`, () => deps.storagePost('characters', { chatKey, value: snapshot }));
 }
 return {saveServerChat,saveSession,saveCharacterStore};

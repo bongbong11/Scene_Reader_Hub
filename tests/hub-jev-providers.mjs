@@ -18,7 +18,7 @@ for(const provider of Object.keys(JEV_PROVIDERS)){
  else {assert.equal(options.headers.Authorization,'Bearer synthetic-'+provider);assert.equal(options.headers['X-CSRF-Token'],undefined);assert.equal(options.credentials,'omit');assert.equal(options.referrerPolicy,'no-referrer');assert.equal(JSON.parse(options.body).model,JEV_PROVIDERS[provider].model);}
  for(const status of [401,403,429,500]){
   deps.fetch=async()=>({ok:false,status,json:async()=>({error:'failure'})});
-  await assert.rejects(()=>client.callJev(request),provider==='typesafe' && ![401,403].includes(status) ? /failure/ : new RegExp(String(status)));
+  await assert.rejects(()=>client.callJev(request),error=>error.httpStatus===status && error.code.startsWith('JEV_') && !error.message.includes('failure'));
  }
  deps.fetch=async()=>({ok:true,json:async()=>({answers:{}})});await assert.rejects(()=>client.callJev(request),/판정 결과/);
  deps.fetch=async()=>{throw new TypeError('network');};await assert.rejects(()=>client.callJev(request),/연결/);

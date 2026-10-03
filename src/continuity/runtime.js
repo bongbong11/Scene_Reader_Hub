@@ -40,8 +40,10 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
     const chatKey = identity.chatKey;
     if (deps.reasonerJobs.has(chatKey)) return;
     const generationToken = deps.reasonerGeneration;
+    const previousSource=rec.lastReasonerSource;
     rec.lastReasonerSource = identity;
     rec.lastContinuityTrace = { status: 'analyzing', trigger, profileId: deps.settings.reasonerProfileId, sourceIdentity: identity, candidates: [] };
+    const controller=new AbortController();
     const job = (async () => {
         try {
             const data = await deps.requestWithConnectionProfile(deps.connectionRequestService, deps.settings.reasonerProfileId, deps.REASONER_SYSTEM, {
@@ -54,7 +56,7 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
                         dependencies: deps.normalizeContinuity(deps.continuityView(rec)).dependencies.map(({ stateId, pressure, reason }) => ({ stateId, pressure, reason })),
                     },
                     existing_state_refs: { event: rec.eventProfile ? { id: 'event:current', title: rec.eventProfile.title } : null, relationship: rec.relationshipState ? { id: 'relationship:current', ...rec.relationshipState } : null },
-            });
+            },{signal:controller.signal});
             // A late auxiliary result must not race the detached scene transaction.
             if (deps.judgeInFlight) await deps.judgeCompletionPromise;
             const current = deps.record(true);
@@ -69,11 +71,14 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
             deps.renderAll();
         } catch (error) {
             if (generationToken !== deps.reasonerGeneration || deps.stateChatKey() !== chatKey) return;
-            rec.lastContinuityTrace = { status: 'error', trigger, profileId: deps.settings.reasonerProfileId, error: error.message, candidates: [] };
+            const current=deps.record(true);
+            if (current.lastReasonerSource?.outputFingerprint===identity.outputFingerprint) current.lastReasonerSource=previousSource;
+            current.lastContinuityTrace = { status: 'error', trigger, profileId: deps.settings.reasonerProfileId, error: error.message, candidates: [] };
             try { await deps.persistChat(); deps.renderAll(); }
             catch (storageError) { console.error('[씬판독기] Reasoner 실패 상태 저장 오류', storageError); }
         } finally { if (deps.reasonerJobs.get(chatKey) === job) deps.reasonerJobs.delete(chatKey); }
     })();
+    job.cancel=()=>controller.abort();
     deps.reasonerJobs.set(chatKey, job);
 }
 

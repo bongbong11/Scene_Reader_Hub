@@ -14,6 +14,7 @@ function updateKeyStatus(text = '') {
 
 function runUiTask(task, failureMessage = '설정을 저장하지 못했습니다.') {
     void Promise.resolve(task).catch((error) => {
+        deps.noteDiagnostic?.('ui_task',{module:'src/ui/status.js',status:'failed',errorKind:error.code || error.name || 'Error'});
         console.error('[씬판독기] UI 작업 실패', error);
         if (!error?.activityReported && !(error instanceof deps.StaleRunError)) deps.notifySceneReaderToast(deps.window, 'error', `${failureMessage}${error?.message ? ` · ${error.message}` : ''}`, '씬판독기');
     });
@@ -21,6 +22,7 @@ function runUiTask(task, failureMessage = '설정을 저장하지 못했습니�
 
 function runEventTask(task, failureMessage) {
     return Promise.resolve().then(task).catch((error) => {
+        deps.noteDiagnostic?.('event_task',{module:'src/ui/status.js',status:'failed',errorKind:error.code || error.name || 'Error'});
         console.error('[씬판독기] 이벤트 처리 실패', error);
         deps.notifySceneReaderToast(deps.window, 'error', `${failureMessage}${error?.message ? ` · ${error.message}` : ''}`, '씬판독기');
     });

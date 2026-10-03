@@ -199,6 +199,7 @@ for (const kind of ['edited','swiped','deleted']) {
     const {f,server}=setup();
     await f.run('runJudge({force:true})');
     let release,entered,first=true;
+    f.run('chatReadyKey=stateChatKey();');
     const reached=new Promise(resolve=>entered=resolve), fetch=f.sandbox.fetch;
     f.sandbox.fetch=async(url,options)=>{
         if(url.endsWith('/chat')&&first){first=false;entered();await new Promise(resolve=>release=resolve);return {ok:false,status:500,json:async()=>({error:'first preference failed'})};}

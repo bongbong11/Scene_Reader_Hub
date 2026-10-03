@@ -1,3 +1,4 @@
+import { createFailureStop } from '../decision/failure-stop.js';
 import {createPipeline} from '../hub/pipeline.js';
 import {createSourceRevision} from '../context/source-revision.js';
 import {createInjectionVerification} from '../injection/verification.js';
@@ -13,6 +14,8 @@ import {createJudgmentCommit} from '../storage/judgment.js';
 import {selectCapabilities} from '../shared/capabilities.js';
 
 export function createSceneExecution(deps) {
+ const failureStop=createFailureStop({onChange:()=>deps.hub.report('lifecycle','LAST_FAILURE_CHANGED',{needsAttention:Boolean(failureStop.snapshot()),automaticBlocked:false})});
+ const judgmentFailureState=()=>failureStop.snapshot();
  const services=Object.create(deps);
  services.appearanceOffers=new Map();
 const {sourceRevisionKey,stagedRecord}=createSourceRevision(selectCapabilities(services,["characterStore","getContext","linkedCharacterBooks","lorebookRevisions","settings","stableFingerprint","worldInfoModule"]));
@@ -34,24 +37,35 @@ function releaseBusy(run) {
  }
 }
 async function runJudge(options={}) {
+ if(deps.isEmbeddingBusy?.()){deps.updateStatus('임베딩 생성 중 · 완료 후 판독해 주세요.');return null;}
+ const stopped=failureStop.snapshot();
  const inputKey=deps.currentInputKey(options.pendingUserText||'',options.cycleSalt||'');
  const key=deps.stableFingerprint({chatKey:deps.stateChatKey(),inputKey,force:Boolean(options.force)});
  return deps.hub.run({key,inputKey,trigger:options.trigger||'manual'},async run=>{
   run.controller.signal.addEventListener('abort',()=>releaseBusy(run),{once:true});
   deps.noteDiagnostic?.('judge_started',{runKey:key,inputKey,force:Boolean(options.force)});
-  try {const result=await executeJudge(run,options);if(run.timeout)throw run.timeout;deps.noteDiagnostic?.(result?'judge_finished':'judge_skipped',{runKey:key,inputKey});return result;}
+  try {const result=await executeJudge(run,{...options,recoveryAttempt:Boolean(stopped && options.force)});if(run.timeout)throw run.timeout;if(result)failureStop.recovered();deps.noteDiagnostic?.(result?'judge_finished':'judge_skipped',{runKey:key,inputKey});return result;}
   catch(error){if(!run.owns()||(!run.timeout&&(error instanceof deps.StaleRunError||!run.valid()))){deps.noteDiagnostic?.('judge_cancelled',{runKey:key,inputKey});return null;}deps.noteDiagnostic?.('judge_failed',{runKey:key,inputKey,error:String(error.message||error)});if(!error.activityReported){await deps.clearInjection({chatKey:run.identity,owns:run.owns});if(!run.owns())return null;deps.updateActivity('판독 실패 · '+error.message,{error:true});error.activityReported=true;}throw run.timeout||error;}
  });
 }
 const executeJudge=createPipeline({stages:[{stage:'context',module:'src/context/prepare.js',timeoutMs:90000,execute:prepareContext},
 {stage:'scene',module:'src/scene/gate-stage.js',timeoutMs:180000,execute:prepareGate},
 {stage:'retrieval',module:'src/decision/prepare.js',timeoutMs:75000,execute:prepareQuestions},
-{stage:'decision',module:'src/decision/request.js',timeoutMs:35000,execute:requestDecision},
+{stage:'decision',module:'src/decision/request.js',timeoutMs:65000,execute:requestDecision},
 {stage:'policy',module:'src/decision/resolve.js',timeoutMs:0,execute:resolveDecision},
 {stage:'injection.assemble',module:'src/injection/prepare.js',timeoutMs:0,execute:prepareInjection},
 {stage:'storage.inject',module:'src/storage/judgment.js',timeoutMs:55000,execute:commitJudgment}],
- onError:async(error,run)=>{if(!run.owns()||(!run.timeout&&(error instanceof deps.StaleRunError||!run.valid())))return null;await deps.clearInjection({chatKey:run.identity,owns:run.owns});if(!run.owns())return null;deps.updateStatus(error.message);deps.updateActivity('판독·저장 실패 · 이번 주입을 건너뜁니다. '+error.message,{error:true});error.activityReported=true;throw run.timeout||error;},
+ onError:async(error,run)=>{
+  if(!run.owns()||(!run.timeout&&(error instanceof deps.StaleRunError||!run.valid())))return null;
+  if(['scene','retrieval','decision','storage.inject'].includes(error.stage))failureStop.pause(error,error.stage);
+  await deps.clearInjection({chatKey:run.identity,owns:run.owns});
+  if(!run.owns())return null;
+  const stopped=failureStop.snapshot();
+  deps.updateStatus(stopped?.message || error.message);
+  deps.updateActivity((stopped?.message || '판독·저장 실패 · 이번 주입을 건너뜁니다.')+' '+error.message,{error:true});
+  error.activityReported=true;throw run.timeout||error;
+ },
  finalize:releaseBusy
 });
-return {sourceRevisionKey,stagedRecord,sourceIdentityForPending,pendingExternalCandidates,sourceUserRpForOutput,postVerifiedCharacterOutput,registerSceneOpportunity,commitPriorVerification,commitContinuityCandidates,runJudge,executeJudge};
+return {judgmentFailureState,sourceRevisionKey,stagedRecord,sourceIdentityForPending,pendingExternalCandidates,sourceUserRpForOutput,postVerifiedCharacterOutput,registerSceneOpportunity,commitPriorVerification,commitContinuityCandidates,runJudge,executeJudge};
 }

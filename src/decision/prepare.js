@@ -1,3 +1,4 @@
+import { searchCharacterRecords } from '../retrieval/character-search.js';
 import { makeAppearanceOffer, addAppearanceQuestions, applyAppearanceOffer } from "../scene/appearance.js";
 import {drawOpportunityKey,drawRandom} from '../scene/draw-opportunity.js';
 import {generatedActorCandidates} from '../scene/generated-cast.js';
@@ -59,11 +60,8 @@ if (frame.prefs.settingsContract >= 3) {
     (frame.priorStates = new Map(frame.activeCharacters.map(entry => [entry.id, stateForEntry(frame.rawPriorStates.get(entry.id), entry)]).filter(([, state]) => state)));
     (frame.npcTargets = frame.activeCharacters.filter((entry) => entry.kind === 'npc').slice(0, 6));
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));
-    (frame.retrievalResults = new Map(await Promise.all((deps.characterStore.enabled ? frame.activeCharacters.filter(recordBankIsCurrent) : []).map(async entry => {
-        const values = frame.priorStates.get(entry.id)?.values || {};
-        const cue = [sexualEligible(entry) ? 'sexual desire restraint boundary' : values.a > 0 ? 'sexual desire restraint boundary' : '', ...['anger','joy','fear','sadness'].filter(key => values[key] > 0)].filter(Boolean).join(' ');
-        return [entry.id, await deps.vectorRetrieval.search({kind:'character',bankId:`${run.identity}:${entry.id}`,items:currentRecords(entry),transcript:cue ? `${frame.transcript}\n${cue}` : frame.transcript,limit:12,signal:run.controller.signal})];
-    }))));
+    frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? frame.activeCharacters : [],
+        recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
     run.assert();
     (frame.liveCharacters = deps.characterStore.enabled ? deps.buildLiveCharacterPlan(frame.activeCharacters, {
         selected: frame.context.selected.map((message) => ({ ...message, _sceneReaderIndex: deps.getContext().chat?.indexOf(message) ?? -1 })),

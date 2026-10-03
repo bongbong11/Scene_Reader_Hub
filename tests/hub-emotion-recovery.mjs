@@ -56,6 +56,7 @@ automatic.run(`record(true).preferences.profileEmotionJudgment=true;characterSto
     settings.reasonerProfileId='synthetic';connectionRequestService={};requestWithConnectionProfile=pendingRequest;
     persistChat=async()=>{throw new Error('Synthetic automatic save failure');};
     scheduleProfileStateCollection({chatKey:stateChatKey(),outputIndex:0,text:'Aster answers.',roster:[{id:'a',code:'C0',name:'Aster',trackArousal:true}]});`);
+await new Promise(resolve=>setTimeout(resolve,0));
 automaticCalls[0].resolve({result:{states:[{code:'C0',a:0,c:90,joy:40}]}});
 await automatic.run('pendingProfileStateCollection');
 assert.equal(automatic.run('record().characterStateEvents[0].states.length'),0,'failed automatic save cannot masquerade as stored values');

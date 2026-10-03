@@ -36,7 +36,7 @@ async function requestDecision(run,frame) {
             },
             questions: frame.questions,
         });
-        (frame.data = await deps.callJev(frame.jevRequest, 30000, run.controller.signal));
+        (frame.data = await deps.callJev(frame.jevRequest, frame.recoveryAttempt ? 60000 : 30000, run.controller.signal));
         run.assert();
         (frame.missingAnswerCount = frame.data.answerDiagnostics?.invalidKeys?.length||0);
         if(frame.missingAnswerCount)deps.noteDiagnostic?.('jev_partial',{requested:frame.data.answerDiagnostics.requested,missing:frame.missingAnswerCount,keys:frame.data.answerDiagnostics.invalidKeys.slice(0,20)});

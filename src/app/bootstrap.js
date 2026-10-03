@@ -1,3 +1,5 @@
+import { createEmbeddingMaintenance } from '../retrieval/maintenance.js';
+import { executionReport } from '../debug/execution-report.js';
 import { registerSlashCommands } from '../adapters/slash-commands.js';
 import { createDiagnostics } from '../debug/diagnostics.js';
 import { createEmotionRuntime } from '../character/emotion-runtime.js';
@@ -60,7 +62,7 @@ import { archiveCurrentEvent, commitObservedState, commitVerifiedPlan, updatePro
 import { actionPlanSummary, selectActionPlan, nextDeferredRoutes } from "../decision/action-budget.js";
 import { activePendingCandidates, buildPendingCandidateQuestions, verifiedSecondaryCandidates } from "../continuity/candidates.js";
 import { REASONER_SYSTEM, applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity, selectContinuityContext, validateReasonerResult } from "../continuity/engine.js";
-import { listConnectionProfiles, requestWithConnectionProfile } from "../adapters/connection-profile.js";
+import { listConnectionProfiles, createConnectionProfileClient } from "../adapters/connection-profile.js";
 import { sha256Hex } from "../shared/security.js";
 import { profileStatus, normalizeCharacterStore, selectActiveEntries, addCharacterNeedsQuestions, characterCategoryHints, buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from "../character/index.js";
 import { PHYSICAL_PACES, normalizePhysicalPace } from "../character/sexual-conduct.js";
@@ -118,6 +120,8 @@ let {waitForProfileState, notifyEmotionCapture, scheduleProfileStateCollection, 
     get waitForOutputChanges() { return waitForOutputChanges; },
     get window() { return window; },
 });
+
+let requestWithConnectionProfile=createConnectionProfileClient({onDiagnostic:detail=>noteDiagnostic('profile_request',detail)});
 
 let {invalidateReasonerJobs} = createJobControl({
     get hub() { return hub; },
@@ -214,6 +218,7 @@ let {rememberOocMarker, handleOocOnlySkip} = createOocLifecycle({
 });
 
 let {apiError, pluginError, callJev} = createJevClient({
+    get noteDiagnostic() { return noteDiagnostic; },
     get localStorage() { return localStorage; },
     get settings() { return runtime.settings; },
     get JEV_API_URL() { return JEV_API_URL; },
@@ -229,6 +234,7 @@ let {reversibleStateSnapshot, restoreReversibleState} = createStateSnapshots({
 });
 
 let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnection} = createStatusUi({
+    get noteDiagnostic() { return noteDiagnostic; },
     get localStorage() { return localStorage; },
     get JEV_MODEL() { return JEV_MODEL; },
     get StaleRunError() { return StaleRunError; },
@@ -269,6 +275,8 @@ let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSc
 });
 
 let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged,prepareFallback} = createGenerationLifecycle({
+    isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
+    get judgmentFailureState() { return judgmentFailureState; },
     get hub() { return hub; },
     get MAX_TRANSCRIPT_CHARS() { return MAX_TRANSCRIPT_CHARS; },
     get MEMORY_REFERENCE_ENABLED() { return MEMORY_REFERENCE_ENABLED; },
@@ -426,15 +434,24 @@ let {reconcileInjection} = createInjectionReconcile({
 
 
 const vectorRetrieval = createVectorRetrieval({ fetch: (...args) => fetch(...args), getRequestHeaders, getSettings: () => runtime.settings || DEFAULTS,
+    onDiagnostic: detail => noteDiagnostic('retrieval_request',detail),
     onProgress: ({kind,phase,count,error}) => {
         const label=kind==='world'?'세계관':'인물';
         const message=phase==='checking'?`${label} 검색 데이터 확인 중…`
             :phase==='indexing'?`${label} 새 기록 ${count}개 벡터화 중…`
             :phase==='querying'?`${label} 관련 기록 검색 중…`
-            :phase==='fallback'?`${label} 검색 연결 실패 · 글자 검색으로 진행 (${error})`:'';
+            :phase==='fallback'?`${label} 임베딩 검색 실패 · 글자 검색으로 진행 (${error})`:'';
         if (message) updateActivity(message);
     },
 });
+const embeddingMaintenance = createEmbeddingMaintenance({
+    get characterStore() { return runtime.characterStore; },
+    get chatReadyKey() { return runtime.chatReadyKey; },
+    get jobs() { return runtime.jobs; },
+    stateChatKey, selectedWorld, vectorRetrieval, invalidateReasonerJobs, noteDiagnostic,
+    get clearInjection() { return clearInjection; },
+});
+
 
 
 
@@ -500,6 +517,8 @@ let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults,
 
 
 let {storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory} = createRepository({
+    get chatReadyKey() { return runtime.chatReadyKey; },
+    get noteDiagnostic() { return noteDiagnostic; },
     get legacyStateChatKey() { return legacyStateChatKey; },
     get DEFAULTS() { return DEFAULTS; },
     get JEV_KEY_STORAGE() { return JEV_KEY_STORAGE; },
@@ -649,7 +668,8 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
     get window() { return window; },
 });
 
-let {sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalCandidates, sourceUserRpForOutput, postVerifiedCharacterOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalCandidates, sourceUserRpForOutput, postVerifiedCharacterOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+    isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
     get pendingGenerationType() { return runtime.pendingGenerationType; },
     hub,
     waitForProfileState,
@@ -771,6 +791,8 @@ let {sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalC
 
 
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
+    noteDiagnostic,
+    embeddingMaintenance,
     presetPrompts:presetRequest.prompts,
     get hub() { return hub; },
     collectCurrentEmotion,
@@ -812,6 +834,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
     get copyText() { return copyText; },
     get debugInjectionArmed() { return runtime.debugInjectionArmed; }, set debugInjectionArmed(value) { runtime.debugInjectionArmed = value; },
     get lastDebugFrame() { return runtime.lastDebugFrame; },
+    get executionDebugReport() { return () => executionReport({hub,failureStop:judgmentFailureState(),settings:runtime.settings}); },
     get diagnosticEvents() { return runtime.diagnosticEvents; },
     get diagnosticSnapshot() { return diagnosticSnapshot; },
     get reconcileInjection() { return reconcileInjection; },
@@ -893,7 +916,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,version:'0.1.8',copyText:value=>copyText(value)});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot()});

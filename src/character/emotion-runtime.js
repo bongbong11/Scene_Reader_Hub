@@ -43,11 +43,12 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const capture = { outputIndex, swipeId, fingerprint, requestId, participantIds, status:'collecting', count:preserved.length, source:'profile-output' };
     owner.characterStateCapture = capture;
     deps.storeStateEvent(owner,{outputIndex,swipeId,fingerprint,states:preserved,source:'profile-output',capture},deps.STATE_HISTORY_LIMIT);
+    const controller=new AbortController();
     const task = (async () => {
         if (!deps.connectionRequestService) await deps.loadReasonerProfiles();
         const result = await deps.collectProfileOutputState({
             request: deps.requestWithConnectionProfile, service: deps.connectionRequestService,
-            profileId, output: text, roster, context,
+            profileId, output: text, roster, context, signal:controller.signal,
         });
         await deps.waitForOutputChanges();
         if (!deps.pendingProfileStateRequests.has(requestId) || chatKey !== deps.stateChatKey() || !deps.settings.enabled || !deps.characterStore.enabled || (!missingOnly && deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') || deps.settings.reasonerProfileId !== profileId) return;
@@ -86,6 +87,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             notifyEmotionCapture('save_failed');
         }
     }).finally(()=>{ deps.pendingProfileStateRequests.delete(requestId); if (chatKey===deps.stateChatKey()) deps.renderCharacterTurnResults(); });
+    task.cancel=()=>controller.abort();
     deps.pendingProfileStateCollection = task;
     deps.pendingProfileStateRequests.set(requestId,task);
     notifyEmotionCapture('collecting');

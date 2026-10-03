@@ -17,7 +17,7 @@ export function resolveJevKeyProvider(key, selection = 'auto') {
         return detected;
     }
     const provider = jevProvider({jevProvider:selection});
-    if (detected && detected !== provider) throw new Error('선택한 발급처와 키 형식이 다릅니다. 자동 인식을 선택하거나 발급처를 확인하세요.');
+    if (detected && detected !== provider) throw new Error('선택한 발급처와 키 형식이 다릅니다. 키를 발급받은 서비스를 선택하세요.');
     return provider;
 }
 export function jevProvider(settings) {

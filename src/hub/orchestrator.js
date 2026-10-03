@@ -25,7 +25,7 @@ export function createHub({jobs,getIdentity,StaleRunError,journal=createEventJou
             event(name,'STAGE_FINISHED',{status:'succeeded',module,durationMs:now()-start},run);
             return result;
         } catch(error) {
-            event(name,error.code||(!run.valid()?'STALE_RUN':'STAGE_FAILED'),{status:'failed',module,durationMs:now()-start,error:String(error.message||error)},run);
+            event(name,error.code||(!run.valid()?'STALE_RUN':'STAGE_FAILED'),{status:!run.valid()&&!run.timeout?'cancelled':'failed',module,durationMs:now()-start,errorKind:error.code || error.name || 'Error'},run);
             throw error;
         }
     }
@@ -71,6 +71,6 @@ export function createHub({jobs,getIdentity,StaleRunError,journal=createEventJou
     return {run,stage,ensurePrepared,invalidate,endCycle,report,commands,subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
         pendingRequest:()=>preparation?.identity===getIdentity()?preparation?.request:null,
         waitPrepared:()=>preparation?.identity===getIdentity()?preparation.promise:Promise.resolve(),
-        snapshot:()=>({state:{...state},last:last?{...last}:null,events:journal.snapshot()}),
+        snapshot:()=>({state:{...state},last:last?{...last}:null,events:journal.snapshot(),lastFailure:journal.lastFailure?.() || null}),
     };
 }

@@ -58,9 +58,29 @@ export async function checkBundlesAndProviders(page, store, requests, root, setV
     });
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-jev-key').evaluate(e=>{for(let p=e.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});
-    assert.equal(await page.locator('#sr-jev-provider').inputValue(),'auto');
+    assert.equal(await page.locator('#sr-jev-provider').inputValue(),'typesafe','existing server key retains its provider');
+    assert.equal(await page.locator('#sr-jev-provider option[value="auto"]').count(),0);
+    const initialKeys=await page.evaluate(()=>localStorage.getItem('sceneReader.jevBrowserKey'));
+    await page.locator('#sr-jev-provider').selectOption('');
+    await page.locator('#sr-jev-key').fill('sk-or-v1-synthetic-browser');
+    for(const button of ['#sr-jev-save','#sr-jev-test']) {
+        await page.locator(button).click();
+        await page.waitForFunction(()=>document.getElementById('sr-jev-status').textContent.includes('발급처를 먼저 선택'));
+    }
+    assert.equal(outbound.length,0,'missing provider never probes an external service');
+    assert.equal(await page.evaluate(()=>localStorage.getItem('sceneReader.jevBrowserKey')),initialKeys);
+    await page.locator('#sr-jev-provider').selectOption('typesafe');
+    const hostCalls=requests.filter(r=>r.url.endsWith('/systemone')).length;
+    await page.locator('#sr-jev-save').click();
+    await page.waitForFunction(()=>document.getElementById('sr-jev-status').textContent.includes('키 형식이 다릅니다'));
+    assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length,hostCalls,'known mismatched key never reaches the host relay');
     for(const [provider,key,model] of [['openrouter','sk-or-v1-synthetic-browser','jev-latest'],['vercel','vck_synthetic-browser','typesafe-ai/jev']]){
+        await page.locator('#sr-jev-provider').selectOption(provider);
         await page.locator('#sr-jev-key').fill(key);
+        const beforeTest=outbound.length;
+        await page.locator('#sr-jev-test').click();
+        await page.waitForFunction(()=>document.getElementById('sr-jev-status').textContent.includes('키 저장을 먼저'));
+        assert.equal(outbound.length,beforeTest,'saved-key test cannot silently test another key while a new key is entered');
         await page.locator('#sr-jev-save').click();
         await page.waitForFunction(()=>document.getElementById('sr-jev-key').value==='');
         assert.equal(store.settings.global.jevProvider,provider);
@@ -68,19 +88,24 @@ export async function checkBundlesAndProviders(page, store, requests, root, setV
         assert.equal(actual.headers.authorization,'Bearer '+key);assert.equal(actual.body.model,model);
         assert.equal(actual.headers['x-csrf-token'],undefined);assert.equal(actual.headers.referer,undefined);
         assert.ok(!JSON.stringify(store.settings).includes(key),'browser key never enters shared settings/backup');
+        await page.evaluate(()=>document.getElementById('scene-reader-dialog').close());
+        await page.locator('#scene-reader-quick-button').click();
+        assert.equal(await page.locator('#sr-jev-provider').inputValue(),provider,'reopening displays the saved provider');
     }
     const count=outbound.length,before=await page.evaluate(()=>localStorage.getItem('sceneReader.jevBrowserKey'));
+    await page.locator('#sr-jev-provider').selectOption('');
     await page.locator('#sr-jev-key').fill('unrecognized-synthetic-key');
     await page.locator('#sr-jev-save').click();
-    await page.waitForFunction(()=>document.getElementById('sr-jev-status').textContent.includes('발급처를 한 번 선택'));
+    await page.waitForFunction(()=>document.getElementById('sr-jev-status').textContent.includes('발급처를 먼저 선택'));
     assert.equal(outbound.length,count,'unknown key is not probed against services');
     assert.equal(await page.evaluate(()=>localStorage.getItem('sceneReader.jevBrowserKey')),before,'failed detection preserves the saved key');
     await page.evaluate(()=>mock.errors=[]);
     await page.locator('#sr-jev-key').fill('');
+    await page.locator('#sr-jev-provider').selectOption('vercel');
     await page.locator('#sr-jev-test').click();
     await page.waitForFunction(()=>document.getElementById('sr-jev-status').textContent.includes('키 인증 성공'));
     await page.locator('.sr-scene-toast').evaluateAll(nodes=>nodes.forEach(node=>node.click()));
     await page.locator('#sr-jev-key').scrollIntoViewIfNeeded();
-    await page.screenshot({path:path.join(root,'artifacts','jev-key-auto.png')});
-    console.log('Browser additions passed: multi/single tabs, shared-source prompt, per-person preview, one-write import, grouped desktop/mobile history, auto key recognition, direct service routing and unknown-key preservation.');
+    await page.screenshot({path:path.join(root,'artifacts','jev-key-provider.png')});
+    console.log('Browser additions passed: multi/single tabs, shared-source prompt, per-person preview, one-write import, grouped desktop/mobile history, explicit key provider, direct service routing and saved-key preservation.');
 }

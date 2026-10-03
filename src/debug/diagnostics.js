@@ -1,6 +1,8 @@
+import { safeDetail } from './events.js';
 // Extracted from Scene Reader 0.26.2; behavior preserved.
 export function createDiagnostics(deps) {
 function noteDiagnostic(stage, detail = {}) {
+    detail=safeDetail(detail);
     deps.hub?.report(stage, stage.toUpperCase(), detail);
     deps.diagnosticEvents.push({ at: new Date().toISOString(), stage, chat: deps.stableFingerprint(deps.stateChatKey()), ...detail });
     if (deps.diagnosticEvents.length > 80) deps.diagnosticEvents.splice(0, deps.diagnosticEvents.length - 80);

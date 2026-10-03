@@ -1,4 +1,7 @@
+import { renderRetrievalSettings, refreshRetrievalSecret } from '../retrieval-settings.js';
+import { normalizeRetrievalPatch } from '../../retrieval/connection-settings.js';
 import { renderPresetSlots } from '../preset-slots.js';
+import { renderJevProviderSelection } from '../jev-settings.js';
 import { normalizePresetSlot } from '../../injection/preset-catalog.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
@@ -9,19 +12,8 @@ function setFormValues() {
     const prefs = deps.preferences();
     const setValue = (id, value) => { const element = deps.document.getElementById(id); if (element) element.value = value; };
     const setChecked = (id, value) => { const element = deps.document.getElementById(id); if (element) element.checked = Boolean(value); };
-    setValue('sr-jev-provider', deps.settings.jevProviderSelection || 'auto');
-    const provider = deps.RETRIEVAL_PROVIDERS[deps.settings.retrievalProvider] ? deps.settings.retrievalProvider : 'transformers';
-    setValue('sr-retrieval-provider', provider);
-    setValue('sr-retrieval-model', deps.settings.retrievalModel || deps.RETRIEVAL_PROVIDERS[provider].model);
-    setValue('sr-retrieval-vertex-auth', deps.settings.retrievalVertexAuth || 'express');
-    setValue('sr-retrieval-vertex-region', deps.settings.retrievalVertexRegion || 'global');
-    setValue('sr-retrieval-vertex-project', deps.settings.retrievalVertexProject || '');
-    const modelRow=deps.document.getElementById('sr-retrieval-model-row');
-    const vertexRow=deps.document.getElementById('sr-retrieval-vertex-row');
-    const keyRow=deps.document.getElementById('sr-retrieval-key-row');
-    if(modelRow)modelRow.hidden=provider==='transformers';
-    if(vertexRow)vertexRow.hidden=provider!=='vertexai';
-    if(keyRow)keyRow.hidden=provider==='transformers'||(provider==='vertexai'&&deps.settings.retrievalVertexAuth==='full');
+    renderJevProviderSelection(deps);
+    renderRetrievalSettings(deps);
     setValue('sr-world-direction', prefs.worldDirection);
     setValue('sr-relationship-direction', prefs.relationshipDirection);
     setChecked('sr-negative-priority', prefs.negativePriority);
@@ -94,6 +86,7 @@ async function saveGlobal(key, value) {
 }
 
 async function saveRetrievalSettings(patch) {
+    patch=normalizeRetrievalPatch(deps.settings,patch);
     const chatKey=deps.stateChatKey();
     deps.invalidateReasonerJobs();
     const target=deps.settings;
@@ -120,21 +113,7 @@ async function saveRetrievalSettings(patch) {
 
 async function saveRetrievalSetting(key,value) { return saveRetrievalSettings({[key]:value}); }
 
-async function retrievalSecretState() {
-    const provider=deps.settings.retrievalProvider;
-    const secret=provider==='vertexai'&&deps.settings.retrievalVertexAuth==='full'?'vertexai_service_account_json':deps.RETRIEVAL_PROVIDERS[provider]?.secret;
-    const node=deps.document.getElementById('sr-retrieval-key-status');
-    if(!node)return;
-    if(!secret){node.textContent='로컬 검색 · 키 불필요';return;}
-    try {
-        const response=await deps.fetch('/api/secrets/read',{method:'POST',headers:deps.getRequestHeaders()});
-        if(!response.ok)throw new Error(`키 상태 확인 오류 (${response.status})`);
-        const state=await response.json();
-        node.textContent=state?.[secret]?.some?.(entry=>entry.active) ? 'SillyTavern 키 저장됨' :
-            provider==='vertexai'&&deps.settings.retrievalVertexAuth==='full' ? '서비스 계정 없음 · SillyTavern API 연결에서 등록하세요.' :
-                '키 없음 · 위에서 저장하거나 SillyTavern API 연결에서 설정하세요.';
-    } catch(error) {node.textContent=error.message;}
-}
+async function retrievalSecretState() { const services=Object.create(deps); services.saveRetrievalSettings=saveRetrievalSettings; return refreshRetrievalSecret(services); }
 
 async function savePreference(key, value) {
     const chatKey=deps.stateChatKey();

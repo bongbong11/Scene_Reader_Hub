@@ -1,5 +1,19 @@
 // Extracted from Scene Reader 0.26.2; behavior preserved.
 export function createGenerationLifecycle(deps) {
+async function generationBoundary(task) {
+    const chatKey=deps.stateChatKey();
+    try { return await task(); }
+    catch(error) {
+        if (chatKey!==deps.stateChatKey()) return;
+        deps.generationMode='error';
+        deps.activeGenerationCycle={mode:'error',chatKey,inputKey:'',startedAt:new Date().toISOString()};
+        deps.noteDiagnostic?.('generation_preparation',{module:'src/lifecycle/generation.js',status:'failed',errorKind:error.code || error.name || 'Error'});
+        try { await deps.clearInjection({chatKey}); }
+        catch(cleanupError) { deps.noteDiagnostic?.('generation_cleanup',{module:'src/lifecycle/generation.js',status:'failed',errorKind:cleanupError.code || cleanupError.name || 'Error'}); }
+        deps.updateStatus('판독 준비 실패 · 이번 Hub 주입을 건너뜁니다.');
+        deps.updateActivity('판독 준비에 실패했습니다. 전체 진단 로그에서 오류를 확인해 주세요.',{error:true});
+    }
+}
 function cachedJudgmentMatches(rec, context, inputKey, allowOutputChange = false) {
     const saved = rec?.lastJudgment;
     if (!saved || saved.inputKey !== inputKey || saved.sourceKey !== deps.sourceRevisionKey(rec, deps.selectedWorld(rec))) return false;
@@ -26,6 +40,13 @@ async function onLorebookUpdated(name, data) {
 async function prepareGeneration(type, data, dryRun) {
     if (dryRun || data?.quiet_prompt || type === 'quiet') return;
     const startedChatKey = deps.stateChatKey();
+    if(deps.isEmbeddingBusy?.()) {
+        deps.generationMode='embedding_maintenance';
+        deps.activeGenerationCycle={mode:'embedding_maintenance',chatKey:startedChatKey,inputKey:'',startedAt:new Date().toISOString()};
+        await deps.clearInjection({chatKey:startedChatKey});
+        deps.updateStatus('임베딩 생성 중 · 이번 응답은 Hub 판독 없이 진행합니다.');
+        return;
+    }
     await deps.reconcileInjection();
     await deps.waitForOutputChanges();
     if (startedChatKey !== deps.stateChatKey()) return;
@@ -173,9 +194,9 @@ async function onChatChanged() {
     deps.setFormValues();
     deps.renderAll();
 }
-async function onBeforeGeneration(type,data={},dryRun=false,trigger='after_commands') {
+async function prepareBeforeGeneration(type,data={},dryRun=false,trigger='after_commands') {
     type=String(type||'normal');
-    if(!deps.hub)return prepareGeneration(type,data,dryRun);
+    if(!deps.hub || deps.isEmbeddingBusy?.())return prepareGeneration(type,data,dryRun);
     if(dryRun||data?.quiet_prompt||type==='quiet') {
         deps.hub.report('trigger','GENERATION_SKIPPED',{trigger,type:String(type||'normal'),dryRun:Boolean(dryRun)});
         return prepareGeneration(type,data,dryRun);
@@ -190,7 +211,7 @@ async function onBeforeGeneration(type,data={},dryRun=false,trigger='after_comma
         return result;
     });
 }
-async function prepareFallback(type='normal') {
+async function prepareFallbackUnsafe(type='normal') {
     type=String(type||'normal');
     const prior=deps.hub?.pendingRequest();
     const matches=()=>prior&&deps.hub.pendingRequest()===prior&&prior.type===type
@@ -217,5 +238,7 @@ async function prepareFallback(type='normal') {
     deps.hub?.report('trigger','INTERCEPTOR_FALLBACK',{trigger:'interceptor',reason:prior?'snapshot_changed':'primary_missing'});
     return onBeforeGeneration(type,{},false,'interceptor');
 }
+const onBeforeGeneration=(...args)=>generationBoundary(()=>prepareBeforeGeneration(...args));
+const prepareFallback=(...args)=>generationBoundary(()=>prepareFallbackUnsafe(...args));
 return {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged,prepareFallback};
 }

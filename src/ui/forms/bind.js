@@ -1,4 +1,6 @@
-import {buildTurnReport} from '../../debug/turn-report.js';
+import { bindEmbeddingMaintenance } from '../embedding-maintenance.js';
+import { wholeDiagnosticReport } from '../../debug/whole-report.js';
+import { bindRetrievalSettings } from '../retrieval-settings.js';
 import { bindPresetSlots } from '../preset-slots.js';
 import { bindJevSettings } from '../jev-settings.js';
 import { notifySceneReaderToast } from "../toasts.js";
@@ -17,35 +19,8 @@ function bindForm() {
     for(const id of ['sr-world-edit-name','sr-world-edit-prompt','sr-world-advanced-json'])deps.document.getElementById(id)?.addEventListener('input',updateWorldCopy);
     deps.document.getElementById('sr-world-profile')?.addEventListener('change',updateWorldCopy);
     deps.document.getElementById('sr-world-advanced')?.addEventListener('toggle',updateWorldCopy);
-    deps.document.querySelector('.sr-retrieval-panel')?.addEventListener('toggle',event=>{if(event.target.open)void deps.retrievalSecretState();});
-    deps.document.getElementById('sr-retrieval-provider')?.addEventListener('change',event=>deps.runUiTask((async()=>{
-        const provider=event.target.value;
-        if(!deps.RETRIEVAL_PROVIDERS[provider])throw new Error('검색 방식을 선택하세요.');
-        await deps.saveRetrievalSettings({retrievalProvider:provider,retrievalModel:deps.RETRIEVAL_PROVIDERS[provider].model});
-        await deps.retrievalSecretState();
-    })(),'검색 방식을 바꾸지 못했습니다.'));
-    deps.document.getElementById('sr-retrieval-model')?.addEventListener('change',event=>deps.runUiTask(deps.saveRetrievalSetting('retrievalModel',event.target.value.trim()),'검색 모델을 저장하지 못했습니다.'));
-    for(const [id,key] of [['sr-retrieval-vertex-auth','retrievalVertexAuth'],['sr-retrieval-vertex-region','retrievalVertexRegion'],['sr-retrieval-vertex-project','retrievalVertexProject']])
-        deps.document.getElementById(id)?.addEventListener('change',event=>deps.runUiTask(deps.saveRetrievalSetting(key,event.target.value.trim()).then(deps.retrievalSecretState),'Vertex 설정을 저장하지 못했습니다.'));
-    deps.document.getElementById('sr-retrieval-key-refresh')?.addEventListener('click',()=>deps.runUiTask(deps.retrievalSecretState(),'키 상태를 확인하지 못했습니다.'));
-    deps.document.getElementById('sr-retrieval-key-save')?.addEventListener('click',()=>deps.runUiTask((async()=>{
-        const secret=deps.RETRIEVAL_PROVIDERS[deps.settings.retrievalProvider]?.secret;
-        const input=deps.document.getElementById('sr-retrieval-key');
-        const value=input?.value.trim();
-        if(!secret||!value)throw new Error('선택한 검색 서비스의 새 키를 입력하세요.');
-        const response=await deps.fetch('/api/secrets/write',{method:'POST',headers:deps.getRequestHeaders(),body:JSON.stringify({key:secret,value,label:'Scene Reader retrieval'})});
-        if(!response.ok)throw new Error(`SillyTavern 키 저장 오류 (${response.status})`);
-        input.value='';
-        deps.vectorRetrieval.clear();
-        await deps.retrievalSecretState();
-        notifySceneReaderToast(deps.window, 'success', 'SillyTavern 키 저장소에 저장했습니다.','씬판독기');
-    })(),'검색 키를 저장하지 못했습니다.'));
-    deps.document.getElementById('sr-retrieval-test')?.addEventListener('click',()=>deps.runUiTask((async()=>{
-        const node=deps.document.getElementById('sr-retrieval-key-status');
-        if(node)node.textContent='검색 연결 확인 중…';
-        try { const result=await deps.vectorRetrieval.test();if(node)node.textContent=result;notifySceneReaderToast(deps.window, 'success', result,'씬판독기'); }
-        catch(error){if(node)node.textContent=`연결 실패 · ${error.message}`;throw error;}
-    })(),'검색 연결 확인에 실패했습니다.'));
+    bindRetrievalSettings(deps);
+    bindEmbeddingMaintenance(deps);
     bindCharacterTransfer(deps,{characterForm: deps.characterForm,invalidatePreparedJudgment: deps.invalidatePreparedJudgment,downloadJson: deps.downloadJson,ensureLoreLoaded: deps.ensureLoreLoaded,captureCharacterError: deps.captureCharacterError,showVersionEditor: deps.showVersionEditor,showVersionPreview: deps.showVersionPreview});
     const importCurrentSheet=async()=>{
         const kind=deps.characterEditorKind, context=deps.getContext();
@@ -111,22 +86,9 @@ function bindForm() {
 
     deps.document.getElementById('sr-close')?.addEventListener('click', () => deps.dialog.close());
     deps.document.getElementById('sr-copy-debug')?.addEventListener('click', () => deps.runUiTask((async () => {
-        const judgment = deps.record()?.lastJudgment;
-        if (!judgment) {
-            await deps.copyText(debugReportText({status:'no_judgment',diagnostics:deps.diagnosticEvents?.slice(-80)||[]},deps.ownerPrompt()));
-            notifySceneReaderToast(deps.window, 'success', '판독 실패·진행 기록을 복사했습니다.', '씬판독기');
-            return;
-        }
-        const tab = deps.dialog.querySelector('.sr-tab-panel.active')?.id?.replace('sr-tab-', '') || 'flow';
-        const related = (key) => tab === 'advanced' ? key.startsWith('advanced_') || ['primary_focus', 'secondary_focus', 'event_state', 'event_route'].includes(key)
-            : tab === 'conflict' ? ['conflict_state', 'fight_sustain', 'villain_route', 'npc_autonomy', 'npc_knowledge_fit', 'world_hostility', 'misfortune', 'negative_priority'].includes(key) || key.startsWith('verification_')
-                : tab === 'characters' ? key.startsWith('character_') || key.startsWith('sexual_') || ['npc_route', 'npc_presence', 'npc_knowledge_fit'].includes(key)
-                    : true;
-        const report = { ...buildTurnReport({judgment,tab,related}),
-            ...(tab==='characters'?{characterStateCapture:deps.selectedStateCapture(),characterTrace:(judgment.characterTrace || []).map(person=>({id:person.id,kind:person.kind,presence:person.presence,storedRecordCount:person.storedRecordCount,candidateCount:person.candidateCount,protection:person.protection,jevSelectedRuleIds:person.jevSelectedRuleIds,profileIds:person.profileIds,injectedRuleIds:person.injectedRuleIds,omittedBySlotRuleIds:person.omittedBySlotRuleIds,omittedRuleIds:person.omittedRuleIds,excludedByPresenceRuleIds:person.excludedByPresenceRuleIds,blockChars:person.blockChars,zeroReason:person.zeroReason})),sexualTrace:judgment.sexualTrace}:{}), };
-        await deps.copyText(JSON.stringify(report, null, 2));
-        notifySceneReaderToast(deps.window, 'success', '판정 원선택과 최종 조정 결과를 복사했습니다.', '씬판독기');
-    })()));
+        await deps.copyText(JSON.stringify(wholeDiagnosticReport({execution:deps.executionDebugReport(),judgment:deps.record()?.lastJudgment}),null,2));
+        notifySceneReaderToast(deps.window,'success','전체 진단 로그를 복사했습니다.','씬판독기');
+    })(),'전체 진단 로그를 복사하지 못했습니다.'));
     deps.dialog.addEventListener('click', (event) => { if (event.target === deps.dialog) deps.dialog.close(); });
     deps.dialog.querySelectorAll('[data-sr-tab]').forEach((button) => button.addEventListener('click', () => {
         const target = button.dataset.srTab;
@@ -134,6 +96,7 @@ function bindForm() {
         deps.dialog.querySelectorAll('.sr-tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === `sr-tab-${target}`));
     }));
     deps.document.getElementById('sr-settings-button')?.addEventListener('click', () => {
+        void deps.retrievalSecretState();
         deps.dialog.querySelectorAll('[data-sr-tab]').forEach((item) => item.classList.remove('active'));
         deps.dialog.querySelectorAll('.sr-tab-panel').forEach((panel) => panel.classList.toggle('active', panel.id === 'sr-tab-settings'));
     });

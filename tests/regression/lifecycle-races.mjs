@@ -121,6 +121,7 @@ function setup() {
     let release,entered,count=0;
     const reached=new Promise(resolve=>entered=resolve);
     const stored=[];
+    f.run('chatReadyKey=stateChatKey();');
     f.sandbox.fetch=async(url,options)=>{
         if(url.endsWith('/chat')){
             if(++count===1){entered();await new Promise(resolve=>release=resolve);return {ok:false,status:500,json:async()=>({error:'first write failed'})};}
@@ -137,6 +138,14 @@ function setup() {
     assert.deepEqual(results.map(result=>result.status),['rejected','fulfilled','fulfilled']);
     assert.equal(stored.at(-1),'dynamic');
     assert.equal(f.run('record().preferences.developmentStyle'),'dynamic','failed earlier save cannot roll back a later selection');
+}
+{
+    const {f}=setup();
+    let writes=0;
+    f.sandbox.fetch=async()=>{writes++;return {ok:true,json:async()=>({ok:true})};};
+    f.run('serverStoreAvailable=false;chatReadyKey="";');
+    await assert.rejects(f.run('saveServerChat()'),/채팅을 다시 불러온/);
+    assert.equal(writes,0,'a failed hydration must not allow an empty local record to overwrite stored data');
 }
 {
     const {f}=setup();
