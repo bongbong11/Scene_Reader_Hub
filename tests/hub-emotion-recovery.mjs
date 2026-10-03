@@ -19,7 +19,7 @@ await new Promise(resolve=>setTimeout(resolve,0));
 assert.equal(calls.length,1);
 assert.deepEqual(calls[0].body.people.map(p=>p.name),['Briar'],'only the missing person is sent to the collector');
 assert.equal(f.run('record().characterStateEvents[0].states.length'),2,'saved actors remain visible during recovery');
-calls[0].resolve({result:{states:[{code:'C1',anger:55},{code:'C0',a:99,c:1}]}});
+calls[0].resolve({result:{states:[{code:'C1',anger:55,joy:0,fear:0,sadness:0},{code:'C0',a:99,c:1}]}});
 await Promise.all([first,duplicate]);
 const saved=JSON.parse(f.run('JSON.stringify(record().characterStateEvents[0].states)'));
 for(const state of original)assert.deepEqual(saved.find(p=>p.id===state.id),state,'saved actors are never overwritten by a recovery result');

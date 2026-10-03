@@ -18,11 +18,11 @@ function renderCharacterTurnResults() {
     const latestEvent=latestStateEventForChat(currentRecord,deps.getContext().chat || [],deps.stableFingerprint);
     const storedCapture=latestEvent?.capture;
     const capture=storedCapture?.status==='collecting' && !deps.isStateCapturePending(storedCapture.requestId) ? {...storedCapture,status:'cancelled'} : storedCapture;
-    const captureFailures={too_long:'답변이 감정 수집 길이 한도를 넘음',incomplete:'이번 응답에서 이 인물의 감정값이 반환되지 않음',save_failed:'감정값 저장 실패 · 다시 수집해 주세요.',cancelled:'수집 중단 · 다음 응답부터 다시 수집',missing:'응답에 상태 정보 없음',opening:'모델의 감정값 태그를 읽지 못함',closing:'상태 정보가 중간에 끊김',trailing:'모델이 감정값을 중복 출력함',format:'모델의 감정값 형식을 읽지 못함',empty_output:'완성된 답변 없음',timeout:'응답 시간 초과',request:'연결 요청 실패',unavailable:'연결 설정 확인 필요',paused:'수집 쉬는 중'};
+    const captureFailures={too_long:'답변이 감정 수집 길이 한도를 넘음',incomplete:'이번 응답에서 이 인물의 감정값이 반환되지 않음',save_failed:'감정값 저장 실패 · 다시 수집해 주세요.',cancelled:'수집 중단 · 다음 응답부터 다시 수집',missing:'응답에 상태 정보 없음',opening:'모델의 감정값 태그를 읽지 못함',closing:'상태 정보가 중간에 끊김',trailing:'모델이 감정값을 중복 출력함',format:'모델의 감정값 형식을 읽지 못함',empty_output:'완성된 답변 없음',timeout:'응답 시간 초과',request:'연결 요청 실패',unavailable:'연결 설정 확인 필요',paused:'수집 쉬는 중',skipped:'수집 대상 또는 수집 조건 없음'};
     const chat=deps.getContext().chat || [];
     const latestOutputIndex=latestStateOutputIndex(chat,currentRecord?.nonRpOutputIndices);
     const captureCurrent=capture?.outputIndex===latestOutputIndex ? capture : null;
-    const captureReasons={unknown_person:'대상 인물을 식별하지 못함',field_format:'숫자·항목 표기 오류',unknown_field:'알 수 없는 감정 항목',duplicate_field:'같은 수치가 중복됨',out_of_range:'0~100을 벗어난 수치',disabled_field:'수집을 끈 항목만 반환됨',disabled_field_ignored:'일반 감정은 저장 · 꺼둔 성적 수치 제외',missing_fields_ignored:'일반 감정은 저장 · 충동/자제 수치 누락',missing_fields:'필수 수치 누락',duplicate_person:'같은 인물이 중복됨',too_many_rows:'인물 행이 지나치게 많음',too_long:'상태 행이 지나치게 김',json_format:'JSON 형식 오류'};
+    const captureReasons={unknown_person:'대상 인물을 식별하지 못함',field_format:'숫자·항목 표기 오류',unknown_field:'알 수 없는 감정 항목',duplicate_field:'같은 수치가 중복됨',out_of_range:'0~100을 벗어난 수치',disabled_field:'수집을 끈 항목만 반환됨',disabled_field_ignored:'일반 감정은 저장 · 꺼둔 성적 수치 제외',missing_fields_ignored:'일반 감정은 저장 · 충동/자제 수치 누락',missing_fields:'필수 수치 누락',missing_moods:'일반 감정 일부 미반환 · 빠진 감정 수집으로 보충',empty_fields:'평가된 감정 항목 없음',not_participating:'완성된 답변에서 실제 참여 없음',duplicate_person:'같은 인물이 중복됨',too_many_rows:'인물 행이 지나치게 많음',too_long:'상태 행이 지나치게 김',json_format:'JSON 형식 오류'};
     const captureReasonText=(captureCurrent?.diagnostics?.reasons||[]).map(reason=>captureReasons[reason]).filter(Boolean).join(' · ');
     const latestStates=latestStateForChat(currentRecord,chat,deps.stableFingerprint);
     const stateById=new Map(latestStates.map(state=>[state.id,state]));
@@ -51,7 +51,7 @@ function renderCharacterTurnResults() {
         const profileNames = (person.injectedRuleIds || []).map((id) => (person.recordMode ? person.recordSelections || [] : currentProfileItems(entry)).find((item) => item.id === id)?.rule).filter(Boolean);
         const sexual = person.sexualConduct || judgment.sexualTrace?.find(item => item.id === person.id) || null;
         const rows = [
-            ['이번 역할', characterTurnLabel('presence',person.presence)],
+            ['이번 역할', person.presenceUncertain?'참여 불확실 · 부재로 확정하지 않음':characterTurnLabel('presence',person.presence)],
             ...(person.recordMode ? [['판독 기록 상태', ({ current:'새 인물 기록 사용', stale:'기록이 오래됨 · 다시 추출 필요', legacy:'이전 방식만 저장됨 · 새 기록 추출 필요', missing:'저장된 인물 기록 없음' })[person.recordStatus] || '기록 상태 확인 필요'], ['검색 상태', ({ready:'임베딩 검색',cached:'검색 결과 재사용',fallback:'글자 검색으로 대체',lexical:'글자 검색',plain:'검색 대상 없음'})[person.prefilterStats?.retrievalStatus] || person.prefilterStats?.retrievalStatus || '확인 필요'], ['저장 → 후보 → Jev 선택 → 주입문 포함', `${person.storedRecordCount || 0} → ${person.candidateCount || 0} → ${(person.jevSelectedRuleIds || person.profileIds).length} → ${(person.injectedRuleIds || []).length}개`],['인물별 주입 길이',`${person.blockChars || 0}자`],...(person.zeroReason?[['선택 0개 이유',person.zeroReason]]:[])] : []),
             ...((person.prefilterStats?.excludedByChars || person.prefilterStats?.excludedByLimit) ? [['후보에서 제외',`개수 한도 ${person.prefilterStats.excludedByLimit || 0}개 · 후보 길이 한도 ${person.prefilterStats.excludedByChars || 0}개`]]:[]),
             ...(person.protection ? [['경계·지식 제한 보강',`추가 판독 ${person.protection.candidates}개 · 주입문에 포함 ${person.protection.injected}개`],
@@ -72,7 +72,7 @@ function renderCharacterTurnResults() {
         const cardKey=String(deps.getContext().chatId || '')+':'+person.id;
         const view=deps.characterCardViews.get(person.id) || (person.emotionOnly?'emotion':'judgment');
         const saved=stateForEntry(stateById.get(person.id),entry)?.values || {};
-        const neutral=Object.keys(saved).length>0&&!Object.values(saved).some(value=>value>0);
+        const neutral=stateById.get(person.id)?.coverageVersion===1 || (Object.keys(saved).length>0&&!Object.values(saved).some(value=>value>0));
         const bars=Object.entries(moodNames).filter(([key])=>Number.isInteger(saved[key])&&(neutral||['a','c'].includes(key)||saved[key]>0)).map(([key,name])=>`<div class="sr-emotion-row"><span>${name}</span><div class="sr-emotion-track"><span style="width:${Math.max(0,Math.min(100,saved[key]))}%"></span></div><strong>${saved[key]}%</strong></div>`).join('');
         const actorDiagnostics=captureCurrent?.diagnostics?.actors;
         const actorIndex=captureCurrent?.participantIds?.indexOf(person.id);

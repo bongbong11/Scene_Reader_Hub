@@ -166,7 +166,7 @@ function setup() {
     const nodes=new Map(['sr-owner-card','sr-owner-diagnostic-panel','sr-owner-status','sr-owner-prompt'].map(id=>[id,{hidden:true,textContent:'',value:''}]));
     f.sandbox.document.getElementById=id=>nodes.get(id)||null;
     f.run('settings.ownerUnlocked=true;renderOwnerMode();');
-    assert.equal(nodes.get('sr-owner-diagnostic-panel').hidden,false,'developer diagnostics appear only after unlock');
+    assert.equal(nodes.get('sr-owner-card').hidden,false,'private controls appear only after unlock');
     const snapshot=f.run('diagnosticSnapshot()');
     assert.ok(snapshot.automatic && snapshot.scene && snapshot.storage && snapshot.retrieval && snapshot.characters && snapshot.injection);
     f.run('settings.ownerUnlocked=false;renderOwnerMode();');

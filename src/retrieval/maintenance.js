@@ -15,7 +15,7 @@ export function createEmbeddingMaintenance(deps) {
     }
     const revision = () => JSON.stringify([deps.vectorRetrieval.config(), banks()]);
     const isBusy = () => Boolean(active?.valid());
-    async function rebuild() {
+    async function rebuild({forceRebuild=false} = {}) {
         if (active) throw new Error('임베딩 생성이 진행 중입니다. 완료 후 다시 시도하세요.');
         if (deps.chatReadyKey !== deps.stateChatKey()) throw new Error('현재 채팅의 저장 정보를 먼저 불러와 주세요.');
         const targets = structuredClone(banks());
@@ -25,7 +25,7 @@ export function createEmbeddingMaintenance(deps) {
         const job = deps.jobs.begin('embedding-rebuild',snapshot);
         active = job;
         const validate = () => { job.assert(); if (revision() !== snapshot) { job.controller.abort(); job.assert(); } };
-        let completed = 0;
+        let completed = 0, reusedCount = 0, generatedCount = 0;
         deps.noteDiagnostic('embedding_rebuild',{module:'src/retrieval/maintenance.js',status:'started',bankCount:targets.length});
         try {
             await deps.clearInjection({chatKey:job.identity,owns:job.owns});
@@ -33,17 +33,19 @@ export function createEmbeddingMaintenance(deps) {
             deps.vectorRetrieval.clear();
             for (const bank of targets) {
                 validate();
-                const result = await deps.vectorRetrieval.rebuild({...bank,signal:job.controller.signal,validate});
+                const result = await deps.vectorRetrieval.rebuild({...bank,forceRebuild,signal:job.controller.signal,validate});
                 validate();
                 if (result.status !== 'rebuilt') throw Object.assign(new Error(result.error || '임베딩을 완료하지 못했습니다.'),{code:result.code || 'EMBEDDING_REBUILD_FAILED'});
                 completed++;
+                reusedCount+=result.reusedCount || 0;
+                generatedCount+=result.generatedCount || 0;
             }
-            deps.noteDiagnostic('embedding_rebuild',{module:'src/retrieval/maintenance.js',status:'succeeded',bankCount:completed});
-            return {bankCount:completed,recordCount:targets.reduce((sum,bank)=>sum+bank.items.length,0)};
+            deps.noteDiagnostic('embedding_rebuild',{module:'src/retrieval/maintenance.js',status:'succeeded',bankCount:completed,reusedCount,generatedCount,forceRebuild});
+            return {bankCount:completed,recordCount:targets.reduce((sum,bank)=>sum+bank.items.length,0),reusedCount,generatedCount};
         } catch(error) {
             deps.noteDiagnostic('embedding_rebuild',{module:'src/retrieval/maintenance.js',status:job.valid()?'failed':'cancelled',completedCount:completed,errorKind:error.code || error.name});
             throw error;
         } finally { job.finish(); if (active === job) active = null; }
     }
-    return {rebuild,isBusy};
+    return {rebuild,isBusy,cancel:()=>active?.controller.abort(new DOMException("Cancelled", "AbortError"))};
 }

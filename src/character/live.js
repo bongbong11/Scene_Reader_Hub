@@ -8,6 +8,7 @@ import { characterVolume, npcRecordLimit } from "./volume.js";
 import { supplementRecordCandidates } from './record-protection.js';
 import { prepareProtectionQuestions, characterRecordQuestion } from './record-questions.js';
 import { allocateRecordIds, protectionTrace } from './record-allocation.js';
+import { PARTICIPATION_CHOICES } from './presence.js';
 
 const DIRECTIONS = { none: 'No separate direction is needed.', speak: 'Let a direct line lead.', act: 'Let concrete conduct lead.', selective: 'Respond only to what matters to this person.', withhold: 'Withhold information for an established motive.', evade: 'Evade for an established motive.', deceive: 'Deceive only if the person has an established motive and knows what is being concealed.', withdraw: 'Withdraw when the person can actually do so.', confront: 'Confront a supported live issue.' };
 const ACCESS_LABELS = { observed: 'Directly perceived', reported: 'Was told', public: 'Publicly available', stored_knowledge: 'Previously established for this person', profile_supported: 'Within supported lived or role knowledge', private_access: 'Has established private access' };
@@ -116,6 +117,7 @@ export function buildCharacterTurnQuestions(plan = []) {
     const questions = {};
     for (const person of plan) {
         const prefix = `character_${person.index}`;
+        questions[`${prefix}_participation`] = {type:'choice',instructions:`Observe ${person.name}'s actual participation in the LATEST RP exchange independently of next-response role, stored rule relevance, emotions and NPC routing. Check this person individually. Dialogue with an NPC does not remove another speaking character. An earlier appearance does not override a later departure. The shared title/author of a multi-person card does not prove which member speaks. Current texts and calls count; quoted history and unexpressed imagined reactions do not.`,criteria:PARTICIPATION_CHOICES};
         questions[`${prefix}_presence`] = { type: 'choice', instructions: `Judge ${person.name}'s role in the next response from actual RP. Physical co-location is not required: the author of current incoming texts or call replies is participating, while a name in memories, speculation, an old quoted message or someone else's thoughts is not current participation. Do not give a remote sender access to unsent thoughts or unseen surroundings. A previously active person may remain present without being named again, but registration or model visibility alone does not make someone a participant. In an NPC-only exchange, mark an uninvolved main character absent or background.${person.cardCast ? ` This card represents several separate people. The shared card title or message author label does not prove ${person.name} participated. Decide this person's presence separately from all other card members, using the latest actual RP; an earlier appearance does not override a later departure.` : ''}${person.mainSillyTavernName ? ` This is the registered main character for SillyTavern character ${person.mainSillyTavernName}; differing sheet language or spelling alone is not evidence of absence.` : ''}`, criteria: PRESENCE_CHOICES };
         for (const field of affectFields(person.priorState, { includeArousal: !person.sexualConductManaged })) questions[`${prefix}_affect_${field}`] = {
             type: 'choice',
@@ -171,7 +173,7 @@ export function resolveLiveCharacterPlan(plan, decisions, details = {}) {
         if ((basis === 'none' && ['deceive', 'withhold', 'confront'].includes(direction)) ||
             (basisItem && !accepted.some(item => item.id === basis)) ||
             (denied.length && !accepted.length && ['deceive', 'withhold'].includes(direction))) direction = 'none';
-        return { ...person, presence, profileIds, jevSelectedRuleIds, profileItems: profileIds.map(id => person.profileCandidates.find(item => item.id === id)), contextIds,
+        return { ...person, presence, presenceUncertain:Boolean(details[`${prefix}_presence`]?.presenceUncertain), participationEvidence:details[`${prefix}_presence`]?.participationEvidence || 'unknown', presenceResolution:details[`${prefix}_presence`]?.presenceResolution || 'policy', profileIds, jevSelectedRuleIds, profileItems: profileIds.map(id => person.profileCandidates.find(item => item.id === id)), contextIds,
             contextItems: accepted, denied, direction, affectSelections, excludedReason: denied.length ? '접근 근거 없는 정보는 제외 · 독립적인 직접 반응은 유지' : '' };
     });
 }
@@ -192,6 +194,7 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
     const selections = [], traces = [];
     for (const person of plan) {
         traces.push({ index: person.index, id: person.id, name: person.name, kind: person.kind, presence: person.presence,
+            presenceUncertain:person.presenceUncertain,participationEvidence:person.participationEvidence,presenceResolution:person.presenceResolution,
             profileIds: person.profileIds, contextIds: person.contextIds, deniedIds: person.denied.map(item => item.id), direction: person.direction, affectSelections: person.affectSelections || [], priorAffect: person.priorState || null, recordMode:person.recordMode,
             recordStatus:person.recordStatus, storedRecordCount:person.storedRecordCount || 0, candidateCount:person.profileCandidates?.length || 0, prefilterStats:person.prefilterStats || {},
             recordSelections:person.profileItems.map(item=>({id:item.id,type:item.type,rule:item.rule,source_ids:item.source_ids,knowledge_state:item.knowledge_state})), excludedReason: person.excludedReason });

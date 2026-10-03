@@ -20,7 +20,7 @@ export function renderRetrievalSettings(deps) {
     node('sr-retrieval-key-row').hidden = provider === 'transformers';
     node('sr-retrieval-key-label').textContent = provider === 'vertexai' ? 'Vertex Express API 키' : '선택한 서비스의 API 키';
     node('sr-retrieval-key-help').textContent = provider === 'vertexai'
-        ? '저장된 SillyTavern 키나 서비스 계정을 사용한다면 입력하지 않아도 됩니다. 새 Vertex Express API 키를 등록할 때만 입력하세요. 서비스 계정 JSON은 이 칸에 넣지 마세요.'
+        ? '저장된 키·서비스 계정은 자동 사용합니다. 새 Express 키만 입력하세요. 서비스 계정 JSON은 SillyTavern에서 설정하세요.'
         : 'SillyTavern에 저장된 키를 그대로 사용합니다. 키를 새로 등록하거나 바꿀 때만 입력하세요.';
     node('sr-retrieval-google-note').hidden = !fixedEmbeddingModel(provider);
     node('sr-retrieval-google-note').textContent = provider === 'vertexai'
@@ -72,7 +72,6 @@ export function bindRetrievalSettings(deps) {
         const provider = event.target.value;
         if (!deps.RETRIEVAL_PROVIDERS[provider]) throw new Error('임베딩 서비스를 선택하세요.');
         node('sr-retrieval-key').value='';
-        node('sr-retrieval-key-row').open=false;
         await deps.saveRetrievalSettings({retrievalProvider:provider,retrievalModel:deps.RETRIEVAL_PROVIDERS[provider].model});
         await deps.retrievalSecretState();
     })(),'임베딩 설정을 바꾸지 못했습니다.'));
@@ -105,7 +104,7 @@ export function bindRetrievalSettings(deps) {
     node('sr-retrieval-test')?.addEventListener('click',()=>deps.runUiTask((async()=>{
         const button=node('sr-retrieval-test');
         if (button.disabled) return;
-        if (deps.embeddingMaintenance.isBusy()) throw new Error('임베딩 재생성이 끝난 뒤 연결을 확인해 주세요.');
+        if (deps.embeddingMaintenance.isBusy()) throw new Error('임베딩 작업이 끝난 뒤 연결을 확인해 주세요.');
         button.disabled=true;
         const settings=deps.settings,provider=settings.retrievalProvider;
         const status=node('sr-retrieval-key-status');

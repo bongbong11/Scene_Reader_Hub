@@ -25,17 +25,5 @@ function diagnosticSnapshot() {
     };
 }
 
-function diagnosticChecks(snapshot=diagnosticSnapshot()) {
-    const check=(ok,detail)=>({result:ok?'pass':'check',detail});
-    return {
-        automatic:[check(snapshot.automatic.chatReady,'현재 채팅의 저장 상태를 읽었는지'),check(snapshot.automatic.sourceCurrent!==false,'마지막 판정이 현재 설정·시트와 일치하는지')],
-        opportunities:[check(Boolean(snapshot.opportunities?.key)||snapshot.opportunities?.status==='scene_paused',snapshot.opportunities?.status==='scene_paused'?'장면 일시 정지로 사건·인물 추첨을 건너뜀':'사건·인물 등장 단계별 판정 기록이 있는지')],
-        scene:[check(!snapshot.scene.error,'장면 중단·복귀 판정에 확인 실패가 없는지')],
-        storage:[check(snapshot.storage.available,'서버 저장소가 응답하는지'),check(snapshot.storage.version>=2,'저장소 버전이 지원 범위인지')],
-        retrieval:[check(Boolean(deps.RETRIEVAL_PROVIDERS[snapshot.retrieval.provider]),'선택한 검색 방식이 지원되는지')],
-        characters:[check(Number.isInteger(snapshot.characters.characters)&&Number.isInteger(snapshot.characters.npcs),'인물 목록을 읽을 수 있는지')],
-        injection:[check(snapshot.automatic.sourceCurrent!==false || snapshot.injection.activeChars===0,'오래된 인물·세계관 판정문이 활성 주입으로 남지 않았는지'),check(snapshot.injection.activeChars===0 || snapshot.injection.activeMatchesJudgment,'활성 주입문이 마지막 판정과 일치하는지')],
-    };
-}
-return {noteDiagnostic, diagnosticSnapshot, diagnosticChecks};
+return {noteDiagnostic, diagnosticSnapshot};
 }

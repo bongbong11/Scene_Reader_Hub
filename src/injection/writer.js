@@ -32,7 +32,7 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     assertOwner();
     await deps.setExtensionPrompt(deps.WORLD_INJECT_KEY, worldPreset ? '' : worldPayload, deps.IN_CHAT, 0, false, deps.SYSTEM_ROLE);
     assertOwner();
-    const roster = deps.settings.enabled ? deps.stateRoster(deps.characterStore, rec?.preferences, rec?.lastJudgment) : [];
+    const roster = deps.settings.enabled ? deps.stateRoster(deps.characterStore, rec?.preferences, rec?.lastJudgment,{recheckOutput:deps.STATE_COLLECTOR_MODE==='profile-output'}) : [];
     const stateCollectionPaused = rec?.lastJudgment?.sceneIntimacy?.route === 'paused';
     const context = deps.getContext();
     const multipleOutputs = context.mainApi === 'openai' && Number(context.chatCompletionSettings?.n) > 1;

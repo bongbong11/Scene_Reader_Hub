@@ -41,7 +41,6 @@ async function requestDecision(run,frame) {
         (frame.missingAnswerCount = frame.data.answerDiagnostics?.invalidKeys?.length||0);
         if(frame.missingAnswerCount)deps.noteDiagnostic?.('jev_partial',{requested:frame.data.answerDiagnostics.requested,missing:frame.missingAnswerCount,keys:frame.data.answerDiagnostics.invalidKeys.slice(0,20)});
         if (!deps.settings.enabled || deps.currentInputKey(frame.pendingUserText, frame.cycleSalt) !== frame.inputKey || deps.recentContext(frame.pendingUserText).contextKey !== frame.context.contextKey || deps.sourceRevisionKey(deps.record(), deps.selectedWorld()) !== frame.sourceKey) throw new deps.StaleRunError();
-        deps.lastDebugFrame = { chatKey: run.identity, inputKey: frame.inputKey, request: frame.jevRequest, answers: frame.data.answers || {}, worldGate: frame.worldGateFrame, model: String(frame.data.model || deps.JEV_MODEL) };
         deps.updateStatus('판독 완료 · 주입문 조립 중…');
         deps.updateActivity(frame.mixedOoc ? 'OOC 지시 확인 · 필요한 주입문을 조립하고 있습니다…' : '판독 완료 · 필요한 주입문을 조립하고 있습니다…');
         

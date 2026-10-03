@@ -25,7 +25,6 @@ export function createRuntimeState(stateChatKey) {
         pendingGenerationType: '',
         generationMode: 'rp',
         debugInjectionArmed: false,
-        lastDebugFrame: null,
         activeGenerationCycle: { mode: 'rp', inputKey: '', startedAt: '' },
         chatReadyKey: null,
         diagnosticEvents: [],

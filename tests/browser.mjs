@@ -2,6 +2,7 @@ import { checkBundlesAndProviders } from './browser-bundles-providers.mjs';
 import { checkCompilerCopies } from './browser-compiler-copies.mjs';
 import { checkPresetSlots } from './browser-preset-slots.mjs';
 import { checkRecordProtection } from './browser-record-protection.mjs';
+import { checkRecoverySettings } from './browser-recovery-settings.mjs';
 import { createRecordBank } from '../src/characters/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
@@ -372,8 +373,7 @@ try{
     await page.waitForFunction(()=>document.getElementById('sr-character-modal').hidden);
     assert.ok(store.characters.npcs.some(entry=>entry.name==='Rosa Valentine'&&entry.npcRole==='ally'));
     await page.locator('#sr-settings-button').click();assert.equal(await page.locator('#sr-memory-charm').isDisabled(),true);assert.equal(await page.locator('#sr-memory-lorebook').isDisabled(),true);assert.equal(await page.locator('#sr-memory-reserved').isHidden(),true);assert.equal(await page.locator('.sr-developer-lock > summary').textContent(),'개발자 모드');
-    assert.equal(await page.locator('.sr-connection-card').evaluate(element=>element.open),false,'model connections start folded');
-    await page.locator('.sr-connection-card > summary').click();
+    assert.equal(await page.locator('.sr-connection-card').evaluate(element=>element.tagName),'SECTION','all key settings stay visible');
     await page.locator('#sr-reasoner-profile').selectOption('test-profile');
     await page.locator('#sr-continuity-enabled').check();
     await page.locator('[data-sr-tab="flow"]').click();
@@ -425,10 +425,7 @@ try{
     assert.ok(debugReport.jevOriginalChoices.primary_focus,'debug copy retains Jev original choices');
     assert.ok(debugReport.decisions.primary_focus,'debug copy retains final coordination');
     assert.ok(!JSON.stringify(debugReport).includes('Open the door.'),'debug copy excludes raw chat');
-    await page.locator('#sr-settings-button').click();await page.locator('#sr-tab-settings details').filter({hasText:'검사용 전체 판정 기록'}).first().locator('summary').click();await page.locator('#sr-debug-open').click();
-    assert.match(await page.locator('#sr-debug-preview').inputValue(),/Open the door\./,'reviewable full debug includes original RP evidence');
-    await page.locator('#sr-debug-copy').click();
-    assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/rawJevAnswers/);
+    assert.equal(await page.locator('#sr-debug-open').count(),0,'duplicate raw debug UI removed');
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter opens the door.\n[[SR_STATE]]\nc0 | a:38% | c=60 | anger25\n[[/SR_STATE]]\n<Scene_Info>Time: 14:08</Scene_Info>'});await mock.emit('MESSAGE_RECEIVED',1);mock.chat.push({is_user:true,mes:'(oOc: Explain.)',extra:{ooc_chat:true,ooc_instruction:'fixed wrapper'}});await mock.emit('MESSAGE_SENT',2);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.equal(await page.evaluate(()=>mock.chat[1].mes),'Hunter opens the door.\n<Scene_Info>Time: 14:08</Scene_Info>','state notation is normalized and metadata removed while preset info remains intact');
     assert.equal(store.chat.characterStateEvents?.[0]?.states?.[0]?.values?.a,38,'state stored outside the chat message');
@@ -756,7 +753,6 @@ try{
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-31. They continue across campus.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.match(await page.evaluate(()=>JSON.stringify(mock.prompts)),/Halloween week/,'seasonal world reaches depth injection');
     assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']()),'','depth mode leaves no duplicate world macro');
-    await page.locator('.sr-connection-card > summary').click();
     assert.equal(await page.locator('#sr-retrieval-provider').isVisible(),true);
     assert.equal(await page.locator('#sr-retrieval-vertex-region').count(),0,'region is fixed, not editable');
     await Promise.all([
@@ -770,7 +766,6 @@ try{
     await page.waitForFunction(()=>document.getElementById('sr-retrieval-model').value==='Qwen/Qwen3-Embedding-0.6B');
     assert.equal(store.settings.global.retrievalProvider,'nanogpt');
     assert.equal(store.settings.global.retrievalModel,'Qwen/Qwen3-Embedding-0.6B','provider and model save together');
-    await page.locator('#sr-retrieval-key-row > summary').click();
     await page.locator('#sr-retrieval-key').fill('nano-test-secret');
     await page.locator('#sr-retrieval-key-save').click();
     await page.waitForFunction(()=>document.getElementById('sr-retrieval-key-status').textContent.includes('저장됨'));
@@ -822,10 +817,10 @@ try{
     assert.equal(profileRequest.options.includePreset,false);
     assert.equal(profileRequest.maxTokens,1200);
     const profileOutputIndex=await page.evaluate(()=>mock.chat.length-1);
-    await page.evaluate(()=>mock.profileStateRequests[0].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:45}]})}));
+    await page.evaluate(()=>mock.profileStateRequests[0].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:45,joy:0,fear:0,sadness:0}]})}));
     await page.waitForFunction(()=>document.querySelector('#sr-character-turn-results')?.textContent.includes('45%'));
-    assert.equal(store.chat.characterStateCapture.status,'collected');
-    assert.ok(await page.evaluate(()=>mock.toasts.some(item=>item.level==='success' && item.message.includes('감정 수집 완료'))),'successful background collection shows completion');
+    assert.equal(store.chat.characterStateCapture.status,'incomplete','unreturned registered actors remain visible as incomplete');
+    assert.ok(await page.evaluate(()=>mock.toasts.some(item=>item.level==='warning' && item.message.includes('일부가 반환되지'))),'partial actor response does not announce full completion');
     assert.ok(store.chat.characterStateEvents.some(event=>event.outputIndex===profileOutputIndex&&event.states[0].values.anger===45));
     // Manual recovery requests only missing people and preserves saved values.
     const jevBeforeEmotion=requests.filter(request=>request.url.endsWith('/systemone')).length;
@@ -839,7 +834,7 @@ try{
     assert.ok(!manualRequest.people.some(person=>person.code==='C0'),'the saved actor is not recollected');
     await page.locator('#sr-emotion-now').evaluate(button=>button.click());
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),2,'double clicks never duplicate collection');
-    await page.evaluate(()=>{const people=JSON.parse(mock.profileStateRequests[1].messages[1].content).people;mock.profileStateRequests[1].resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,...(person.trackArousal?{a:0,c:90}:{})}))})});});
+    await page.evaluate(()=>{const people=JSON.parse(mock.profileStateRequests[1].messages[1].content).people;mock.profileStateRequests[1].resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,anger:0,joy:0,fear:0,sadness:0,...(person.trackArousal?{a:0,c:90}:{})}))})});});
     await page.waitForFunction(()=>!document.querySelector('#sr-emotion-now').disabled);
     assert.match(await page.locator('#sr-character-turn-results').textContent(),/45%/,'the original saved emotion is unchanged');
     assert.equal(requests.filter(request=>request.url.endsWith('/systemone')).length,jevBeforeEmotion,'manual emotion collection makes no Jev call');
@@ -887,15 +882,9 @@ try{
     await page.locator('#sr-extension-open').evaluate(e=>e.closest('details').open=true);
     await page.locator('#sr-extension-open').click();
     await page.locator('#sr-settings-button').click();
-    assert.equal(await page.locator('#sr-owner-diagnostic-panel').evaluate(e=>e.hidden),false,'developer diagnostics appear after unlock');
-    await page.locator('#sr-owner-diagnostic-panel > summary').click();
-    await page.locator('#sr-owner-diagnostic-category').selectOption('injection');
-    await page.locator('#sr-owner-diagnostic-run').click();
-    const ownerReport=JSON.parse(await page.locator('#sr-owner-diagnostic-output').inputValue());
-    assert.equal(ownerReport.category,'injection');
-    assert.ok(ownerReport.checks.injection.length,'developer diagnostics run category checks');
-    await page.locator('#sr-owner-diagnostic-copy').click();
-    assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/"category": "injection"/);
+    assert.equal(await page.locator('#sr-owner-diagnostic-panel').count(),0,'duplicate feature diagnostics UI removed');
+    await page.locator('#sr-copy-debug').click();
+    assert.equal(JSON.parse(await page.evaluate(()=>navigator.clipboard.readText())).reportVersion,4);
     const toastPlacement=await page.evaluate(async prefix=>{
         const dialog=document.getElementById('scene-reader-dialog');
         if(!dialog.open)dialog.showModal();
@@ -957,6 +946,7 @@ try{
     await checkCompilerCopies(page,requests,store);
     await checkBundlesAndProviders(page,store,requests,root,setViewportSize);
     await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
+    await checkRecoverySettings(page,store,requests,setViewportSize);
     assert.deepEqual(errors,[]);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

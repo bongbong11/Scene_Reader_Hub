@@ -1,4 +1,5 @@
 import {drawDiagnostics} from './draw-diagnostics.js';
+import { resolveCharacterPresence } from '../character/presence.js';
 import { makeAppearanceOffer, addAppearanceQuestions, applyAppearanceOffer } from "../scene/appearance.js";
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
 
@@ -15,6 +16,7 @@ async function resolveDecision(run,frame) {
                 ? deps.applyCharacterPolicy(key, frame.data.answers[key], frame.prefs.judgmentStyle, choices)
                 : deps.applyPolicy(key, frame.data.answers[key], frame.prefs.judgmentStyle, choices, frame.prefs.progressIntensity);
         }
+        resolveCharacterPresence(frame.liveCharacters,frame.details,frame.data.answers);
         (frame.decisions = deps.effectiveMap(frame.details));
         (frame.priorVerification = await deps.commitPriorVerification(frame.rec, frame.decisions, run));
         (frame.verifiedExternalCandidates = deps.verifiedSecondaryCandidates(frame.pendingCandidates, frame.decisions));

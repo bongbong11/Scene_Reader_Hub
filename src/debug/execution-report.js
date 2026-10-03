@@ -1,9 +1,9 @@
 import { safeDetail } from './events.js';
-export const EXECUTION_REPORT_VERSION = 3;
-export function executionReport({hub,failureStop=null,settings={},version='0.1.8'}) {
+export const EXECUTION_REPORT_VERSION = 4;
+export function executionReport({hub,failureStop=null,settings={},version='0.1.9'}) {
     const snapshot=hub?.snapshot() || {state:{},events:[]};
     const events=snapshot.events.map(event=>safeDetail(event));
-    return {reportVersion:EXECUTION_REPORT_VERSION,version,capabilities:['bounded-network','embedding-rebuild','whole-extension-log','retained-failure'],
+    return {reportVersion:EXECUTION_REPORT_VERSION,version,capabilities:['bounded-network','embedding-retry','whole-extension-log','retained-failure','capture-field-coverage'],
         connections:{jevProvider:['typesafe','openrouter','vercel'].includes(settings.jevProvider)?settings.jevProvider:'typesafe',
             retrievalProvider:['transformers','palm','vertexai','nanogpt'].includes(settings.retrievalProvider)?settings.retrievalProvider:'transformers'},
         lastRunFailure:failureStop ? safeDetail(failureStop) : null,state:safeDetail(snapshot.state),last:snapshot.last ? safeDetail(snapshot.last) : null,

@@ -48,5 +48,10 @@ assert.equal(restored.characterStateEvents[0].states[1].values.anger,40);
 assert.equal(restored.characterStateEvents[0].states[2].values.a,undefined);
 const profile=await collectProfileOutputState({service:'synthetic',profileId:'synthetic',output:chat[1].mes,roster,
     request:async()=>({result:{states:[{code:'C0',a:10,c:90,joy:20},{code:'C1',a:45,c:55,anger:40},{code:'C2',a:35,joy:30}]}})});
-assert.equal(profile.error,'');assert.deepEqual(profile.states,mixed.states);
+assert.equal(profile.error,'');
+assert.deepEqual(profile.states.map(state=>state.id),mixed.states.map(state=>state.id));
+assert.equal(profile.states[0].values.anger,undefined,'an omitted assessment must not be silently converted to zero');
+assert.equal(profile.states[1].values.anger,40);assert.equal(profile.states[2].values.joy,30);
+assert.ok(profile.states.every(state=>state.coverageVersion===1));
+assert.ok(profile.diagnostics.actors.every(actor=>actor.reasons.includes('missing_moods')));
 console.log('Mixed emotions passed: three actors, NPC opt-in/out, accidental disabled scores, incomplete sexual pair, preserved ordinary moods, independent diagnostics and next-turn consumption.');

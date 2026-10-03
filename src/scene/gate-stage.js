@@ -84,7 +84,6 @@ async function prepareGate(run,frame) {
     (frame.worldSelection = { status: !frame.world?.advanced ? 'plain' : frame.worldSelectionFailed ? 'fallback' : frame.worldInvalidCount ? 'partial' : 'selected', invalidCount:frame.worldInvalidCount, retrievalStatus: frame.worldRetrieval.status, retrievalError:frame.worldRetrieval.error || '', candidateIds: frame.worldRecordCandidates.map(record=>record.id), selectedIds: frame.worldRecordCandidates.filter((_,index)=>frame.worldRecordAnswers[`world_record_${index}`]?.choice==='yes').map(record=>record.id), appliedIds: frame.appliedWorldRecords.map(record=>record.id) });
     if (frame.world?.advanced && frame.worldSelectionFailed) notifySceneReaderToast(deps.window, 'warning', '세계관 판정 응답을 확인하지 못해 이번 턴은 고정 규칙만 적용합니다.', '씬판독기');
     (frame.worldGateFrame = { request: frame.gateRequest, answers: frame.worldRecordAnswers });
-    deps.lastDebugFrame = { chatKey: run.identity, inputKey: frame.inputKey, request: frame.gateRequest, answers: frame.worldRecordAnswers, worldGate: frame.worldGateFrame, model: deps.JEV_MODEL };
     if(frame.sceneGate.route==='paused') {
         const referenceLines=[];
         for(const entry of frame.gatePeople) {

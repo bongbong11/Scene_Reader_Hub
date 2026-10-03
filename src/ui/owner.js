@@ -3,10 +3,8 @@ export function createOwnerUi(deps) {
 function renderOwnerMode() {
     const unlocked = deps.ownerUnlocked();
     const ownerCard = deps.document.getElementById('sr-owner-card');
-    const diagnosticPanel = deps.document.getElementById('sr-owner-diagnostic-panel');
     const ownerStatus = deps.document.getElementById('sr-owner-status');
     if (ownerCard) ownerCard.hidden = !unlocked;
-    if (diagnosticPanel) diagnosticPanel.hidden = !unlocked;
     if (ownerStatus) ownerStatus.textContent = unlocked ? '열림' : '잠금 상태';
     const promptInput = deps.document.getElementById('sr-owner-prompt');
     if (promptInput && unlocked) promptInput.value = deps.ownerPrompt();

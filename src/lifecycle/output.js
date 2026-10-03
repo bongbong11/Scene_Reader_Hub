@@ -1,4 +1,5 @@
 import { selectedStateSwipe } from "../character/state-contract.js";
+import { captureDiagnostic } from '../character/state-coverage.js';
 
 export function createOutputEvents(deps) {
 async function onCharacterMessageReceived(messageId) {
@@ -31,7 +32,13 @@ async function onCharacterMessageReceived(messageId) {
             captureChanged = true;
         } else if (collectorMode === 'profile-output') {
             deps.scheduleProfileStateCollection({ chatKey: deps.stateChatKey(), outputIndex, text: String(output.mes || ''), roster });
+        } else {
+            rec.characterStateCapture={outputIndex,status:'skipped',skipReason:'main_capture_unavailable',count:0,source:collectorMode};
+            captureChanged=true;
         }
+    } else if(rec && cycleMode==='rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey===chatKey) && output && !output.is_user && !output.is_system) {
+        rec.characterStateCapture={outputIndex,status:'skipped',skipReason:'no_capture_targets',count:0,source:collectorMode};
+        captureChanged=true;
     }
     if (captureChanged) {
         const fingerprint = deps.stableFingerprint(output.mes || '');
@@ -39,6 +46,7 @@ async function onCharacterMessageReceived(messageId) {
         Object.assign(rec.characterStateCapture, {fingerprint,swipeId});
         deps.storeStateEvent(rec, {outputIndex,fingerprint,swipeId,states:stateCollectionPaused || collected?.error ? [] : collected?.states || [],source:collectorMode,capture:rec.characterStateCapture},12,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
         deps.renderAll();
+        deps.noteDiagnostic?.('character_state_capture',{module:'src/lifecycle/output.js',...captureDiagnostic(rec.characterStateCapture)});
     }
     deps.messageSnapshots.set(deps.stateChatKey(), deps.messageSnapshot(deps.getContext().chat));
     if (!deps.settings.enabled || cycleMode === 'disabled') { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); return; }

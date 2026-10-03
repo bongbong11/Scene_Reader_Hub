@@ -39,6 +39,7 @@ import { migrateKnowledge, continuityView, assignContinuity } from "../continuit
 import { readCharm, readCharacterLorebooks, mergeMemory, linkedCharacterBooks, memoryStatusText } from "../context/memory.js";
 import { FALLBACKS, applyPolicy, fixedDecision, applyCharacterPolicy, applyRecordRelevance } from "../decision/answers.js";
 import { createVectorRetrieval, RETRIEVAL_PROVIDERS } from '../retrieval/vectors.js';
+import { renderRetrievalProgress } from '../ui/embedding-maintenance.js';
 import { effectiveMap, overrideDecision, deriveDependentDecisions, coordinateDecisions, coordinateActionBudget, coordinateCharacterDecisions } from '../scene/coordinator.js';
 import { createDraws } from '../scene/draws.js';
 import { createResults } from '../ui/results.js';
@@ -72,9 +73,8 @@ import { messageSnapshot, firstChangedMessage, attachSelectedOutput } from "../c
 
 const runtime = createRuntimeState(() => stateChatKey());
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
-let {noteDiagnostic, diagnosticSnapshot, diagnosticChecks} = createDiagnostics({
+let {noteDiagnostic, diagnosticSnapshot} = createDiagnostics({
     get hub() { return hub; },
-    get RETRIEVAL_PROVIDERS() { return RETRIEVAL_PROVIDERS; },
     get activeGenerationCycle() { return runtime.activeGenerationCycle; }, set activeGenerationCycle(value) { runtime.activeGenerationCycle = value; },
     get activeInjectionPayload() { return runtime.activeInjectionPayload; }, set activeInjectionPayload(value) { runtime.activeInjectionPayload = value; },
     get activeMacroPayload() { return runtime.activeMacroPayload; }, set activeMacroPayload(value) { runtime.activeMacroPayload = value; },
@@ -93,6 +93,7 @@ let {noteDiagnostic, diagnosticSnapshot, diagnosticChecks} = createDiagnostics({
 });
 
 let {waitForProfileState, notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion} = createEmotionRuntime({
+    get noteDiagnostic() { return noteDiagnostic; },
     get STATE_HISTORY_LIMIT() { return STATE_HISTORY_LIMIT; },
     get characterStore() { return runtime.characterStore; }, set characterStore(value) { runtime.characterStore = value; },
     get collectProfileOutputState() { return collectProfileOutputState; },
@@ -435,14 +436,7 @@ let {reconcileInjection} = createInjectionReconcile({
 
 const vectorRetrieval = createVectorRetrieval({ fetch: (...args) => fetch(...args), getRequestHeaders, getSettings: () => runtime.settings || DEFAULTS,
     onDiagnostic: detail => noteDiagnostic('retrieval_request',detail),
-    onProgress: ({kind,phase,count,error}) => {
-        const label=kind==='world'?'세계관':'인물';
-        const message=phase==='checking'?`${label} 검색 데이터 확인 중…`
-            :phase==='indexing'?`${label} 새 기록 ${count}개 벡터화 중…`
-            :phase==='querying'?`${label} 관련 기록 검색 중…`
-            :phase==='fallback'?`${label} 임베딩 검색 실패 · 글자 검색으로 진행 (${error})`:'';
-        if (message) updateActivity(message);
-    },
+    onProgress: progress => renderRetrievalProgress({document,updateActivity},progress),
 });
 const embeddingMaintenance = createEmbeddingMaintenance({
     get characterStore() { return runtime.characterStore; },
@@ -754,7 +748,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
     get saveStateHistory() { return saveStateHistory; },
     get selectActionPlan() { return selectActionPlan; },
     get nextDeferredRoutes() { return nextDeferredRoutes; },
-    get lastDebugFrame() { return runtime.lastDebugFrame; }, set lastDebugFrame(value) { runtime.lastDebugFrame = value; },
     get selectActiveEntries() { return selectActiveEntries; },
     get selectContinuityContext() { return selectContinuityContext; },
     get selectedWorld() { return selectedWorld; },
@@ -833,12 +826,8 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
     get connectionRequestService() { return runtime.connectionRequestService; }, set connectionRequestService(value) { runtime.connectionRequestService = value; },
     get copyText() { return copyText; },
     get debugInjectionArmed() { return runtime.debugInjectionArmed; }, set debugInjectionArmed(value) { runtime.debugInjectionArmed = value; },
-    get lastDebugFrame() { return runtime.lastDebugFrame; },
     get executionDebugReport() { return () => executionReport({hub,failureStop:judgmentFailureState(),settings:runtime.settings}); },
-    get diagnosticEvents() { return runtime.diagnosticEvents; },
-    get diagnosticSnapshot() { return diagnosticSnapshot; },
     get reconcileInjection() { return reconcileInjection; },
-    get diagnosticChecks() { return diagnosticChecks; },
     get dialog() { return runtime.dialog; }, set dialog(value) { runtime.dialog = value; },
     get document() { return document; },
     get escapeHtml() { return escapeHtml; },
@@ -916,7 +905,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,version:'0.1.8',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,version:'0.1.9',copyText:value=>copyText(value)});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot()});

@@ -74,6 +74,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
     async function search({ kind, bankId, items, transcript, limit = 12, signal, recovery=false, indexOnly=false, forceRebuild=false, validate=()=>{} }) {
         if (!items.length || (!indexOnly && !queryText(transcript))) return { indices: [], status: 'empty' };
         const bounded = boundedSignal(signal,recovery,indexOnly);
+        let indexCounts;
         try {
             validate();
             const options = config();
@@ -91,8 +92,14 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 const saved = await post('list', body, bounded.signal,recovery);
                 validate();
                 if (!Array.isArray(saved)) throw new Error('검색 색인 목록 오류');
-                const stale = saved.filter(hash => !entries.has(Number(hash)));
-                const missing = [...entries.values()].filter(entry => forceRebuild || !saved.includes(entry.hash));
+                const savedHashes = new Set(saved.map(Number));
+                const stale = [...savedHashes].filter(hash => !entries.has(hash));
+                const missing = [...entries.values()].filter(entry => forceRebuild || !savedHashes.has(entry.hash));
+                indexCounts = {totalCount:entries.size,reusedCount:forceRebuild?0:entries.size-missing.length,generatedCount:missing.length};
+                if (indexOnly) {
+                    onProgress({kind,phase:'syncing',...indexCounts});
+                    report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'started',bankHash:hash32(bankId),...indexCounts,forceRebuild});
+                }
                 if (missing.length) onProgress({kind, phase:'indexing', count:missing.length});
                 // Bound batches by both count and text size, without dropping records.
                 for (let offset = 0; offset < missing.length;) {
@@ -104,7 +111,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                     }
                     validate();
                     // Native insert creates new vector IDs. Remove only this batch's old hashes to avoid duplicates.
-                    const replaceHashes = forceRebuild ? batch.map(entry=>entry.hash).filter(hash=>saved.includes(hash)) : [];
+                    const replaceHashes = forceRebuild ? batch.map(entry=>entry.hash).filter(hash=>savedHashes.has(hash)) : [];
                     if (replaceHashes.length) await post('delete',{...body,hashes:replaceHashes},bounded.signal,recovery);
                     validate();
                     await post('insert', { ...body, items:batch.map(({hash,index,text}) => ({hash,index,text})) }, bounded.signal,recovery);
@@ -116,9 +123,11 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             if (indexOnly) {
                 const saved=await post('list',body,bounded.signal,recovery);
                 validate();
-                if (!Array.isArray(saved) || [...entries.keys()].some(hash=>!saved.includes(hash))) throw new Error('임베딩 저장 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
+                const verified = new Set(Array.isArray(saved)?saved.map(Number):[]);
+                if (!Array.isArray(saved) || [...entries.keys()].some(hash=>!verified.has(hash))) throw new Error('임베딩 저장 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
                 queries.clear();
-                return {indices:[],status:'rebuilt',recordCount:entries.size};
+                report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'succeeded',bankHash:hash32(bankId),...indexCounts,forceRebuild});
+                return {indices:[],status:'rebuilt',recordCount:entries.size,...indexCounts};
             }
             if (options.source !== 'transformers' && queries.has(cacheKey)) return { indices: queries.get(cacheKey), status: 'cached' };
             onProgress({kind, phase:'querying'});
@@ -131,7 +140,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             if (queries.size > 48) queries.delete(queries.keys().next().value);
             return { indices, status: 'ready' };
         } catch (error) {
-            if (signal?.aborted) throw error;
+            if (signal?.aborted) throw signal.reason || error;
             const reason = bounded.signal.aborted ? '검색 연결 시간이 초과되었습니다.' : status(error);
             onProgress({kind, phase:'fallback', error:reason});
             return { indices: [], status: 'fallback', error: reason, code:error.code || 'RETRIEVAL_FAILED' };
@@ -163,5 +172,5 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         }
         return `${RETRIEVAL_PROVIDERS[options.source].label} 연결 성공`;
     }
-    return { search, rebuild:options=>search({...options,indexOnly:true,forceRebuild:true,recovery:true}), test, config, clear: () => {queries.clear();credentials.clear();} };
+    return { search, rebuild:options=>search({...options,indexOnly:true,forceRebuild:options.forceRebuild===true,recovery:true}), test, config, clear: () => {queries.clear();credentials.clear();} };
 }

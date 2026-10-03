@@ -10,7 +10,7 @@ import {
 import { applyCharacterPolicy } from '../../src/scene/policy.js';
 import { buildInjection } from '../../prompt-library.js';
 import { suggestNpcAliases } from '../../src/characters/npc-sheet.js';
-import { debugReportText } from '../../src/ui/debug-report.js';
+import { wholeDiagnosticReport } from '../../src/debug/whole-report.js';
 
 assert.match(CHARACTER_LIVE_SYSTEM, /up to the number of available slots/);
 assert.ok(ACCESS_CHOICES.inferred);
@@ -91,7 +91,7 @@ assert.match(castOffPayload, /Registered Sheet Cast retain their established ide
 assert.deepEqual(suggestNpcAliases('Wade Ashford', 'Alias: Mr. Ashford\nRole: family head'), ['Wade', 'Mr. Ashford']);
 assert.deepEqual(suggestNpcAliases('Wade Ashford', 'Alias: Mr. Ashford', ['Wade', 'Mr. Ashford']), []);
 assert.deepEqual(suggestNpcAliases('민수', '역할: 동료'), []);
-const debugText = debugReportText({finalInjection:'Secret private text',request:{state:{recent_roleplay:'Contact me@example.com or 010-1234-5678; key sk-abcdefghijk12345.'}}},'Secret private text');
+const debugText = JSON.stringify(wholeDiagnosticReport({judgment:{payload:'Secret private text',request:{state:{recent_roleplay:'Contact me@example.com or 010-1234-5678; key sk-abcdefghijk12345.'}}}}));
 assert.doesNotMatch(debugText,/me@example.com|010-1234-5678|sk-abcdefghijk12345|Secret private text/);
 
 // A saved sheet is not replaced by a stale analysis response.

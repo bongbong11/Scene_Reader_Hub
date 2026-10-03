@@ -5,7 +5,6 @@ import { bindPresetSlots } from '../preset-slots.js';
 import { bindJevSettings } from '../jev-settings.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
-import { debugReportText } from "../../debug/report.js";
 import { bindCharacterTransfer } from "../character-transfer.js";
 import { openPersonPreview } from "../person-preview.js";
 import { worldCompilerPrompt, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from "../../world/advanced.js";
@@ -54,39 +53,11 @@ function bindForm() {
         else deps.runUiTask(importCurrentSheet(),'현재 시트를 가져오지 못했습니다.');
     });
     deps.document.getElementById('sr-character-sheet-refresh')?.addEventListener('click',()=>deps.runUiTask(importCurrentSheet(),'현재 시트를 가져오지 못했습니다.'));
-    deps.document.getElementById('sr-debug-open')?.addEventListener('click', () => {
-        const judgment = deps.record()?.lastJudgment;
-        const frame = judgment && deps.lastDebugFrame?.chatKey === deps.stateChatKey() && deps.lastDebugFrame?.inputKey === judgment.inputKey ? deps.lastDebugFrame : null;
-        const preview = deps.document.getElementById('sr-debug-preview');
-        if (!preview) return;
-        preview.value = debugReportText({
-            status: judgment ? 'judgment_available' : 'no_judgment',
-            diagnostics: deps.diagnosticEvents?.slice(-80) || [],
-            judgedAt: judgment?.judgedAt, model: judgment?.model,
-            request: frame?.request || '원문 요청은 재시작 또는 다른 채팅으로 전환되어 메모리에 남아 있지 않습니다.',
-            rawJevAnswers: frame?.answers || judgment?.rawChoices,
-            jevDiagnostics: judgment?.jevDiagnostics,
-            worldSelection: judgment?.worldSelection, worldGate: frame?.worldGate,
-            sceneIntimacy: judgment?.sceneIntimacy,
-            decisions: judgment?.details, actionPlan: judgment?.actionPlan, rolls: judgment?.rolls,
-            correctionSelection: judgment?.correctionSelection,
-            characterTrace: judgment?.characterTrace,
-            verification: judgment?.priorVerification, characterStateCapture: deps.selectedStateCapture(),
-            finalInjection: judgment?.payload, worldInjection: judgment?.worldPayload,
-        }, deps.ownerPrompt());
-        preview.hidden = false;
-    });
-    deps.document.getElementById('sr-debug-copy')?.addEventListener('click', () => deps.runUiTask((async () => {
-        const preview = deps.document.getElementById('sr-debug-preview');
-        if (!preview || preview.hidden || !preview.value.trim()) throw new Error('먼저 전체 판정을 열고 개인정보를 확인하세요.');
-        await deps.copyText(preview.value);
-        notifySceneReaderToast(deps.window, 'success', '검토한 판정 기록을 복사했습니다.', '씬판독기');
-    })(), '판정 기록을 복사하지 못했습니다.'));
     for (const [id,key] of [['sr-memory-charm','charmMemory'],['sr-memory-lorebook','lorebookMemory']]) deps.document.getElementById(id)?.addEventListener('change', event => { if (MEMORY_REFERENCE_ENABLED && deps.ownerUnlocked()) deps.runUiTask(deps.savePreference(key,event.target.checked)); });
 
     deps.document.getElementById('sr-close')?.addEventListener('click', () => deps.dialog.close());
     deps.document.getElementById('sr-copy-debug')?.addEventListener('click', () => deps.runUiTask((async () => {
-        await deps.copyText(JSON.stringify(wholeDiagnosticReport({execution:deps.executionDebugReport(),judgment:deps.record()?.lastJudgment}),null,2));
+        await deps.copyText(JSON.stringify(wholeDiagnosticReport({execution:deps.executionDebugReport(),judgment:deps.record()?.lastJudgment,record:deps.record(),chat:deps.getContext().chat, fingerprint:deps.stableFingerprint}),null,2));
         notifySceneReaderToast(deps.window,'success','전체 진단 로그를 복사했습니다.','씬판독기');
     })(),'전체 진단 로그를 복사하지 못했습니다.'));
     deps.dialog.addEventListener('click', (event) => { if (event.target === deps.dialog) deps.dialog.close(); });
@@ -149,26 +120,6 @@ function bindForm() {
         notifySceneReaderToast(deps.window, 'success', '개발자 모드를 열었습니다.', '씬판독기');
     };
     deps.document.getElementById('sr-owner-unlock')?.addEventListener('click', () => deps.runUiTask(unlockOwner(), '잠금을 해제하지 못했습니다.'));
-    const ownerDiagnostic = async () => {
-        if(!deps.ownerUnlocked())throw new Error('개발자 모드를 먼저 열어 주세요.');
-        const orphanCleared = await deps.reconcileInjection();
-        const category=deps.document.getElementById('sr-owner-diagnostic-category')?.value||'all';
-        const snapshot=deps.diagnosticSnapshot();
-        const checks=deps.diagnosticChecks(snapshot);
-        const pattern={opportunities:/draw_|appearance_|policy_|사건|등장/,automatic:/자동|판독|생성|입력|judge_|jev_/,scene:/장면|중단|복귀|다시|scene_gate/,storage:/저장|채팅 상태|불러오|hydration/,retrieval:/검색|임베딩|벡터|세계관|retrieval/,characters:/인물|감정|기록|character/,injection:/주입|적용|매크로|injection_/}[category];
-        const events=(deps.diagnosticEvents||[]).filter(event=>!pattern || pattern.test(`${event.message||''} ${event.stage||''}`)).slice(-35);
-        const selectedChecks=category==='all'?checks:{[category]:checks[category]};
-        const report={checkedAt:new Date().toISOString(),category,summary:orphanCleared?'오류 · 저장 판정 없이 남은 주입문을 정리했습니다.':Object.values(selectedChecks).flat().some(item=>item.result==='check')?'확인 필요':'기본 상태 확인 통과',checks:selectedChecks,state:category==='all'?snapshot:{[category]:snapshot[category]},recentEvents:events};
-        const output=deps.document.getElementById('sr-owner-diagnostic-output');
-        const value=debugReportText(report,deps.ownerPrompt());
-        if(output){output.value=value;output.hidden=false;}
-        return value;
-    };
-    deps.document.getElementById('sr-owner-diagnostic-run')?.addEventListener('click',()=>deps.runUiTask(Promise.resolve().then(ownerDiagnostic),'기능 상태를 확인하지 못했습니다.'));
-    deps.document.getElementById('sr-owner-diagnostic-copy')?.addEventListener('click',()=>deps.runUiTask((async()=>{
-        await deps.copyText(await ownerDiagnostic());
-        notifySceneReaderToast(deps.window,'success','기능 진단 결과를 복사했습니다.','씬판독기');
-    })(),'기능 진단 결과를 복사하지 못했습니다.'));
     deps.document.getElementById('sr-owner-password')?.addEventListener('keydown', (event) => {
         if (event.key !== 'Enter') return;
         event.preventDefault();
@@ -488,7 +439,7 @@ function bindForm() {
     deps.document.getElementById('sr-profile-emotion')?.addEventListener('change', event => deps.runUiTask((async () => {
         if (event.target.checked && !deps.settings.reasonerProfileId) {
             event.target.checked = false;
-            throw new Error('설정 → 모델 연결에서 연결 프로필을 먼저 선택하세요.');
+            throw new Error('설정 → 모델·키 설정에서 연결 프로필을 먼저 선택하세요.');
         }
         await deps.savePreference('profileEmotionJudgment', event.target.checked);
         deps.setFormValues();

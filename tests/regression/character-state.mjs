@@ -78,7 +78,7 @@ const doubled=extractStateBlock('RP\n[[SR_STATE]]C0|a38|c60[[/SR_STATE]]\n[[SR_S
 assert.equal(doubled.error,'trailing','conflicting blocks are not arbitrarily selected');
 assert.deepEqual(doubled.states,[]);
 assert.equal(doubled.text,'RP\n'+info);
-assert.match(mainOutputStatePrompt(roster),/\[\[SR_STATE\]\]\nC0\|a38\|c60\|anger25\n\[\[\/SR_STATE\]\]/,'prompt uses an actual roster code and explicit line breaks');
+assert.match(mainOutputStatePrompt(roster),/\[\[SR_STATE\]\]\nC0\|a38\|c60\|anger0\|joy25\|fear0\|sadness0\n\[\[\/SR_STATE\]\]/,'prompt uses an actual roster code and explicit line breaks');
 for (const body of [
     'Rowan | arousal:38% | self_control=60 | anger25',
     '| C0 | a38.0 | c60 | anger25 |',
@@ -244,7 +244,7 @@ swipeFixture.ctx.chat[0].swipe_id=1;
 swipeFixture.ctx.chat[0].mes='Reply B';
 await swipeFixture.run('onAssistantOutputChanged(0,"swiped")');
 swipeFixture.run('scheduleProfileStateCollection({chatKey:stateChatKey(),outputIndex:0,text:"Reply B",roster}); globalThis.jobB=pendingProfileStateCollection;');
-pending[0]({result:{states:[{code:'C0',a:20,c:80,joy:30}]}});
+pending[0]({result:{states:[{code:'C0',a:20,c:80,anger:0,joy:30,fear:0,sadness:0},{code:'C1',participation:'absent'},{code:'C2',participation:'absent'}]}});
 await swipeFixture.run('jobA');
 assert.match(swipeNotices.at(-1).message,/다른 스와이프 감정 저장 완료/,'unselected completion is identified without confusing current values');
 assert.equal(swipeFixture.run('record().characterStateEvents.find(event=>event.swipeId===0).states[0].values.joy'),30,'unselected swipe completion is retained after record restoration');
@@ -274,7 +274,7 @@ await new Promise(resolve=>setTimeout(resolve,0));
 assert.equal(manualJobs.length,1,'manual and pending collection share one request');
 assert.equal(emotionNotices.filter(item=>item.message==='감정 수집 중…').length,1,'joined requests show one start toast');
 assert.notEqual(manual.run('sourceRevisionKey(record(),null)'),stateRevisionBefore,'manual refresh invalidates judgments prepared with the previous state');
-manualJobs[0]({result:{states:[{code:'C0',a:10,c:90},{code:'C1'}]}});
+manualJobs[0]({result:{states:[{code:'C0',a:10,c:90,anger:0,joy:0,fear:0,sadness:0},{code:'C1',anger:0,joy:0,fear:0,sadness:0}]}});
 await Promise.all([manualA,manualB]);
 assert.equal(emotionNotices.filter(item=>item.level==='success').length,0,'a missing third actor is not announced as complete');
 assert.match(emotionNotices.at(-1).message,/일부가 반환되지/);

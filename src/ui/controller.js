@@ -5,18 +5,8 @@ import {createSettingsForm} from './forms/settings.js';
 import {createBackupForm} from './forms/backup.js';
 import {createFormBindings} from './forms/bind.js';
 import {selectCapabilities} from '../shared/capabilities.js';
-import { notifySceneReaderToast } from './toasts.js';
 import { latestStateEventForChat } from "../character/state-contract.js";
-import { MEMORY_REFERENCE_ENABLED } from "../context/memory.js";
 // User actions and form state; dependencies are explicit and supplied by the application.
-import { debugReportText } from "../debug/report.js";
-import { characterErrorReport } from './character-error.js';
-import { compilerRequest, createRecordBank } from "../character/records.js";
-import { archiveRecordVersion } from "../character/versions.js";
-import { bindCharacterTransfer } from './character-transfer.js';
-import { openPersonPreview } from './person-preview.js';
-import { WORLD_COMPILER_PROMPT, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from '../world/advanced.js';
-import { SEASONAL_OPTIONS } from '../world/seasonal.js';
 export function createUiController(deps) {
 const services=Object.create(deps);
 Object.defineProperty(services,'nextMutation',{configurable:true,get:()=>nextMutation});
@@ -71,7 +61,7 @@ const {worldTask,renderWorldControls,showWorldEditor,showAdvancedWorldEditor,sho
 const {captureCharacterError,characterFormSignature,characterEntries,updateSheetButton,showCharacterEditor,showVersionEditor,closeCharacterEditor,showSavedPerson,showVersionPreview,loreKey,renderEditorLore,refreshEditorLore,beginLoreRefresh,ensureLoreLoaded,characterForm,taskStatus,saveCharacterEntry,analyzeAndSaveCharacter,deleteCharacterEntry} = createCharacterForm(selectCapabilities(services,["StaleRunError","availableEditorLore","characterAnalysisSelection","characterEditorId","characterEditorKind","characterEditorRevision","characterStore","clearInjection","connectionRequestService","deriveEnglishCore","document","editorLore","escapeHtml","getContext","initialEditorLoreKeys","invalidatePreparedJudgment","jobs","lastCharacterError","linkedCharacterBooks","loadReasonerProfiles","loreLoadingPromise","normalizeCharacterStore","persistChat","profileStatus","record","renderCharacterStore","requestWithConnectionProfile","saveCharacterStore","settings","sha256Hex","stableFingerprint","stateChatKey","suggestNpcAliases","updateActivity","window","worldInfoModule"]));
 const {setFormValues,saveGlobal,saveRetrievalSettings,saveRetrievalSetting,retrievalSecretState,savePreference,saveInjectionMode,saveWorldInjectionMode,endActiveEvent} = createSettingsForm(selectCapabilities(services,["noteDiagnostic","localStorage","serverKeyStatus","presetPrompts","ADVANCED_ELEMENTS","RETRIEVAL_PROVIDERS","applyStoredInjection","archiveCurrentEvent","chatRecords","clearInjection","debugInjectionArmed","document","fetch","getRequestHeaders","invalidateReasonerJobs","judgeInFlight","macroAvailable","nextMutation","ownerUnlocked","persistChat","preferences","queueWrite","record","renderAll","renderOwnerMode","renderReasonerProfiles","renderWorldControls","saveServerSettings","saveSettingsDebounced","settings","stateChatKey","updateKeyStatus","updateStatus","vectorRetrieval","window"]));
 const {downloadJson} = createBackupForm(selectCapabilities(services,["document"]));
-const {bindForm} = createFormBindings(selectCapabilities(services,["noteDiagnostic","embeddingMaintenance","executionDebugReport","presetPrompts","availableWorlds","callJev","ADVANCED_ELEMENTS","JEV_KEY_STORAGE","OWNER_PASSWORD_HASH","OWNER_PROMPT_STORAGE","OWNER_UNLOCK_STORAGE","RETRIEVAL_PROVIDERS","StaleRunError","applyStoredInjection","availableEditorLore","backupList","beginLoreRefresh","captureCharacterError","characterAnalysisSelection","characterEditorKind","characterEditorRevision","characterForm","characterStore","clearInjection","closeCharacterEditor","collectCurrentEmotion","connectionRequestService","copyText","debugInjectionArmed","diagnosticChecks","diagnosticEvents","diagnosticSnapshot","dialog","document","downloadJson","editorLore","endActiveEvent","ensureLoreLoaded","escapeHtml","fetch","getContext","getRequestHeaders","hydrateServerState","initialEditorLoreKeys","invalidatePreparedJudgment","invalidateReasonerJobs","jobs","lastCharacterError","lastDebugFrame","loadCustomWorlds","loadReasonerProfiles","localStorage","loreKey","normalizeCharacterStore","normalizeContinuity","ownerPrompt","ownerUnlocked","persistChat","preferences","privateOwnerPrompt","reasonerProfileError","reasonerProfiles","reconcileInjection","record","renderAll","renderBackups","renderCharacterStore","renderJudgment","renderOwnerMode","renderProfiles","renderReasonerProfiles","requestWithConnectionProfile","retrievalSecretState","runJudge","runUiTask","saveCharacterStore","saveCustomWorlds","saveGlobal","saveInjectionMode","savePreference","saveRetrievalSetting","saveRetrievalSettings","saveServerChat","saveServerSettings","saveSession","saveWorldInjectionMode","selectedStateCapture","serverKeyStatus","setFormValues","settings","sha256Hex","showCharacterEditor","showSavedPerson","showVersionEditor","showVersionPreview","showWorldEditor","showWorldList","stateChatKey","storagePost","taskStatus","testConnection","updateKeyStatus","updateSheetButton","updateStatus","vectorRetrieval","window","worldEditorRevision","worldTask"]));
+const {bindForm} = createFormBindings(selectCapabilities(services,["updateActivity","stableFingerprint","noteDiagnostic","embeddingMaintenance","executionDebugReport","presetPrompts","availableWorlds","callJev","ADVANCED_ELEMENTS","JEV_KEY_STORAGE","OWNER_PASSWORD_HASH","OWNER_PROMPT_STORAGE","OWNER_UNLOCK_STORAGE","RETRIEVAL_PROVIDERS","StaleRunError","applyStoredInjection","availableEditorLore","backupList","beginLoreRefresh","captureCharacterError","characterAnalysisSelection","characterEditorKind","characterEditorRevision","characterForm","characterStore","clearInjection","closeCharacterEditor","collectCurrentEmotion","connectionRequestService","copyText","debugInjectionArmed","dialog","document","downloadJson","editorLore","endActiveEvent","ensureLoreLoaded","escapeHtml","fetch","getContext","getRequestHeaders","hydrateServerState","initialEditorLoreKeys","invalidatePreparedJudgment","invalidateReasonerJobs","jobs","lastCharacterError","loadCustomWorlds","loadReasonerProfiles","localStorage","loreKey","normalizeCharacterStore","normalizeContinuity","ownerPrompt","ownerUnlocked","persistChat","preferences","privateOwnerPrompt","reasonerProfileError","reasonerProfiles","reconcileInjection","record","renderAll","renderBackups","renderCharacterStore","renderJudgment","renderOwnerMode","renderProfiles","renderReasonerProfiles","requestWithConnectionProfile","retrievalSecretState","runJudge","runUiTask","saveCharacterStore","saveCustomWorlds","saveGlobal","saveInjectionMode","savePreference","saveRetrievalSetting","saveRetrievalSettings","saveServerChat","saveServerSettings","saveSession","saveWorldInjectionMode","selectedStateCapture","serverKeyStatus","setFormValues","settings","sha256Hex","showCharacterEditor","showSavedPerson","showVersionEditor","showVersionPreview","showWorldEditor","showWorldList","stateChatKey","storagePost","taskStatus","testConnection","updateKeyStatus","updateSheetButton","updateStatus","vectorRetrieval","window","worldEditorRevision","worldTask"]));
 
 const selectedStateCapture = () => latestStateEventForChat(deps.record(),deps.getContext().chat || [],deps.stableFingerprint)?.capture || null;
 let characterEditorRevision = 0;
@@ -83,65 +73,6 @@ let lastCharacterError = null;
 let worldBusy = false;
 let worldEditorRevision = 0;
 const mutationSequences = new WeakMap();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const routed={};
 if(deps.hub)for(const [name,handler]of Object.entries({saveGlobal,savePreference,saveInjectionMode,saveWorldInjectionMode,endActiveEvent,saveCharacterEntry,analyzeAndSaveCharacter,deleteCharacterEntry})){

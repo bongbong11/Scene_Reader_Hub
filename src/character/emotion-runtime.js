@@ -1,5 +1,6 @@
 import { buildEmotionContext } from './state-context.js';
 import { isStateOutput, latestStateOutputIndex } from './state-message.js';
+import { missingStateFields, mergeRecoveredStates, captureDiagnostic } from './state-coverage.js';
 export function createEmotionRuntime(deps) {
 async function waitForProfileState() {
     const event = deps.latestStateEventForChat(deps.record(),deps.getContext().chat,deps.stableFingerprint);
@@ -27,8 +28,8 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const preserved = missingOnly ? structuredClone(existing?.states || []) : [];
     const fullRoster = roster;
     if (missingOnly) {
-        const savedIds = new Set(preserved.filter(state=>Object.keys(state.values || {}).length).map(state=>state.id));
-        roster = roster.filter(person=>!savedIds.has(person.id));
+        const absentIds=new Set((existing?.capture?.diagnostics?.actors || []).filter(actor=>actor.rosterIndex>=0 && actor.reasons?.includes('not_participating') && !actor.reasons.includes('duplicate_person')).map(actor=>existing.capture.participantIds?.[actor.rosterIndex]));
+        roster = roster.map(person=>({...person,requestedFields:missingStateFields(preserved.find(state=>state.id===person.id),person)})).filter(person=>!absentIds.has(person.id) && person.requestedFields.length);
         if (!roster.length) {
             deps.notifySceneReaderToast(deps.window,'info','대상 인물의 감정값이 이미 저장되어 있습니다. 추가로 수집하지 않았습니다.','씬판독기');
             return;
@@ -42,6 +43,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const participantIds=[...new Set([...(missingOnly ? existing?.capture?.participantIds || [] : []),...fullRoster.map(person=>person.id)])];
     const capture = { outputIndex, swipeId, fingerprint, requestId, participantIds, status:'collecting', count:preserved.length, source:'profile-output' };
     owner.characterStateCapture = capture;
+    deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(capture)});
     deps.storeStateEvent(owner,{outputIndex,swipeId,fingerprint,states:preserved,source:'profile-output',capture},deps.STATE_HISTORY_LIMIT);
     const controller=new AbortController();
     const task = (async () => {
@@ -59,17 +61,21 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         const reply = selected ? message.mes : message?.swipes?.[swipeId];
         if (typeof reply !== 'string' || deps.stableFingerprint(reply) !== fingerprint) return;
         if (deps.stableFingerprint(buildEmotionContext(deps.getContext().chat,outputIndex,{nonRpOutputIndices:rec.nonRpOutputIndices})) !== contextFingerprint) return;
-        const savedIds=new Set(preserved.map(state=>state.id));
-        const states=[...preserved,...result.states.filter(state=>!savedIds.has(state.id))];
+        const untouchedIds=new Set((existing?.capture?.participantIds || []).filter(id=>!roster.some(person=>person.id===id)));
+        const states=mergeRecoveredStates(preserved,result.states);
         const diagnostics=result.diagnostics ? {...result.diagnostics,actors:(result.diagnostics.actors || []).map(actor=>({...actor,rosterIndex:participantIds.indexOf(roster[actor.rosterIndex]?.id)}))} : null;
         if (missingOnly && existing?.capture?.diagnostics?.actors?.length) {
-            const retained=existing.capture.diagnostics.actors.filter(actor=>savedIds.has(existing.capture.participantIds?.[actor.rosterIndex])).map(actor=>({...actor,rosterIndex:participantIds.indexOf(existing.capture.participantIds[actor.rosterIndex])}));
+            const retained=existing.capture.diagnostics.actors.filter(actor=>untouchedIds.has(existing.capture.participantIds?.[actor.rosterIndex])).map(actor=>({...actor,rosterIndex:participantIds.indexOf(existing.capture.participantIds[actor.rosterIndex])}));
             if(diagnostics)diagnostics.actors.push(...retained);
         }
-        const completed = {outputIndex,swipeId,fingerprint,participantIds,status:result.error || (missingOnly && result.states.length<roster.length ? 'incomplete' : diagnostics?.actors?.some(actor=>actor.reasons?.length) || diagnostics?.rejected || diagnostics?.partial ? 'partial' : states.length ? 'collected' : 'empty'),count:states.length,source:'profile-output',diagnostics};
+        const absentIds=new Set((result.diagnostics?.absentIndices || []).map(index=>roster[index]?.id));
+        const incomplete=roster.some(person=>!absentIds.has(person.id) && missingStateFields(states.find(state=>state.id===person.id),person).length);
+        const malformed=diagnostics?.actors?.some(actor=>actor.reasons?.some(reason=>reason!=='not_participating' && reason!=='missing_moods'));
+        const completed = {outputIndex,swipeId,fingerprint,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics};
         if (selected) rec.characterStateCapture = completed;
         deps.storeStateEvent(rec,{outputIndex,swipeId,fingerprint,states,source:'profile-output',capture:completed},deps.STATE_HISTORY_LIMIT,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
         await deps.persistChat();
+        deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(completed)});
         if (chatKey === deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             deps.renderAll();
             notifyEmotionCapture(completed.status,completed.count,selected);
@@ -85,6 +91,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
                 if(rec.characterStateCapture?.fingerprint===fingerprint && rec.characterStateCapture?.swipeId===swipeId)rec.characterStateCapture=event.capture;
             }
             notifyEmotionCapture('save_failed');
+            deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status:'save_failed',errorKind:error.code || error.name});
         }
     }).finally(()=>{ deps.pendingProfileStateRequests.delete(requestId); if (chatKey===deps.stateChatKey()) deps.renderCharacterTurnResults(); });
     task.cancel=()=>controller.abort();
@@ -99,7 +106,7 @@ async function collectCurrentEmotion() {
     await deps.waitForOutputChanges();
     const rec=deps.record();
     if (!deps.settings.enabled || !deps.characterStore.enabled) throw new Error('씬판독기와 인물 판정을 먼저 켜 주세요.');
-    if (!deps.settings.reasonerProfileId) throw new Error('설정 → 모델 연결에서 확장 연결 프로필을 먼저 선택하세요.');
+    if (!deps.settings.reasonerProfileId) throw new Error('설정 → 모델·키 설정에서 확장 연결 프로필을 먼저 선택하세요.');
     if (rec?.lastJudgment?.sceneIntimacy?.route==='paused' || rec?.sceneIntimacy?.route==='paused') throw new Error('현재 장면에서는 감정 수집을 쉬고 있습니다.');
     const chat=deps.getContext().chat || [];
     const outputIndex=latestStateOutputIndex(chat,rec.nonRpOutputIndices);

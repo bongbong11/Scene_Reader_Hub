@@ -456,3 +456,22 @@
 #scene-reader-dialog .sr-embedding-button:disabled { opacity: .65; cursor: progress; }
 #scene-reader-dialog .sr-embedding-button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 #scene-reader-dialog .sr-retrieval-panel h3 { margin-top: 0; }
+
+/* Compact, always-visible connection settings. */
+#scene-reader-dialog .sr-connection-card .sr-connection-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:8px; }
+#scene-reader-dialog .sr-connection-card .sr-connection-pane { gap:4px; padding:7px; }
+#scene-reader-dialog .sr-connection-card .sr-retrieval-panel { margin-top:0; }
+#scene-reader-dialog .sr-connection-card label { margin:0; font-size:.82rem; }
+#scene-reader-dialog .sr-connection-card input,
+#scene-reader-dialog .sr-connection-card select { min-height:34px; margin:0; padding:4px 7px; font-size:.83rem; }
+#scene-reader-dialog .sr-connection-card .sr-action-row { gap:5px; margin:3px 0; }
+#scene-reader-dialog .sr-connection-card .menu_button { min-height:36px; margin:0; padding:5px 7px; font-size:.8rem; }
+#scene-reader-dialog .sr-connection-card .sr-help { margin:0; line-height:1.4; font-size:.77rem; }
+#scene-reader-dialog #sr-retrieval-key-row { display:grid; gap:4px; }
+#scene-reader-dialog #sr-retrieval-key-row[hidden] { display:none; }
+#scene-reader-dialog #sr-embedding-cancel[hidden] { display:none; }
+#scene-reader-dialog .sr-maintenance-actions .menu_button { font-size:.76rem; }
+@media (max-width:600px) {
+    #scene-reader-dialog .sr-connection-card .sr-connection-grid { grid-template-columns:minmax(0,1fr); }
+    #scene-reader-dialog .sr-connection-card .menu_button { min-height:40px; }
+}

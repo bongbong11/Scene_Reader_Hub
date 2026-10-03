@@ -17,10 +17,10 @@ function findPerson(code, roster) {
     const matches = roster.filter(item => item.id === label || item.name?.toLowerCase() === label.toLowerCase());
     return matches.length === 1 ? matches[0] : null;
 }
-function stateFor(code, fields, roster, reject = () => null) {
+function stateFor(code, fields, roster, reject = () => null, completeMoods=false) {
     const person = findPerson(code, roster);
     if (!person) return reject('unknown_person');
-    const values = { anger: 0, joy: 0, fear: 0, sadness: 0 };
+    const values = completeMoods ? {} : { anger: 0, joy: 0, fear: 0, sadness: 0 };
     const targets = {};
     const seen = new Set();
     let ignoredDisabled = false;
@@ -33,6 +33,7 @@ function stateFor(code, fields, roster, reject = () => null) {
         const number = Number(match[2]);
         if (number > 100) return reject('out_of_range');
         if ((key === 'a' || key === 'c') && !person.trackArousal) { ignoredDisabled = true; continue; }
+        if(completeMoods && person.requestedFields && !person.requestedFields.includes(key))continue;
         seen.add(key);
         values[key] = number;
         if (match[3] && key !== 'c') targets[key] = match[3].trim();
@@ -41,7 +42,8 @@ function stateFor(code, fields, roster, reject = () => null) {
         if (!seen.size) return reject('disabled_field');
         reject('disabled_field_ignored');
     }
-    if (person.trackArousal && (!seen.has('a') || !seen.has('c'))) {
+    const needArousal=person.trackArousal && (!completeMoods || !person.requestedFields || person.requestedFields.some(key=>key==='a'||key==='c'));
+    if (needArousal && (!seen.has('a') || !seen.has('c'))) {
         if (!STATE_MOODS.some(key => seen.has(key))) return reject('missing_fields');
         // A broken optional a/c pair must not erase independently valid moods.
         // Never invent a missing score or use half a pair for sexual decisions.
@@ -49,9 +51,11 @@ function stateFor(code, fields, roster, reject = () => null) {
         reject('missing_fields_ignored');
     }
     if (!person.trackArousal) { delete values.a; delete values.c; }
-    return { id: person.id, values, targets };
+    if(completeMoods && !Object.keys(values).length)return reject('empty_fields');
+    if(completeMoods && STATE_MOODS.filter(key=>!person.requestedFields || person.requestedFields.includes(key)).some(key=>!seen.has(key)))reject('missing_moods');
+    return { id: person.id, values, targets, ...(completeMoods?{coverageVersion:1}:{}) };
 }
-function readRows(rows, roster, format) {
+function readRows(rows, roster, format, completeMoods=false) {
     const diagnostics = { format, received: rows.length, accepted: 0, rejected: 0, reasons: [], actors: [] };
     const reason = value => { if (!diagnostics.reasons.includes(value)) diagnostics.reasons.push(value); return null; };
     if (rows.length > 24) return { states: [], diagnostics: {...diagnostics, rejected: rows.length, reasons:['too_many_rows']} };
@@ -65,9 +69,10 @@ function readRows(rows, roster, format) {
             blocked.add(person.id); actorReason('duplicate_person'); continue;
         }
         if (person) seen.add(person.id);
-        const state = invalid ? actorReason(invalid) : stateFor(code, fields, roster, actorReason);
+        const state = invalid ? actorReason(invalid) : stateFor(code, fields, roster, actorReason, completeMoods);
         actor.accepted = Boolean(state);
         if (state) states.push(state);
+        actor.returnedFields=state?Object.keys(state.values):[];
     }
     const accepted = states.filter(state => !blocked.has(state.id));
     for (const actor of diagnostics.actors) if (blocked.has(roster[actor.rosterIndex]?.id)) { actor.accepted = false; if (!actor.reasons.includes('duplicate_person')) actor.reasons.push('duplicate_person'); }
@@ -76,30 +81,31 @@ function readRows(rows, roster, format) {
     diagnostics.rejected = rows.length - accepted.length;
     return { states: accepted, diagnostics };
 }
-export function parseProfileStates(value, roster) {
+export function parseProfileStates(value, roster, {completeMoods=false} = {}) {
     const rows = Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : null;
     if (!rows) return {states:[],diagnostics:{format:'json',received:0,accepted:0,rejected:0,reasons:['json_format']}};
     return readRows(rows.map(item => {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return {invalid:'json_format'};
         const code = item.code ?? item.id ?? item.name;
+        if(item.participation==='absent' || item.participating===false)return {code,invalid:'not_participating'};
         const values = item.values && typeof item.values === 'object' ? item.values : item;
         const fields = Object.entries(values).filter(([key]) => FIELD_NAMES.has(fieldName(key)))
             .map(([key,value]) => `${fieldName(key)}${value}${item.targets?.[key] ? `@${item.targets[key]}` : ''}`);
         return {code,fields};
-    }), roster, 'json');
+    }), roster, 'json', completeMoods);
 }
-export function parseStateData(block, roster) {
+export function parseStateData(block, roster, {completeMoods=false} = {}) {
     let content = String(block || '').trim();
     content = content.replace(/^```[a-z0-9_-]*\s*\n([\s\S]*?)\n```$/i,'$1').trim();
     if (/^[{[]/.test(content)) {
-        try { const value = JSON.parse(content); return parseProfileStates(value?.states ?? value,roster); }
+        try { const value = JSON.parse(content); return parseProfileStates(value?.states ?? value,roster,{completeMoods}); }
         catch { return {states:[],diagnostics:{format:'json',received:0,accepted:0,rejected:0,reasons:['json_format']}}; }
     }
     const lines = content.split(/\r?\n|;\s*(?=C\d+\s*\|)/i).map(line => line.trim()).filter(Boolean);
     return readRows(lines.map(line => {
         const [code,...fields] = line.replace(/^\|\s*|\s*\|$/g,'').split('|');
         return {code,fields,invalid:line.length > 640 ? 'too_long' : ''};
-    }),roster,'lines');
+    }),roster,'lines',completeMoods);
 }
 export function parseStateLines(block, roster) {
     const result = parseStateData(block,roster);
@@ -108,7 +114,7 @@ export function parseStateLines(block, roster) {
 
 // The whole tail is removed if the closing delimiter is missing. A malformed
 // metadata block must never become part of the displayed or saved RP text.
-export function extractStateBlock(raw, roster) {
+export function extractStateBlock(raw, roster, {completeMoods=false} = {}) {
     const source = String(raw || '');
     const start = source.search(/\[\[\s*SR_/i);
     if (start < 0) return { text: source, states: [], found: false, error: 'missing' };
@@ -129,7 +135,7 @@ export function extractStateBlock(raw, roster) {
     if (duplicate) after = extractStateBlock(after, []).text;
     const text = [before.trimEnd(), after.trimStart()].filter(Boolean).join('\n');
     if (duplicate) return { text, states: [], found: true, error: 'trailing' };
-    const {states,diagnostics} = parseStateData(source.slice(bodyStart, end), roster);
+    const {states,diagnostics} = parseStateData(source.slice(bodyStart, end), roster,{completeMoods});
     return { text, states, diagnostics, found: true, error: states.length || (!diagnostics.received && !diagnostics.reasons.length) ? '' : 'format' };
 }
 

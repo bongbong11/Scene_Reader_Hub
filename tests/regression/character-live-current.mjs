@@ -28,7 +28,8 @@ function setup({style='balanced',advanced=false,impersonate=false}={}) {
             if(key==='progress_need')choice='stalled';
             if(key==='basic_move')choice=style==='dynamic'?'action':'emotion';
             if(/^character_\d+_presence$/.test(key))choice=f.sandbox.replyMode==='absent'?'absent':'active';
-            answers[key]={choice,confidence:0.95};
+            if(/^character_\d+_participation$/.test(key)&&f.sandbox.replyMode==='weak')choice=f.sandbox.participationBasis;
+            answers[key]={choice,confidence:f.sandbox.replyMode==='weak'&&/^character_\d+_presence$/.test(key)?0.07:0.95};
         }
         return {answers};
     };
@@ -63,6 +64,20 @@ for(const style of ['static','balanced','dynamic']) for(const advanced of [false
     assert.match(judgment.payload,/knowledge=suspects/);
     assert.doesNotMatch(judgment.payload,/RAW_SOURCE_SENTINEL|OLD_CORE_SENTINEL|OLD_PROFILE_SENTINEL|Direction:/);
     runs++;
+}
+// Low-confidence routing must reach the real selection, assembly and save path.
+for(const evidence of ['direct','remote','reference','departed']) {
+    const {f,seen}=setup();f.sandbox.replyMode='weak';f.sandbox.participationBasis=evidence;
+    await f.run('runJudge({force:true})');
+    const judgment=JSON.parse(f.run('JSON.stringify(record().lastJudgment)'));
+    const participating=['direct','remote'].includes(evidence);
+    assert.equal(seen.length,1,'participation observation shares the existing decision call');
+    assert.equal(judgment.details.character_0_presence.policyEffective,'absent');
+    for(const actor of judgment.characterTrace) {
+        assert.equal(actor.presence,participating?'active':'absent');
+        assert.equal(actor.injectedRuleIds.length,participating?1:0);
+    }
+    assert.equal(judgment.payload.includes('suspects the invitation'),participating);
 }
 for(const mode of ['none','unknown','absent']) {
     const {f}=setup();f.sandbox.replyMode=mode;
