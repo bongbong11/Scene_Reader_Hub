@@ -491,6 +491,8 @@
 #scene-reader-dialog .sr-header-actions .sr-icon-button { width: 34px; height: 36px; flex-basis: 34px; padding: 0; font-size: 13px; }
 #scene-reader-dialog .sr-header-actions .sr-embedding-button { min-height: 36px; padding: 5px 7px; gap: 4px; border-radius: 8px; font-size: 11px; white-space: nowrap; }
 #scene-reader-dialog .sr-header-actions .sr-status-button { width: 28px; flex-basis: 28px; min-width: 28px; background: transparent; border: 0; }
+#scene-reader-dialog .sr-header-actions .sr-vault-button { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+#scene-reader-dialog .sr-vault-button img { display: block; width: 22px; height: 22px; object-fit: contain; margin: auto; }
 #scene-reader-dialog .sr-status-dot { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: #89939d; box-shadow: 0 0 0 1px #ffffff70; color: #fff; font-size: 12px; line-height: 1; font-weight: 700; }
 #scene-reader-dialog .sr-status-button[data-tone="error"] .sr-status-dot { background: #c63543; }
 #scene-reader-dialog .sr-status-button[data-tone="error"] .sr-status-dot::after { content: '×'; }
@@ -520,6 +522,8 @@
 
 /* Match mobile progression controls to the smaller basic selectors. */
 @media (max-width: 380px) {
+    #scene-reader-dialog .sr-header-actions { gap: 2px; }
+    #scene-reader-dialog .sr-header-actions .sr-icon-button { width: 28px; min-width: 28px; flex-basis: 28px; }
     #scene-reader-dialog .sr-header-actions #sr-embedding-rebuild { width: 28px; }
     #scene-reader-dialog #sr-embedding-rebuild span { display: none; }
 }

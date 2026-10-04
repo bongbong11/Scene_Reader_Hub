@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.1.17');
+assert.equal(manifest.version, '0.1.18');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -183,7 +183,8 @@ assert.match(css, /\.sr-action-row \{ display: grid; grid-template-columns: repe
 const dialogIds = [...source.matchAll(/id="(sr-[^"]+)"/g)].map((match) => match[1]);
 assert.equal(new Set(dialogIds).size, dialogIds.length, 'dialog element ids must be unique');
 const referencedDialogIds = [...source.matchAll(/getElementById\('(sr-[^']+)'\)/g)].map((match) => match[1]);
-const missingDialogIds = [...new Set(referencedDialogIds.filter((id) => !dialogIds.includes(id)))];
+const createdDialogIds = [...source.matchAll(/\.id\s*=\s*'(sr-[^']+)'/g)].map((match) => match[1]);
+const missingDialogIds = [...new Set(referencedDialogIds.filter((id) => !dialogIds.includes(id) && !createdDialogIds.includes(id)))];
 assert.deepEqual(missingDialogIds, [], `referenced dialog ids must exist: ${missingDialogIds.join(', ')}`);
 
 const expectedHashes = {

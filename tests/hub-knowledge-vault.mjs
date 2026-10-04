@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { prepareKnowledgeVault, publishKnowledgeVault, knowledgeVaultRevision } from '../src/integration/knowledge-vault.js';
+import { prepareKnowledgeVault, publishKnowledgeVault, knowledgeVaultRevision, knowledgeVaultDecisionState } from '../src/integration/knowledge-vault.js';
 import {createSourceRevision} from '../src/context/source-revision.js';
 import {stableFingerprint} from '../src/decision/policy.js';
+import {createVaultLauncher} from '../src/ui/vault-launcher.js';
+import {vaultAnalysisBridge} from '../src/integration/vault-output.js';
 
 const captured = [];
 const bridge = {
@@ -41,4 +43,37 @@ assert.ok(!withCard.includes('synthetic confidential marker'));
 revision=revision.replace('marker','changed');
 assert.notEqual(sourceRevisionKey({},{}),withCard,'editing a vault card invalidates previous Hub judgment');
 assert.equal(JSON.stringify(cards).includes('vault_injections'),false);
+const worldFrame={questions:{}};
+const worldCards=prepareKnowledgeVault(worldFrame,{version:'0.1.0',getSceneInput:()=>[
+    {secret_id:'world-one',text:'A hidden bridge tunnel exists.',knownBy:[],truthScope:'world',public:false},
+    {secret_id:'public-one',text:'The public bridge opens at dawn.',knownBy:[],truthScope:'world',public:true},
+]});
+const worldState=knowledgeVaultDecisionState(worldCards);
+assert.equal(worldState.restricted_knowledge[0].public,false);
+assert.equal(worldState.restricted_knowledge[1].public,true);
+assert.deepEqual(worldState.restricted_knowledge[0].knownBy,[]);
+assert.match(worldFrame.questions.vault_0.instructions,/Do not require a holder/);
+assert.match(worldFrame.questions.vault_1.instructions,/public background information/);
+assert.match(worldState.restricted_knowledge_policy,/event already permitted/);
+assert.match(worldState.restricted_knowledge_policy,/cannot speak, think, plan/);
+assert.deepEqual(knowledgeVaultDecisionState([]),{});
+assert.deepEqual(knowledgeVaultDecisionState(undefined),{});
+let unlocked=false,opened=0;
+const notices=[],uiHost={};
+const launcher=createVaultLauncher({window:uiHost,isUnlocked:()=>unlocked,notify:message=>notices.push(message)});
+assert.equal(launcher.open(),false);
+unlocked=true;
+assert.equal(launcher.open(),false,'unlock alone cannot open a missing extension');
+uiHost.KnowledgeVaultV1={version:'0.1.0',open:()=>{opened++;return true;}};
+unlocked=false;
+assert.equal(launcher.open(),false,'installation alone does not grant access');
+assert.equal(opened,0);
+unlocked=true;
+assert.equal(launcher.open(),true);
+assert.equal(opened,1);
+assert.deepEqual(notices,['쉿, 업데이트 중','쉿, 업데이트 중','쉿, 업데이트 중']);
+const auditBridge={version:'0.1.0',beginAnalysis(){},commitAnalysis(){},analysisCurrent(){},isEnabled:()=>false};
+assert.equal(vaultAnalysisBridge({KnowledgeVaultV1:auditBridge}),null,'disabled vault never starts output analysis');
+auditBridge.isEnabled=()=>true;
+assert.equal(vaultAnalysisBridge({KnowledgeVaultV1:auditBridge}),auditBridge);
 console.log('Optional bridge: independent ownership, cache invalidation, private revisions and invalid-answer fallback passed.');

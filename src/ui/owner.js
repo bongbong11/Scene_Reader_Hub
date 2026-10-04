@@ -1,6 +1,7 @@
 // Extracted from Scene Reader 0.26.2; behavior preserved.
 export function createOwnerUi(deps) {
 function renderOwnerMode() {
+    deps.refreshVaultAccess?.();
     const unlocked = deps.ownerUnlocked();
     const ownerCard = deps.document.getElementById('sr-owner-card');
     const ownerStatus = deps.document.getElementById('sr-owner-status');

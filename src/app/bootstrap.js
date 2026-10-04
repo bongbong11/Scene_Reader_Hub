@@ -8,6 +8,7 @@ import { createStorageIdentity } from '../storage/identity.js';
 import { createOwnerStorage } from '../storage/owner.js';
 import { createActivity } from '../ui/activity.js';
 import { createOwnerUi } from '../ui/owner.js';
+import { createVaultLauncher } from '../ui/vault-launcher.js';
 import { createClipboard } from '../ui/clipboard.js';
 import { createHtml } from '../shared/html.js';
 import { createRecordRepository } from '../storage/record.js';
@@ -158,6 +159,7 @@ let {showActivity, updateActivity} = createActivity({
 });
 
 let {renderOwnerMode} = createOwnerUi({
+    refreshVaultAccess: () => vaultLauncher.refresh(),
     get document() { return document; },
     get ownerPrompt() { return ownerPrompt; },
     get ownerUnlocked() { return ownerUnlocked; },
@@ -254,7 +256,7 @@ let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnec
 
 let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSceneReader, createQuickEntry, ensureQuickEntry} = createShell({
     get window() { return window; },
-    bindHubTrace: () => { traceView.bind(); currentStatusView.bind(); },
+    bindHubTrace: () => { traceView.bind(); currentStatusView.bind(); vaultLauncher.bind(); },
     refreshCurrentStatus: () => currentStatusView.render(),
     get ADVANCED_ELEMENTS() { return ADVANCED_ELEMENTS; },
     get ADVANCED_STYLES() { return ADVANCED_STYLES; },
@@ -909,11 +911,12 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.17',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.18',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
-window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot()});
+const vaultLauncher=createVaultLauncher({document,window,isUnlocked:ownerUnlocked,notify:message=>notifySceneReaderToast(window,'info',message,'씬판독기',{timeOut:1800})});
+window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot(),canUseKnowledgeVault:vaultLauncher.canUse,openKnowledgeVault:vaultLauncher.open});
 jQuery(() => void (startupPromise=init().then(()=>{
     registerSlashCommands({getContext,hub,document,openSceneReader,saveGlobal,setFormValues,invalidateReasonerJobs,clearInjection,updateStatus,diagnosticSnapshot,noteDiagnostic,get settings(){return runtime.settings;}});
 })).catch((error) => {
