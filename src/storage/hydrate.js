@@ -3,6 +3,7 @@
 export function createHydration(deps) {
 async function hydrateServerState({ migrate = true } = {}) {
     const chatKey = deps.stateChatKey();
+    deps.companionStorage?.chatLoading(chatKey);
     const sequence = ++deps.hydrateSequence;
     const current = () => sequence === deps.hydrateSequence && chatKey === deps.stateChatKey();
     const data = await deps.storagePost('bootstrap', { chatKey, legacyChatKey:deps.legacyStateChatKey?.() }, { allowFailure: true });
@@ -82,6 +83,8 @@ async function hydrateServerState({ migrate = true } = {}) {
     deps.characterStore = deps.normalizeCharacterStore(data.characters);
     deps.messageSnapshots.set(chatKey, deps.messageSnapshot(deps.getContext().chat));
     await deps.loadReasonerProfiles();
+    if (!current()) return false;
+    deps.companionStorage?.chatLoaded(chatKey);
     return true;
 }
 return {hydrateServerState};

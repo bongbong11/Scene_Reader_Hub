@@ -493,6 +493,12 @@
 #scene-reader-dialog .sr-header-actions .sr-status-button { width: 28px; flex-basis: 28px; min-width: 28px; background: transparent; border: 0; }
 #scene-reader-dialog .sr-header-actions .sr-vault-button { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 #scene-reader-dialog .sr-vault-button img { display: block; width: 22px; height: 22px; object-fit: contain; margin: auto; }
+.sr-vault-password { box-sizing: border-box; width: min(280px, calc(100vw - 24px)); padding: 14px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 10px; color: var(--SmartThemeBodyColor); background: var(--SmartThemeBlurTintColor, #252529); font-size: 13px; }
+.sr-vault-password::backdrop { background: #0008; }
+.sr-vault-password label { display: grid; gap: 8px; }
+.sr-vault-password input { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; color: inherit; background: #0002; border: 1px solid var(--SmartThemeBorderColor); border-radius: 5px; font-size: 14px; }
+.sr-vault-password form > div { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.sr-vault-password button { min-height: 30px; padding: 3px 10px; font-size: 12px; color: inherit; background: #ffffff12; border: 1px solid var(--SmartThemeBorderColor); border-radius: 5px; cursor: pointer; }
 #scene-reader-dialog .sr-status-dot { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; background: #89939d; box-shadow: 0 0 0 1px #ffffff70; color: #fff; font-size: 12px; line-height: 1; font-weight: 700; }
 #scene-reader-dialog .sr-status-button[data-tone="error"] .sr-status-dot { background: #c63543; }
 #scene-reader-dialog .sr-status-button[data-tone="error"] .sr-status-dot::after { content: '×'; }

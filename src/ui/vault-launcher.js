@@ -1,14 +1,15 @@
 const iconUrl = new URL('../../assets/mascot-secret-agent.png', import.meta.url).href;
 
-export function createVaultLauncher({ document, window, isUnlocked, notify }) {
+export function createVaultLauncher({ document, window, isUnlocked, notify, requestUnlock = () => {} }) {
     let lastAccess;
     const canUse = () => isUnlocked() === true;
     function open() {
+        if (!canUse()) { requestUnlock(); return false; }
         try {
             const bridge = window.KnowledgeVaultV1;
             if (canUse() && bridge?.version === '0.1.0' && typeof bridge.open === 'function' && bridge.open() === true) return true;
         } catch { /* A companion UI must not stop the Hub. */ }
-        notify('쉿, 업데이트 중');
+        notify('정보금고 확장을 설치·활성화한 뒤 새로고침해 주세요.');
         return false;
     }
     function refresh() {
