@@ -6,6 +6,7 @@ import {generatedActorCandidates} from '../scene/generated-cast.js';
 import { currentRecords, recordBankIsCurrent } from "../characters/records.js";
 import { stateForEntry } from "../characters/state-contract.js";
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
+import { prepareKnowledgeVault } from '../integration/knowledge-vault.js';
 
 export function createDecisionPreparation(deps) {
 async function prepareQuestions(run,frame) {
@@ -35,6 +36,7 @@ if (frame.prefs.settingsContract >= 3) {
     }));
     if (frame.prefs.advancedEnabled) frame.questions.advanced_world_rules = {type:'choice',instructions:'From explicit current world rules, recent RP and supplied memory only: are supernatural mechanisms established? A horror label alone does not establish ghosts, curses or exorcism. This is world evidence, never an invitation to invent.',criteria:{mundane:'No supported supernatural mechanics.',supernatural:'Supernatural mechanics are established and compatible with this setting.',unclear:'Insufficient world evidence.'}};
     Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan));
+    frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1);
     if (deps.settings.continuityEnabled && frame.rec.pendingPlan?.outputText) frame.questions.continuity_trigger = {
         type: 'choice',
         instructions: 'Read only the just-completed USER RP and following CHARACTER output. Is there a newly established, durable promise, schedule, delegation, important information transfer, obligation, status change, or a direct causal pressure on one? A character merely planning or claiming to have acted is not completed action. Ignore OOC and routine conversation. This is only a high-value Reasoner trigger, not a fact commit.',
