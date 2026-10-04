@@ -1,11 +1,11 @@
 import {createCurrentStatusModel} from './current-status-model.js';
 import {MASCOT_ICON_URL,MASCOT_ERROR_URL} from './mascot.js';
 
-const STATES={idle:'미확인 / 미사용',running:'진행 중',success:'성공',failed:'확인 필요',cancelled:'중단',skipped:'건너뜀'};
+const STATES={idle:'미확인 / 미사용',unused:'사용 안 함',not_needed:'이번 실행 대상 없음',needs_setup:'설정 필요',partial:'일부 미확인',running:'진행 중',success:'성공',failed:'확인 필요',cancelled:'중단',skipped:'건너뜀'};
 const TITLES={error:'확인할 문제가 있습니다',success:'실행·요청 포함 확인 완료',neutral:'대기 / 진행 중 / 확인 전'};
 
-export function createCurrentStatusView({hub,document,getScope=()=>''}) {
-    const model=createCurrentStatusModel();
+export function createCurrentStatusView({hub,document,getScope=()=>'',getProfileUsage=()=>({})}) {
+    const model=createCurrentStatusModel({getProfileUsage});
     let sequence=0,scope=getScope(),open=false,bound=null,boundDialog=null;
     function sync() {
         const snapshot=hub.snapshot(),nextScope=getScope();

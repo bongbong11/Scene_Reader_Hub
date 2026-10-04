@@ -7,7 +7,7 @@
   "js": "index.js",
   "css": "style.css",
   "author": "bongbong11",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "homePage": "https://github.com/bongbong11/Scene_Reader_Hub",
   "auto_update": true,
   "minimum_client_version": "1.18.0",

@@ -79,6 +79,7 @@ for(const autoJudge of [false,true]) {
 let requests=0;
 const rec={};
 const continuityDeps={settings:{continuityEnabled:true,reasonerProfileId:'synthetic'},connectionRequestService:{},
+    splitOocText:text=>({rpText:text}),sourceRevisionKey:()=> 'source',selectedWorld:()=>null,
     stateChatKey:()=> 'synthetic',getContext:()=>({chat:[]}),reasonerJobs:new Map(),reasonerGeneration:0,
     normalizeContinuity:()=>({items:[],knowledge:[],dependencies:[]}),continuityView:()=>({}),
     requestWithConnectionProfile:(_service,_profile,_system,_data,{signal})=>{

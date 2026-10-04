@@ -1,9 +1,12 @@
 import { MEMORY_REFERENCE_ENABLED } from "../memory/context.js";
 import { CORE_SHA256 } from "../vendor/character-reasoner/version.js";
+import { knowledgeVaultRevision } from '../integration/knowledge-vault.js';
 
 export function createSourceRevision(deps) {
-function sourceRevisionKey(rec, world) {
+function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
+    const vaultRevision=includeVault ? knowledgeVaultRevision(deps.window?.KnowledgeVaultV1,deps.stableFingerprint) : '';
     return deps.stableFingerprint({
+        ...(vaultRevision ? {vaultRevision} : {}),
         world: { id: world?.id || '', name: world?.name || '', hint: world?.hint || '', prompt: world?.prompt || '', franchise: Boolean(world?.franchise), calendarTopics: world?.calendarTopics || [], advanced: world?.advanced || null },
         reasoner: deps.settings.reasonerProfileId || '',
         retrieval: [deps.settings.retrievalProvider, deps.settings.retrievalModel, deps.settings.retrievalVertexAuth, deps.settings.retrievalVertexRegion, deps.settings.retrievalVertexProject],

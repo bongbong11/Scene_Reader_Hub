@@ -21,7 +21,7 @@ function advice(id,event) {
     return '이번 실행을 완료하지 못했습니다. 전체 로그를 복사해 실패 원인을 확인해 주세요.';
 }
 
-export function createCurrentStatusModel() {
+export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
     let entries=new Map(),cycleId='',settled=false,valid=false;
     const pendingFailures=new Map();
     function reset() {entries.clear();pendingFailures.clear();cycleId='';settled=false;valid=false;}
@@ -68,6 +68,16 @@ export function createCurrentStatusModel() {
             set(event.requestKind==='scene'?'scene':'decision',event,{message:event.status==='degraded'?'일부 판정 응답이 누락되거나 형식이 맞지 않습니다. 전체 로그를 확인해 주세요.':''});return;
         }
         if(event.stage==='profile_request') {if(!event.testing)set('profile',event);return;}
+        if(event.stage==='auxiliary_usage') {
+            const messages = {
+                no_completed_output:'분석할 완성된 응답이 없습니다.', no_rp_output:'이번 출력은 RP 분석 대상이 아닙니다.',
+                analysis_disabled:'보조 분석 기능을 사용하지 않습니다.', no_continuity_change:'연속성 추가 분석 조건에 해당하지 않아 호출하지 않았습니다.',
+                profile_not_configured:'설정에서 확장 연결모델 프로필을 선택해 주세요.', already_analyzed:'이 출력은 이미 분석했습니다. 중복 호출하지 않습니다.',
+                analysis_in_progress:'보조 분석을 이미 진행 중입니다. 중복 호출하지 않습니다.',
+            };
+            set('profile',event,{state:event.status==='failed'?'failed':event.status==='running'?'running':event.status==='needs_setup'?'needs_setup':'not_needed',message:messages[event.reasonCode] || '이번 실행에서는 추가 분석을 호출하지 않았습니다.'});return;
+        }
+        if(event.stage==='auxiliary_result' && event.status==='partial') {set('profile',event,{state:'partial',message:'모델은 응답했지만 일부 분석 결과를 확인하지 못했습니다.'});return;}
         if(event.stage==='storage_request') {set('storage',event,{key:event.phase || ''});return;}
         if(event.code==='PROMPT_REGISTERED') {
             set('preparation',event,{state:'success',message:'주입문 등록 완료 · 실제 요청 포함은 아직 확인 전입니다.'});
@@ -95,6 +105,11 @@ export function createCurrentStatusModel() {
         const rows=Object.entries(ROWS).map(([id,label])=>{
             const matches=values.filter(value=>value.id===id);
             const selected=matches.find(value=>value.state==='failed') || matches.find(value=>value.state==='running') || matches.at(-1);
+            if (id === 'profile' && !selected) {
+                let usage = {};
+                try { usage = getProfileUsage() || {}; } catch { /* Optional extension status cannot break the UI. */ }
+                return {id,label,state:usage.enabled && !usage.configured?'needs_setup':usage.enabled?'not_needed':'unused',message:usage.enabled && !usage.configured?'설정에서 확장 연결모델 프로필을 선택해 주세요.':usage.enabled?'이번 실행에서 보조 분석을 호출하지 않았습니다.':'보조 분석 기능을 사용하지 않습니다.'};
+            }
             return {id,label,state:'idle',message:'이번 실행에서 아직 확인하지 않았거나 사용하지 않는 항목입니다.',...selected};
         });
         const failed=rows.some(row=>row.state==='failed');

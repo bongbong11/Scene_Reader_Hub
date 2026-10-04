@@ -612,6 +612,7 @@ let {storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, sa
 
 
 let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAssistantOutputChanged, applyStoredInjection, clearInjection, waitForOutputChanges} = createOutputLifecycle({
+    get postVerifiedCharacterOutput() { return postVerifiedCharacterOutput; },
     hub,
     get STATE_CAPTURE_KEY() { return STATE_CAPTURE_KEY; },
     get STATE_COLLECTOR_MODE() { return stateCollectorMode(record()?.preferences); },
@@ -908,8 +909,8 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.16',copyText:value=>copyText(value)});
-const currentStatusView=createCurrentStatusView({hub,document,getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.17',copyText:value=>copyText(value)});
+const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot()});

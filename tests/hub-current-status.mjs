@@ -55,5 +55,21 @@ emit({code:'PROMPT_OBSERVED',phase:'request',scene:'unconfirmed',world:'not_expe
 assert.equal(model.snapshot().tone,'error');
 receipt('request');assert.equal(model.snapshot().tone,'success','a verified final receipt may resolve an earlier assembly mismatch');
 model.reset();assert.equal(model.snapshot().tone,'neutral');
-assert.ok(model.snapshot().rows.every(item=>item.state==='idle'));
+assert.ok(model.snapshot().rows.filter(item=>item.id!=='profile').every(item=>item.state==='idle'));
+assert.equal(row('profile').state,'unused');
+let profileUsage={enabled:true,configured:false};
+const profileModel=createCurrentStatusModel({getProfileUsage:()=>profileUsage});
+assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'needs_setup');
+assert.equal(profileModel.snapshot().tone,'neutral','missing optional profile is setup, not a failed request');
+profileUsage={enabled:true,configured:true};
+assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'not_needed');
+profileModel.accept({stage:'auxiliary_usage',status:'not_needed',reasonCode:'no_continuity_change'});
+assert.match(profileModel.snapshot().rows.find(item=>item.id==='profile').message,/조건/);
+for (const [status, expected] of [['succeeded','success'],['cancelled','cancelled'],['failed','failed']]) {
+    profileModel.reset();
+    profileModel.accept({stage:'profile_request',status:'started'});
+    profileModel.accept({stage:'auxiliary_usage',status:'running',reasonCode:'analysis_in_progress'});
+    profileModel.accept({stage:'profile_request',status});
+    assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,expected,'terminal request clears duplicate-running notice');
+}
 console.log('Current status: embedding/search separation, retained failures, request receipt, cancellation, repair, privacy and reset passed.');

@@ -1,5 +1,6 @@
 import { selectedStateSwipe } from "../character/state-contract.js";
 import { captureDiagnostic } from '../character/state-coverage.js';
+import { notifyVaultOutput } from '../integration/vault-output.js';
 
 export function createOutputEvents(deps) {
 async function onCharacterMessageReceived(messageId) {
@@ -70,7 +71,7 @@ async function onCharacterMessageReceived(messageId) {
         }
         return;
     }
-    if (!rec?.pendingPlan) { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); return; }
+    if (!rec?.pendingPlan) { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); notifyVaultOutput(deps, rec, outputIndex); return; }
     if (deps.activeGenerationCycle?.inputKey && deps.activeGenerationCycle.inputKey !== rec.pendingPlan.inputKey) {
         deps.pendingGenerationType = '';
         deps.activeGenerationCycle = { mode: 'rp', inputKey: '', startedAt: '' };
@@ -89,6 +90,7 @@ async function onCharacterMessageReceived(messageId) {
     await deps.persistChat();
     if(chatKey!==deps.stateChatKey())return;
     deps.renderAll();
+    notifyVaultOutput(deps, rec, outputIndex);
 }
 
 async function onUserMessageSent(messageId) {
