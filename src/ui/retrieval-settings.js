@@ -12,22 +12,20 @@ export function renderRetrievalSettings(deps) {
     const node = id => deps.document.getElementById(id);
     if (!node('sr-retrieval-provider')) return;
     node('sr-retrieval-provider').value = provider;
-    const legacy = node('sr-retrieval-provider').querySelector('option[value="palm"]');
-    legacy.hidden = provider !== 'palm';
-    legacy.disabled = provider !== 'palm';
     node('sr-retrieval-model').value = fixedEmbeddingModel(provider) || deps.settings.retrievalModel || deps.RETRIEVAL_PROVIDERS[provider].model;
     node('sr-retrieval-model-row').hidden = provider !== 'nanogpt';
     node('sr-retrieval-key-row').hidden = provider === 'transformers';
     const saveKeyButton = node('sr-retrieval-key-save');
     if (saveKeyButton) saveKeyButton.hidden = provider === 'transformers';
-    node('sr-retrieval-key-label').textContent = provider === 'vertexai' ? 'Vertex Express API 키' : '선택한 서비스의 API 키';
+    node('sr-retrieval-key-label').textContent = provider === 'vertexai' ? 'Vertex Express API 키' : provider === 'palm' ? 'Google AI Studio API 키' : '선택한 서비스의 API 키';
     node('sr-retrieval-key-help').textContent = provider === 'vertexai'
         ? '저장된 키·서비스 계정은 자동 사용합니다. 새 Express 키만 입력하세요. 서비스 계정 JSON은 SillyTavern에서 설정하세요.'
+        : provider === 'palm' ? '저장된 Google AI Studio 키를 사용합니다. 새 AI Studio 키만 입력하세요. Vertex 키는 Vertex AI를 선택하세요.'
         : 'SillyTavern에 저장된 키를 그대로 사용합니다. 키를 새로 등록하거나 바꿀 때만 입력하세요.';
     node('sr-retrieval-google-note').hidden = !fixedEmbeddingModel(provider);
     node('sr-retrieval-google-note').textContent = provider === 'vertexai'
         ? '모델·리전(global)은 자동 설정됩니다. SillyTavern에 저장된 Vertex 인증 정보를 사용합니다.'
-        : '기존 Google AI Studio 키 설정을 유지하고 있습니다. Vertex 키와는 호환되지 않습니다.';
+        : '모델은 자동 설정됩니다. SillyTavern에 저장된 Google AI Studio 키를 사용합니다.';
 }
 
 async function secretRequest(deps,route,body) {

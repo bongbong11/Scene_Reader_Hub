@@ -78,7 +78,7 @@ const server=http.createServer(async(req,res)=>{try{
         let raw='';for await(const part of req)raw+=part;const body=raw?JSON.parse(raw):{};
         res.setHeader('Content-Type','application/json');
         if(req.url==='/api/secrets/read'){res.end(JSON.stringify(Object.fromEntries(Object.keys(retrievalSecrets).map(key=>[key,[{active:true,label:'test',value:'••••'}]]))));return;}
-        if(req.url==='/api/secrets/write'){retrievalSecrets[body.key]=body.value;res.end(JSON.stringify({id:'test-secret'}));return;}
+        if(req.url==='/api/secrets/write'){requests.push({url:req.url,body:{key:body.key}});retrievalSecrets[body.key]=body.value;res.end(JSON.stringify({id:'test-secret'}));return;}
         const route=req.url.split('/').at(-1),collection=JSON.stringify([body.source,body.model||'',body.collectionId]);
         requests.push({url:req.url,body:{...body,items:body.items?.map(({hash,index})=>({hash,index}))}});
         if(!vectorCollections.has(collection))vectorCollections.set(collection,new Map());
