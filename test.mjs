@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.1.12');
+assert.equal(manifest.version, '0.1.13');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -171,7 +171,7 @@ assert.match(css, /#sr-tab-flow\.active \{ display: grid; grid-template-columns:
 assert.match(css, /\.sr-chip-grid \{ grid-template-columns: repeat\(2/);
 assert.match(css, /#sr-tab-conflict > \.sr-settings-card:not\(\.sr-owner-details\)/);
 assert.match(source, /<details class="sr-settings-card sr-settings-collapsible sr-developer-lock"><summary>개발자 모드/);
-assert.match(css, /\.sr-run-row \.menu_button \{[^\n]*min-width: 150px/);
+assert.match(css, /\.sr-run-row \.menu_button \{[^\n]*min-width: 110px/);
 assert.match(css, /\[hidden\] \{ display: none !important; \}/);
 assert.match(css, /button \{[^\n]*writing-mode: horizontal-tb !important/);
 assert.match(css, /word-break: keep-all/);

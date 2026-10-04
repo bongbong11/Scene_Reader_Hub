@@ -4,7 +4,7 @@ const SLOT_REASONS={prompt_missing:'기준 항목 없음',prompt_disabled:'기�
 const slotText=item=>`${item.kind==='scene'?'장면':'세계관'} ${item.identifier} ${item.side==='before'?'앞':'뒤'} · ${item.resultStatus==='missing'?(SLOT_REASONS[item.reason] || '주입 실패'):item.phase==='send'?'전송문 포함':'삽입 준비'}`;
 const STATES={idle:'대기',running:'진행 중',prepared:'주입 준비됨',skipped:'건너뜀',cancelled:'취소됨',failed:'확인 필요'};
 const RECEIPTS={confirmed:'포함 확인',unconfirmed:'포함 미확인',unavailable:'요청 확인 불가',unverifiable:'동적 매크로 확인 불가',not_expected:'주입 없음'};
-export function createTraceView({hub,document,copyText,judgmentFailureState=()=>null,getSettings=()=>({}),isDeveloperMode=()=>false,version='0.1.12'}) {
+export function createTraceView({hub,document,copyText,judgmentFailureState=()=>null,getSettings=()=>({}),isDeveloperMode=()=>false,version='0.1.13'}) {
     function render() {
         const warning=document.getElementById('sr-failure-stop'),failure=judgmentFailureState();
         if(warning){warning.hidden=!failure;warning.textContent=failure?.message || '';}

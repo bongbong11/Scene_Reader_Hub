@@ -29,7 +29,7 @@ export async function checkOpportunitySettings(page,store,requests,setViewportSi
             const r=card.getBoundingClientRect();return {overflow:card.scrollWidth>card.clientWidth+1,
                 controls:[...card.querySelectorAll('select')].map(node=>{const n=node.getBoundingClientRect();return {inside:n.left>=r.left-1&&n.right<=r.right+1,height:n.height};})};
         });
-        assert.equal(fit.overflow,false);assert.ok(fit.controls.every(x=>x.inside&&x.height>=44));
+        assert.equal(fit.overflow,false);assert.ok(fit.controls.every(x=>x.inside&&x.height>=28&&x.height<=29));
         if(size.width===390||size.width===1280)await page.screenshot({path:path.join(root,'artifacts',`opportunity-${size.width}.png`)});
     }
     assert.equal(count(),before,'changing settings performs no inference, embedding or generation');

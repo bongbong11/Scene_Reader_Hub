@@ -29,7 +29,7 @@
 #scene-reader-dialog > #toast-container { position: absolute !important; top: 8px !important; right: 8px !important; left: auto !important; bottom: auto !important; z-index: 1000 !important; width: min(340px, calc(100% - 16px)) !important; max-height: calc(100% - 16px); overflow-y: auto; pointer-events: none; }
 #scene-reader-dialog > #toast-container .toast { pointer-events: auto; }
 #scene-reader-dialog button { writing-mode: horizontal-tb !important; text-orientation: mixed !important; white-space: normal; word-break: keep-all; overflow-wrap: normal; line-height: 1.25; }
-#scene-reader-dialog .menu_button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: auto; max-width: 100%; min-height: 42px; padding: 9px 14px; color: var(--SmartThemeBodyColor); background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, var(--SmartThemeBlurTintColor)); border: 1px solid var(--SmartThemeBorderColor); }
+#scene-reader-dialog .menu_button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 4px; width: fit-content; max-width: 100%; min-height: 28px; padding: 3px 7px; font-size: .75rem; line-height: 1.2; color: var(--SmartThemeBodyColor); background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, var(--SmartThemeBlurTintColor)); border: 1px solid var(--SmartThemeBorderColor); }
 #scene-reader-quick-button { display: inline-flex !important; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; min-width: 32px; height: 32px; padding: 0; cursor: pointer; opacity: .78; touch-action: manipulation; }
 #scene-reader-quick-button:hover,
 #scene-reader-quick-button:focus-visible { opacity: 1; }
@@ -42,7 +42,7 @@
 #scene-reader-dialog .sr-header-mascot { display: block; flex: none; width: 32px; height: 32px; object-fit: contain; }
 #scene-reader-dialog .sr-header p { margin-top: 3px; opacity: .72; font-size: .84rem; }
 #scene-reader-dialog .sr-header-actions { display: flex; gap: 7px; }
-#scene-reader-dialog .sr-icon-button { width: 44px; height: 44px; flex: 0 0 44px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 50%; color: inherit; background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, transparent); cursor: pointer; }
+#scene-reader-dialog .sr-icon-button { width: 32px; height: 32px; flex: 0 0 32px; padding: 0; border: 1px solid var(--SmartThemeBorderColor); border-radius: 50%; color: inherit; background: color-mix(in srgb, var(--SmartThemeBodyColor) 8%, transparent); cursor: pointer; }
 #scene-reader-dialog .sr-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; padding: 8px 11px; border-bottom: 1px solid var(--SmartThemeBorderColor); }
 #scene-reader-dialog .sr-tabs button { min-height: 34px; padding: 5px 7px; border: 0; border-radius: 8px; color: inherit; background: transparent; cursor: pointer; touch-action: manipulation; font-size: .88rem; }
 #scene-reader-dialog .sr-tabs button.active { color: var(--SmartThemeBodyColor); background: color-mix(in srgb, var(--SmartThemeQuoteColor) 22%, transparent); outline: 1px solid color-mix(in srgb, var(--SmartThemeQuoteColor) 45%, var(--SmartThemeBorderColor)); font-weight: 700; }
@@ -52,14 +52,14 @@
 #scene-reader-dialog .sr-control-card,
 #scene-reader-dialog .sr-settings-card,
 #scene-reader-dialog .sr-summary-card,
-#scene-reader-dialog .sr-details { margin: 0 0 10px; padding: 12px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 11px; background: color-mix(in srgb, var(--SmartThemeBodyColor) 5%, transparent); }
+#scene-reader-dialog .sr-details { box-sizing: border-box; min-width: 0; margin: 0 0 10px; padding: 12px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 11px; background: color-mix(in srgb, var(--SmartThemeBodyColor) 5%, transparent); }
 #scene-reader-dialog .sr-control-card > label:not(.checkbox_label),
 #scene-reader-dialog .sr-settings-card > label:not(.checkbox_label) { display: block; margin-bottom: 7px; font-weight: 700; }
 #scene-reader-dialog .sr-settings-card h3 { margin: 0 0 9px; font-size: 1rem; }
 #scene-reader-dialog .sr-help { margin: 7px 0 0; opacity: .72; font-size: .84rem; line-height: 1.45; }
 #scene-reader-dialog .sr-run-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; }
 #scene-reader-dialog .sr-run-row > div { min-width: 0; opacity: .78; overflow-wrap: anywhere; }
-#scene-reader-dialog .sr-run-row .menu_button { min-width: 150px; min-height: 44px; padding: 9px 18px; flex: 0 0 auto; white-space: nowrap; }
+#scene-reader-dialog .sr-run-row .menu_button { min-width: 110px; min-height: 32px; padding: 5px 10px; flex: 0 0 auto; white-space: nowrap; }
 #scene-reader-dialog .sr-summary-card h3 { margin: 0 0 8px; font-size: 1rem; }
 #scene-reader-dialog .sr-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
 #scene-reader-dialog .sr-summary-item { display: grid; gap: 2px; padding: 8px 9px; border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 60%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--SmartThemeBodyColor) 4%, transparent); }
@@ -110,7 +110,7 @@
 #scene-reader-dialog .sr-macro-row .menu_button { min-width: 72px; min-height: 42px; }
 #scene-reader-dialog .sr-key-status { min-height: 1.3em; opacity: .76; font-size: .83rem; overflow-wrap: anywhere; }
 #scene-reader-dialog .sr-action-row { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-#scene-reader-dialog .sr-action-row .menu_button { flex: 1 1 180px; min-width: min(180px, 100%); }
+#scene-reader-dialog .sr-action-row .menu_button { flex: 0 1 auto; min-width: 0; }
 #scene-reader-dialog input,
 #scene-reader-dialog select,
 #scene-reader-dialog textarea,
@@ -324,8 +324,8 @@
 #scene-reader-dialog .sr-intensity-row .sr-intensity-reset.menu_button { width: auto; min-height: 30px; padding: 4px 7px; font-size: .78rem; }
 #scene-reader-dialog .sr-developer-lock { width: min(310px,100%); padding: 6px 9px; }
 #scene-reader-dialog .sr-developer-lock .sr-owner-unlock-row { margin-top: 7px; }
-#scene-reader-dialog .sr-developer-lock .sr-owner-unlock-row .menu_button { min-height: 32px; min-width: 54px; padding: 5px 7px; }
-#scene-reader-dialog .sr-developer-lock #sr-owner-password { min-height: 32px; }
+#scene-reader-dialog .sr-developer-lock .sr-owner-unlock-row .menu_button { min-height: 28px; min-width: 54px; padding: 3px 7px; }
+#scene-reader-dialog .sr-developer-lock #sr-owner-password { min-height: 28px; }
 @media (max-width: 600px) {
     #scene-reader-dialog .sr-character-modal { padding: 6px; }
     #scene-reader-dialog .sr-character-modal-panel { padding: 11px; max-height: 100%; }
@@ -351,7 +351,7 @@
 
 #scene-reader-dialog .sr-emotion-controls { display:flex; align-items:center; flex-wrap:wrap; gap:5px 8px; }
 #scene-reader-dialog .sr-emotion-controls .checkbox_label { flex:1 1 210px; margin:0; }
-#scene-reader-dialog #sr-emotion-now { flex:none; width:auto; margin:0; padding:4px 8px; min-height:30px; font-size:.8rem; }
+#scene-reader-dialog #sr-emotion-now { flex:none; width:auto; margin:0; padding:3px 7px; min-height:28px; font-size:.75rem; }
 
 /* Only Scene Reader notifications use these styles. */
 #scene-reader-toast-container { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 2147483000; width: min(340px, calc(100vw - 24px)); max-height: min(80vh, 720px); overflow-y: auto; pointer-events: none; }
@@ -478,11 +478,11 @@
 #scene-reader-dialog .sr-opportunity-controls select { min-height: 44px; }
 #scene-reader-dialog .sr-opportunity-controls .sr-grid-2 { margin-top: 8px; }
 #scene-reader-dialog .sr-opportunity-controls select:disabled { opacity: .5; }
-@media (max-width: 340px) { #scene-reader-dialog .sr-opportunity-controls .sr-grid-2 { grid-template-columns: 1fr; } }
 #scene-reader-dialog .sr-injection-credit { display: inline; margin-inline-start: 5px; font-size: 9px; font-weight: 400; opacity: .82; line-height: 1.3; }
 
 /* Compact headings and fixed instructions; status/results retain their sizing. */
-#scene-reader-wand .sr-wand-mascot { display: block; flex: none; width: 24px; height: 24px; object-fit: contain; }
+#scene-reader-wand > .list-group-item { align-items: center; }
+#scene-reader-wand .sr-wand-mascot { display: block; flex: none; width: 20px; height: 20px; margin-block: 0; align-self: center; object-fit: contain; }
 #scene-reader-dialog .sr-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
 #scene-reader-dialog .sr-header > div:first-child { display: contents; }
 #scene-reader-dialog .sr-header h2 { grid-column: 1; grid-row: 1; min-width: 0; white-space: nowrap; }
@@ -500,8 +500,69 @@
     #scene-reader-dialog .sr-header-actions { gap: 3px; }
     #scene-reader-dialog .sr-header-actions .sr-icon-button { width: 28px; height: 34px; flex-basis: 28px; font-size: 12px; }
     #scene-reader-dialog .sr-header-actions .sr-embedding-button { min-height: 34px; padding: 4px; gap: 3px; font-size: 10.5px; }
-    #scene-reader-dialog .sr-explanation,
-    #scene-reader-dialog .sr-connection-pane .sr-explanation,
-    #scene-reader-dialog .sr-seasonal-caption { font-size: 11px; line-height: 1.35; }
     #scene-reader-dialog .sr-explanation { margin-top: 4px; }
+}
+
+/* Match mobile progression controls to the smaller basic selectors. */
+@media (max-width: 600px) {
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) { font-size: .82rem; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) label:not(.checkbox_label):not(.menu_button) { font-size: .86rem; line-height: 1.3; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) .checkbox_label { min-height: 30px; margin-block: 0; gap: 5px; font-size: .86rem; line-height: 1.3; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) .checkbox_label input[type="checkbox"] { flex: none; width: 16px; height: 16px; margin: 0; padding: 0; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) select.text_pole { min-height: 28px; height: 28px; margin: 0; padding: 2px 6px; font-size: .75rem; line-height: 1.2; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) .sr-settings-card { gap: 4px; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) h3 { font-size: .86rem; }
+    #scene-reader-dialog :is(#sr-tab-flow, #sr-tab-advanced, #sr-tab-conflict) .menu_button { min-height: 28px; padding: 3px 7px; font-size: .75rem; }
+    #scene-reader-dialog #sr-tab-flow .sr-opportunity-controls .sr-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 2px; }
+    #scene-reader-dialog #sr-tab-flow .sr-opportunity-controls .sr-grid-2 label { display: block; margin-bottom: 3px; }
+    #scene-reader-dialog #sr-tab-flow .sr-summary-item strong,
+    #scene-reader-dialog #sr-tab-flow .sr-roll-card span { font-size: .82rem; }
+    #scene-reader-dialog #sr-tab-flow .sr-summary-grid > .sr-empty-small { grid-column: 1 / -1; }
+    #scene-reader-dialog #sr-tab-flow .sr-run-row { flex-direction: row; align-items: center; gap: 6px; margin-block: 8px; }
+    #scene-reader-dialog #sr-tab-flow .sr-run-row > div { flex: 1; }
+    #scene-reader-dialog #sr-tab-flow .sr-run-row .menu_button { flex: none; width: auto; min-width: 110px; }
+}
+
+/* Compact control sizes throughout the reader, without changing field order. */
+#scene-reader-dialog .sr-tabs button { min-height: 28px; padding: 3px 6px; font-size: .75rem; line-height: 1.2; }
+#scene-reader-dialog .sr-tab-panel .menu_button,
+#scene-reader-dialog .sr-tab-panel .sr-action-row .menu_button { flex: 0 1 auto; width: fit-content; min-width: 28px; min-height: 28px; margin: 0; padding: 3px 7px; gap: 4px; font-size: .75rem; line-height: 1.2; }
+#scene-reader-dialog .sr-tab-panel .sr-action-row,
+#scene-reader-dialog .sr-connection-pane .sr-action-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 5px; width: auto; }
+#scene-reader-dialog .sr-tab-panel select.text_pole,
+#scene-reader-dialog .sr-tab-panel input.text_pole:not([type="checkbox"]):not([type="file"]) { box-sizing: border-box; width: min(100%, 280px); max-width: 100%; min-width: 0; min-height: 28px; height: 28px; margin: 0; padding: 2px 6px; font-size: .75rem; line-height: 1.2; }
+#scene-reader-dialog .sr-tab-panel textarea.text_pole { box-sizing: border-box; font-size: .82rem; padding: 6px 8px; }
+#scene-reader-dialog .sr-tab-panel .sr-key-row { width: min(100%, 280px); grid-template-columns: minmax(0, 1fr) 28px; gap: 4px; }
+#scene-reader-dialog .sr-tab-panel .sr-key-row input { width: 100%; }
+#scene-reader-dialog .sr-tab-panel .sr-key-row .menu_button { width: 28px; padding-inline: 0; }
+#scene-reader-dialog .sr-tab-panel .sr-world-item,
+#scene-reader-dialog .sr-tab-panel .sr-character-item { min-height: 32px; padding: 5px 8px; gap: 6px; font-size: .82rem; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-list { gap: 5px; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-item { gap: 4px 7px; padding: 6px 7px; font-size: .76rem; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-item strong { font-weight: 500; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-item small { font-size: 11px; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-item > div { justify-content: flex-start; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-item .menu_button { flex: none; min-height: 28px; padding: 3px 6px; font-size: .75rem; }
+#scene-reader-dialog .sr-tab-panel .sr-intensity-row .sr-intensity-step { flex: none; width: 28px; min-height: 28px; padding: 0; font-size: .875rem; }
+#scene-reader-dialog .sr-tab-panel .sr-intensity-row #sr-progress-intensity-reset { min-height: 28px; padding: 3px 7px; font-size: .75rem; }
+#scene-reader-dialog .sr-tab-panel .sr-character-add-row,
+#scene-reader-dialog .sr-tab-panel .sr-character-kind-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
+#scene-reader-dialog .sr-tab-panel .sr-character-kind-tabs button,
+#scene-reader-dialog .sr-tab-panel .sr-character-preview-tabs button,
+#scene-reader-dialog .sr-tab-panel .sr-character-card-tabs button { box-sizing: border-box; min-height: 28px; padding: 3px 7px; font-size: .75rem; line-height: 1.2; }
+#scene-reader-dialog .sr-tab-panel .sr-plus-button { flex: none; width: 28px; height: 28px; padding: 0; }
+#scene-reader-dialog .sr-tab-panel .sr-help:not([role]):not([aria-live]),
+#scene-reader-dialog .sr-tab-panel .sr-explanation,
+#scene-reader-dialog .sr-tab-panel .sr-connection-pane .sr-explanation,
+#scene-reader-dialog .sr-tab-panel .sr-seasonal-caption { font-size: 10.5px; line-height: 1.35; }
+@media (max-width: 600px) {
+    #scene-reader-dialog .sr-tab-panel { font-size: .82rem; }
+    #scene-reader-dialog .sr-tab-panel .sr-settings-card { gap: 4px; }
+    #scene-reader-dialog .sr-tab-panel .checkbox_label { font-size: .86rem; line-height: 1.3; }
+    #scene-reader-dialog .sr-tab-panel label:not(.checkbox_label):not(.menu_button) { font-size: .86rem; }
+    #scene-reader-dialog .sr-tab-panel h3 { font-size: .86rem; }
+    #scene-reader-dialog .sr-tab-panel .sr-character-step h4,
+    #scene-reader-dialog .sr-tab-panel .sr-record-person-name { font-size: .84rem; }
+    #scene-reader-dialog .sr-tab-panel .sr-version-actions { width: auto; }
+    #scene-reader-dialog .sr-tab-panel .sr-backup-item { grid-template-columns: minmax(0, 1fr); }
 }

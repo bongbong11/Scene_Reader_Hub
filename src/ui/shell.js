@@ -36,7 +36,7 @@ function createWandEntry() {
     wrapper.className = 'extension_container interactable';
     wrapper.id = 'scene-reader-wand';
     wrapper.tabIndex = 0;
-    wrapper.innerHTML = `<div class="list-group-item flex-container flexGap5 interactable" tabindex="0" title="씬판독기 열기"><img class="extensionsMenuExtensionButton sr-wand-mascot" src="${deps.MASCOT_ICON_URL}" width="24" height="24" alt="">씬판독기</div>`;
+    wrapper.innerHTML = `<div class="list-group-item flex-container flexGap5 interactable" tabindex="0" title="씬판독기 열기"><img class="extensionsMenuExtensionButton sr-wand-mascot" src="${deps.MASCOT_ICON_URL}" width="20" height="20" alt="">씬판독기</div>`;
     deps.document.getElementById('extensionsMenu')?.append(wrapper);
     wrapper.addEventListener('click', openSceneReader);
     wrapper.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') openSceneReader(); });

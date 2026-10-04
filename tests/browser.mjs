@@ -159,9 +159,9 @@ try{
         assert.ok(heading.x+heading.width<=layout.buttons[0].left,'title and buttons do not overlap');
         if(width===390){
             assert.equal(await page.locator('.sr-header p').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),12.48);
-            assert.equal(await page.locator('#sr-tab-flow .sr-explanation').first().evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),11);
+            assert.equal(await page.locator('#sr-tab-flow .sr-explanation').first().evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),10.5);
             assert.equal(await page.locator('.sr-injection-credit').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),9);
-            assert.equal(await page.locator('.sr-seasonal-caption').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),11);
+            assert.equal(await page.locator('.sr-seasonal-caption').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),10.5);
 await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot({path:path.join(root,'artifacts','mobile-header.png')});}
     }
     await page.locator('#sr-settings-button').click();
@@ -314,7 +314,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
                 await mkdir(path.join(root,'artifacts'),{recursive:true});
                 await page.screenshot({path:path.join(root,'artifacts',`release-${width}-${tab}.png`)});
             }
-            const bad=await page.locator(`#sr-tab-${tab} button:visible`).evaluateAll(buttons=>buttons.filter(e=>e.clientWidth<28).map(e=>e.textContent));assert.equal(bad.length,0,`${width}/${tab}: narrow buttons`);
+            const bad=await page.locator(`#sr-tab-${tab} button:visible`).evaluateAll(buttons=>buttons.filter(e=>e.getBoundingClientRect().width<28).map(e=>e.textContent));assert.equal(bad.length,0,`${width}/${tab}: narrow buttons`);
         }
     }
     for(const size of [{width:320,height:480},{width:390,height:667},{width:740,height:360}]){

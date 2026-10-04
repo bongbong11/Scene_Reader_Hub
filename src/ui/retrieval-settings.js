@@ -18,6 +18,8 @@ export function renderRetrievalSettings(deps) {
     node('sr-retrieval-model').value = fixedEmbeddingModel(provider) || deps.settings.retrievalModel || deps.RETRIEVAL_PROVIDERS[provider].model;
     node('sr-retrieval-model-row').hidden = provider !== 'nanogpt';
     node('sr-retrieval-key-row').hidden = provider === 'transformers';
+    const saveKeyButton = node('sr-retrieval-key-save');
+    if (saveKeyButton) saveKeyButton.hidden = provider === 'transformers';
     node('sr-retrieval-key-label').textContent = provider === 'vertexai' ? 'Vertex Express API 키' : '선택한 서비스의 API 키';
     node('sr-retrieval-key-help').textContent = provider === 'vertexai'
         ? '저장된 키·서비스 계정은 자동 사용합니다. 새 Express 키만 입력하세요. 서비스 계정 JSON은 SillyTavern에서 설정하세요.'
