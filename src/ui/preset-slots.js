@@ -1,14 +1,14 @@
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
 import { notifySceneReaderToast } from './toasts.js';
 
-export const presetSlotTemplate = `<details class="sr-settings-card sr-settings-collapsible"><summary>주입 위치</summary>
+export const presetSlotTemplate = `<details class="sr-settings-card sr-settings-collapsible"><summary>주입 위치 <small class="sr-injection-credit">Card Inject 코드 이식·수정</small></summary>
 <label for="sr-injection-mode">1. 기본 판정·전개 주입</label><select id="sr-injection-mode" class="text_pole"><option value="depth">기본 · 깊이 0 · system</option><option value="preset">프리셋 항목 앞·뒤</option></select>
 <div id="sr-scene-slot-controls"><label for="sr-scene-slot-target">기준 프롬프트</label><select id="sr-scene-slot-target" class="text_pole"></select><label for="sr-scene-slot-side">삽입 방향</label><select id="sr-scene-slot-side" class="text_pole"><option value="before">앞</option><option value="after">뒤</option></select></div>
 <label for="sr-world-injection-mode">2. 세계관 규칙·시즌 참고 주입</label><select id="sr-world-injection-mode" class="text_pole"><option value="depth">기본 · 깊이 0 · system</option><option value="preset">프리셋 항목 앞·뒤</option></select>
 <div id="sr-world-slot-controls"><label for="sr-world-slot-target">기준 프롬프트</label><select id="sr-world-slot-target" class="text_pole"></select><label for="sr-world-slot-side">삽입 방향</label><select id="sr-world-slot-side" class="text_pole"><option value="before">앞</option><option value="after">뒤</option></select></div>
 <button id="sr-preset-slots-refresh" type="button" class="menu_button">프리셋 목록 새로 읽기</button><p id="sr-preset-slots-status" class="sr-help" aria-live="polite"></p>
-<p class="sr-help">프리셋 항목 주입은 Chat Completion 본생성 요청에만 반영됩니다. 선택한 기준을 찾지 못하면 다른 위치에 넣지 않고 알려드립니다. 저장된 프리셋·자료는 그대로 유지됩니다.</p>
-<button id="sr-clean-legacy-injection" type="button" class="menu_button">이전 임시 주입 정리</button><p class="sr-help">Hub가 등록한 임시 주입만 비우고 현재 결과를 다시 준비합니다. 프리셋·캐릭터·판독 기록은 지우지 않습니다. 이전 매크로는 빈 값으로 처리됩니다.</p></details>`;
+<p class="sr-help sr-explanation">Chat Completion에서 사용할 프리셋 항목과 앞·뒤를 고르세요. 기준을 찾지 못하면 알림을 표시합니다. 저장된 프리셋·자료는 유지됩니다.</p>
+<button id="sr-clean-legacy-injection" type="button" class="menu_button">이전 임시 주입 정리</button><p class="sr-help sr-explanation">Hub의 임시 주입만 정리하고 현재 결과를 다시 준비합니다. 프리셋·캐릭터·판독 기록은 유지됩니다.</p></details>`;
 
 export function renderPresetSlots(deps) {
     const prefs=deps.preferences(),prompts=deps.presetPrompts?.() || [];

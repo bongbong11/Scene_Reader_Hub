@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.1.11');
+assert.equal(manifest.version, '0.1.12');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -85,7 +85,7 @@ for (const id of ['sr-continuity-enabled', 'sr-reasoner-profile', 'sr-reasoner-r
 for (const id of ['sr-continuity-enabled', 'sr-reasoner-profile', 'sr-reasoner-refresh', 'sr-reasoner-test']) assert.match(source, new RegExp(`getElementById\\('${id}'\\)\\?\\.addEventListener`), `${id} requires an event handler`);
 assert.doesNotMatch(source, /id="sr-reasoner-(?:new|edit|save|delete|key|url|model)"/);
 assert.match(source, /id="sr-reset-current-npc"/);
-assert.match(source, /OOC-only는 항상 판독/);
+assert.match(source, /OOC만 입력하면 판독·주입을 건너뜁니다/);
 assert.match(runtimeSource, /ooc\|out\\s\+of\\s\+character\|오오씨\|사담/);
 const oocPattern = /^\s*[\[(]?\s*(?:ooc|out\s+of\s+character|오오씨|사담)\s*:/i;
 for (const text of ['(ooc:', '(OOC:', '  (Ooc:', '[oOc:', '사담:']) assert.ok(oocPattern.test(text), `${text} must pause case-insensitively`);

@@ -24,7 +24,7 @@ export function renderRetrievalSettings(deps) {
         : 'SillyTavern에 저장된 키를 그대로 사용합니다. 키를 새로 등록하거나 바꿀 때만 입력하세요.';
     node('sr-retrieval-google-note').hidden = !fixedEmbeddingModel(provider);
     node('sr-retrieval-google-note').textContent = provider === 'vertexai'
-        ? 'Gemini 임베딩 모델과 리전(global)은 자동으로 설정됩니다. SillyTavern에 저장된 인증 정보를 사용합니다.'
+        ? '모델·리전(global)은 자동 설정됩니다. SillyTavern에 저장된 Vertex 인증 정보를 사용합니다.'
         : '기존 Google AI Studio 키 설정을 유지하고 있습니다. Vertex 키와는 호환되지 않습니다.';
 }
 

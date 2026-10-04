@@ -61,7 +61,7 @@ function setFormValues() {
     const debugStatus = deps.document.getElementById('sr-ooc-debug-status');
     if (debugStatus) debugStatus.textContent = deps.debugInjectionArmed
         ? '대기 중 · 다음 OOC-only 응답에 직전 주입문을 한 번 유지합니다.'
-        : '문제 확인용 1회 기능입니다. 다음 입력이 OOC-only일 때만 직전 주입문을 그대로 유지하며, 그 응답은 상태나 이행 검증에 반영하지 않습니다.';
+        : '다음 OOC-only에 직전 주입문을 한 번 유지합니다. 해당 응답은 상태 저장·이행 검증에 반영하지 않습니다.';
     const runButton = deps.document.getElementById('sr-run');
     if (runButton && !deps.judgeInFlight) runButton.disabled = !deps.settings.enabled;
     deps.updateKeyStatus();
@@ -69,8 +69,8 @@ function setFormValues() {
 
     const advancedNote = deps.document.getElementById('sr-basic-progression-note');
     if (advancedNote) advancedNote.textContent = prefs.advancedEnabled
-        ? '고급 이벤트와 기본 전개 성향이 함께 작동합니다. 서술의 속도와 호흡은 메인 프롬프트에 명시된 지침을 따릅니다.'
-        : '기본 전개는 계속 유지됩니다. 새 생성과 돌발은 아래에서 조절합니다. 글의 속도·호흡은 프리셋을 따릅니다.';
+        ? '고급 이벤트에도 기본 전개 성향을 함께 적용합니다. 글의 호흡은 프리셋 지침을 참고합니다.'
+        : '기본 전개는 유지됩니다. 새 사건·인물과 돌발은 아래에서 조절하세요.';
     const advancedResults = deps.document.getElementById('sr-advanced-results');
     if (advancedResults) advancedResults.hidden = !prefs.advancedEnabled;
     renderOpportunitySettings(deps);

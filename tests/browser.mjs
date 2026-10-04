@@ -129,6 +129,18 @@ try{
     assert.equal(inferenceRequests(),0,'startup performs no inference or embedding');
     assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
     await page.locator('#scene-reader-quick-button').click();
+    assert.equal(await page.locator('#sr-hub-trace-panel').isVisible(),false,'trace starts hidden for ordinary users');
+    assert.equal(await page.locator('#sr-copy-debug').isVisible(),true,'whole diagnostic copy remains accessible');
+    assert.equal(await page.locator('.sr-size-bar, .sr-size-caption').count(),0,'no dedicated resize footer');
+    assert.equal(await page.locator('#scene-reader-wand').innerText(),'씬판독기');
+    await page.waitForFunction(()=>document.querySelector('#scene-reader-wand img')?.naturalWidth>0);
+    assert.equal(await page.locator('#scene-reader-wand img').getAttribute('src'),await page.locator('#scene-reader-quick-button img').getAttribute('src'));
+    await page.evaluate(()=>localStorage.setItem('scene-reader-owner-unlocked-v1','yes'));
+    await page.locator('#sr-close').click();await page.locator('#scene-reader-quick-button').click();
+    assert.equal(await page.locator('#sr-hub-trace-panel').isVisible(),true,'existing developer unlock reveals trace');
+    await page.evaluate(()=>localStorage.removeItem('scene-reader-owner-unlocked-v1'));
+    await page.locator('#sr-close').click();await page.locator('#scene-reader-quick-button').click();
+    assert.equal(await page.locator('#sr-hub-trace-panel').isVisible(),false,'relocking hides trace');
     for(const width of [320,390,600,1280]) {
         await setViewportSize({width,height:850});
         const layout=await page.locator('.sr-header-actions').evaluate(node=>{
@@ -139,10 +151,18 @@ try{
         assert.ok(layout.headerRight-layout.right<18,'header actions stay right aligned at '+width);
         assert.ok(layout.scroll<=layout.client+1,'header actions fit at '+width);
         assert.ok(layout.buttons.every(button=>Math.abs(button.top-layout.buttons[0].top)<2),'header buttons stay on one row at '+width);
-        assert.ok(layout.buttons.every(button=>button.width>=44 && button.height>=44),'touch targets remain usable at '+width);
+        assert.ok(layout.buttons.every(button=>button.width>=28 && button.height>=34),'touch targets remain usable at '+width);
         assert.ok(layout.buttons.every((button,index)=>button.left>=0 && button.right<=width && (index===0||button.left>=layout.buttons[index-1].right)),'header controls stay in viewport without overlap at '+width);
         assert.equal(await page.locator('.sr-header-actions').evaluate(node=>[...node.querySelectorAll('button')].every(button=>{const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));})),true,'header controls are reachable at '+width);
-        if(width===390){await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot({path:path.join(root,'artifacts','mobile-header.png')});}
+        const heading=await page.locator('.sr-header h2').boundingBox();
+        assert.ok(Math.abs(heading.y+heading.height/2-layout.buttons[0].top-layout.buttons[0].height/2)<2,'title and buttons share a row');
+        assert.ok(heading.x+heading.width<=layout.buttons[0].left,'title and buttons do not overlap');
+        if(width===390){
+            assert.equal(await page.locator('.sr-header p').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),12.48);
+            assert.equal(await page.locator('#sr-tab-flow .sr-explanation').first().evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),11);
+            assert.equal(await page.locator('.sr-injection-credit').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),9);
+            assert.equal(await page.locator('.sr-seasonal-caption').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),11);
+await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot({path:path.join(root,'artifacts','mobile-header.png')});}
     }
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-close').click();
@@ -226,7 +246,7 @@ try{
             const toast=page.locator('.sr-scene-toast');
             await page.waitForFunction(()=>[...document.querySelectorAll('.sr-scene-toast img')].every(image=>image.complete&&image.naturalWidth>0));
             const layout=await toast.evaluate(node=>({width:node.getBoundingClientRect().width,scroll:node.scrollWidth,client:node.clientWidth,mascot:parseFloat(getComputedStyle(node.querySelector('.sr-toast-mascot')).width),font:parseFloat(getComputedStyle(node.querySelector('.sr-toast-message')).fontSize),pose:node.querySelector('.sr-toast-pose').src,center:node.getBoundingClientRect().left+node.getBoundingClientRect().width/2,viewport:innerWidth}));
-            assert.ok(layout.width<=width-16&&layout.width>240,`${width}/${state}: toast stays within screen`);
+            assert.ok(layout.width<=Math.min(width-16,width<=600?300:340)&&layout.width>100,`${width}/${state}: toast stays within screen`);
             assert.ok(layout.scroll<=layout.client,`${width}/${state}: no text clipping`);
             assert.ok(Math.abs(layout.center-layout.viewport/2)<2,`${width}/${state}: toast centered`);
             assert.equal(layout.mascot,width<=600?64:75);
@@ -243,6 +263,19 @@ try{
         }
         assert.equal(new Set(poseFiles).size,7,'every notification state has its own pose');
     }
+    for(const width of [320,390,1280]) {
+        await setViewportSize({width,height:850});
+        const sizes=[];
+        for(const message of ['완료','연결 확인에 실패했습니다. 저장된 인증 정보와 선택한 서비스를 확인한 뒤 다시 시도하세요. '.repeat(8)]) {
+            await page.evaluate(message=>toastTest.current=toastTest.notifySceneReaderToast(window,'error',message,'씬판독기',{timeOut:0}),message);
+            const layout=await page.locator('.sr-scene-toast').evaluate(node=>{const text=node.querySelector('.sr-toast-message'),r=node.getBoundingClientRect();return {width:r.width,height:r.height,center:r.left+r.width/2,scroll:node.scrollWidth,client:node.clientWidth,textScroll:text.scrollHeight,textHeight:text.clientHeight};});
+            assert.ok(Math.abs(layout.center-width/2)<2,'short and long error notifications stay centered');
+            assert.ok(layout.scroll<=layout.client&&layout.textScroll<=layout.textHeight,'long error is fully wrapped');
+            sizes.push(layout);await page.locator('.sr-scene-toast').click();
+        }
+        assert.ok(sizes[0].width<sizes[1].width,'short notification shrinks to content');
+        assert.ok(sizes[0].height<=(width<=600?80:91),'compact padding preserves image size');
+    }
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.evaluate(()=>toastTest.current=toastTest.notifySceneReaderToast(window,'info','잠깐 비켜드릴게요♡','앗, 둘만의 시간이네요!',{sceneState:'paused'}));
     assert.equal(await page.locator('.sr-toast-mascot').evaluate(node=>getComputedStyle(node).animationName),'none');
@@ -254,12 +287,14 @@ try{
         const layout=await page.evaluate(()=>{
             const dialog=document.getElementById('scene-reader-dialog'),panel=document.querySelector('.sr-tab-panel:not([hidden]).active')||[...document.querySelectorAll('.sr-tab-panel')].find(node=>getComputedStyle(node).display!=='none');
             panel.scrollTop=panel.scrollHeight;
-            const rect=panel.getBoundingClientRect(),last=panel.lastElementChild.getBoundingClientRect(),footer=document.querySelector('.sr-size-bar').getBoundingClientRect(),frame=dialog.getBoundingClientRect();
+            const rect=panel.getBoundingClientRect(),last=panel.lastElementChild.getBoundingClientRect(),frame=dialog.getBoundingClientRect();
             const grip=document.getElementById('sr-resize-handle').getBoundingClientRect();
-            return {panelBottom:rect.bottom,lastBottom:last.bottom,footerTop:footer.top,footerBottom:footer.bottom,frameBottom:frame.bottom,frameRight:frame.right,frameTop:frame.top,frameLeft:frame.left,height:innerHeight,width:innerWidth,client:panel.clientHeight,grip:{height:grip.height,width:grip.width}};
+            return {panelBottom:rect.bottom,lastBottom:last.bottom,frameBottom:frame.bottom,frameRight:frame.right,frameTop:frame.top,frameLeft:frame.left,height:innerHeight,width:innerWidth,client:panel.clientHeight,grip:{height:grip.height,width:grip.width,right:grip.right,bottom:grip.bottom,top:grip.top}};
         });
         assert.ok(layout.frameTop>=0&&layout.frameLeft>=0&&layout.frameBottom<=layout.height+1&&layout.frameRight<=layout.width+1,`${label}: window stays inside viewport`);
-        assert.ok(layout.panelBottom<=layout.footerTop+1,`${label}: panel reserves visible footer space`);
+        assert.ok(layout.panelBottom<=layout.frameBottom+1,`${label}: panel stays in window`);
+        assert.ok(layout.grip.bottom<=layout.frameBottom&&layout.grip.right<=layout.frameRight,`${label}: grip stays in corner`);
+        assert.ok(layout.lastBottom<=layout.grip.top+1,`${label}: last content clears grip`);
         assert.ok(layout.lastBottom<=layout.panelBottom+1,`${label}: last content is reachable by scrolling`);
         assert.ok(layout.client>40,`${label}: panel remains usable`);
         assert.ok(layout.grip.height>=44&&layout.grip.width>=44,`${label}: drag handle has a large touch target`);
