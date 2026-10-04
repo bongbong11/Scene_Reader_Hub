@@ -1,5 +1,6 @@
 import { applyDecisionPolicy } from "./policy.js";
 export const FALLBACKS = {
+    event_closure: 'unclear',
     basic_move: 'continue',
     progress_need: 'unclear',
     arrival_mode: 'none',
@@ -55,6 +56,7 @@ export const FALLBACKS = {
 };
 
 const THRESHOLDS = {
+    event_closure: 0.8,
     basic_move: 0.55,
     progress_need: 0.58,
     arrival_mode: 0.55,

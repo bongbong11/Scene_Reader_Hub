@@ -64,19 +64,19 @@ f.ctx.chat=first;
 f.run(`record(true);settings.recentTurns=3;record().preferences.appearanceChance=100;record().preferences.villainEnabled=false;record().preferences.advancedEnabled=false;record().npcProfile={id:'old-person',role:'witness',aim:'watch',status:'active'};`);
 f.sandbox.testJev=async body=>{
     requests.push(body);
-    const choices={scene_level:'0',scene_phase:'normal',scene_evidence:'none',primary_focus:'npc',secondary_focus:'none',npc_route:'reuse',npc_target:'stored_generated',arrival_mode:'visit',npc_role:'participant',npc_weight:'brief',npc_presence:'present',verification_npc:'fulfilled'};
+    const choices={scene_level:'0',scene_phase:'normal',scene_evidence:'none',primary_focus:'npc',secondary_focus:'none',npc_route:'reuse',npc_target:'stored_generated',person_opportunity:'candidate_1',arrival_mode:'visit',npc_role:'participant',npc_weight:'brief',npc_presence:'present',verification_npc:'fulfilled',verification_addition_0:'fulfilled'};
     return {answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:Object.hasOwn(q.criteria,choices[key])?choices[key]:Object.hasOwn(q.criteria,'none')?'none':Object.keys(q.criteria)[0],confidence:1}]))};
 };
 f.run('callJev=testJev');await f.run('runJudge({force:true})');
-assert.equal(f.run('record().lastJudgment.decisions.npc_route'),'create');
+assert.equal(f.run('record().lastJudgment.decisions.npc_route'),'reuse');
 assert.equal(f.run('record().lastJudgment.drawDiagnostics.person.status'),'planned');
-const candidate=f.run('record().appearanceOffer.candidate.id');
+const candidate=f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id');
 assert.equal(f.run('record().npcProfile.id'),'old-person','planning must not replace established data');
-await f.run('runJudge({force:true})');assert.equal(f.run('record().appearanceOffer.candidate.id'),candidate);
+await f.run('runJudge({force:true})');assert.equal(f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id'),candidate);
 f.ctx.chat.push({is_user:false,mes:'The visitor arrives and greets the witness.'});await f.run('onCharacterMessageReceived(1)');
 f.ctx.chat.push({is_user:true,mes:'Welcome the visitor.'});await f.run('runJudge({force:true})');
 assert.equal(f.run('record().npcProfile.id'),candidate);assert.equal(f.run('record().generatedCast[0].profile.id'),'old-person');
-assert.notEqual(f.run('record().appearanceOffer.candidate.id'),candidate,'continued RP permits another candidate with an active NPC');
+assert.notEqual(f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id'),candidate,'continued RP permits another candidate with an active NPC');
 await f.run('runJudge({force:true})');
 assert.ok(requests.at(-1).questions.npc_target.criteria.generated_0,'preserved actor remains selectable');
 assert.equal(requests.at(-1).state.previously_generated_people.npcs[0].id,'old-person');
@@ -85,13 +85,13 @@ f.ctx.chat.push({is_user:false,mes:'Another visitor arrives.'});await f.run('onC
 await f.run("onBeforeGeneration('normal',{},false)");
 assert.notEqual(f.run('record().drawOpportunityKey'),priorKey,'empty send after new RP gets a fresh ticket');
 assert.ok(f.run('record().pendingPlan'),'empty send must stage a plan even with the same user-input key');
-const blankCandidate=f.run('record().appearanceOffer.candidate.id');
+const blankCandidate=f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id');
 f.ctx.chat.push({is_user:false,mes:'The next visitor joins the conversation.'});await f.run('onCharacterMessageReceived(4)');
 f.run('hub.endCycle()');await f.run("onBeforeGeneration('normal',{},false)");
 assert.equal(f.run('record().npcProfile.id'),blankCandidate,'blank-send arrivals commit after output verification');
 // Reusing a preserved actor must reach the actual prompt, and changing the
 // decision before output must replace the pending plan as well as the display.
-f.run("record().preferences.appearanceChance=1;");
+f.run("record().preferences.newGenerationEnabled=false;");
 f.ctx.chat.push({is_user:true,mes:'Ask the original witness to answer.'});
 f.sandbox.testReuse=async body=>({answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>{
     const picks={scene_level:'0',scene_phase:'normal',scene_evidence:'none',primary_focus:'npc',secondary_focus:'none',npc_route:'reuse',npc_target:'generated_0',arrival_mode:'none',npc_role:'participant',npc_weight:'brief',npc_presence:'present',verification_npc:'missed'};
@@ -107,15 +107,15 @@ const e=fixture();e.run("record(true);Object.assign(record().preferences,{advanc
 e.ctx.chat=[{is_user:true,mes:'Explore the public square.'}];
 while(drawRandom(drawOpportunityKey({identity:e.run('stateChatKey()'),chat:e.ctx.chat}),'event')()>0.75)e.ctx.chat.push({is_user:false,mes:'The conversation continues in the square.'});
 e.sandbox.eventJev=async body=>({answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>{
-    const picks={scene_level:'0',scene_phase:'normal',scene_evidence:'none',primary_focus:'new_event',secondary_focus:'none',advanced_entry:'open',advanced_route:'create',advanced_cause:'location',advanced_element:'objective',advanced_move:'seed',arrival_mode:'none',verification_event:'fulfilled'};
+    const picks={scene_level:'0',scene_phase:'normal',scene_evidence:'none',primary_focus:'new_event',secondary_focus:'none',event_opportunity:'candidate_1',advanced_entry:'open',advanced_route:'create',advanced_cause:'location',advanced_element:'objective',advanced_move:'seed',arrival_mode:'none',verification_event:'fulfilled'};
     return [key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:Object.hasOwn(q.criteria,picks[key])?picks[key]:Object.hasOwn(q.criteria,'none')?'none':Object.keys(q.criteria)[0],confidence:1}];
 }))});
 e.run('callJev=eventJev');await e.run('runJudge({force:true})');
 assert.equal(e.run('record().lastJudgment.drawDiagnostics.event.status'),'planned');
 assert.match(e.run('record().lastJudgment.payload'),/<ADVANCED_PROGRESSION/);
-assert.ok(e.run('record().pendingPlan.preparedStateSnapshot.eventProfile'));
+assert.ok(e.run("record().pendingPlan.additions.find(x=>x.feature==='event').profile"));
 assert.equal(Boolean(e.run('record().eventProfile')),false,'event remains planned until output verification');
-e.sandbox.eventJev=async body=>({answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:Object.hasOwn(q.criteria,'none')?'none':Object.keys(q.criteria)[0],confidence:1}]))});
+e.sandbox.eventJev=async body=>({answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:key==='event_opportunity'?'blocked_user_constraint':Object.hasOwn(q.criteria,'none')?'none':Object.keys(q.criteria)[0],confidence:1}]))});
 e.run('callJev=eventJev');await e.run('runJudge({force:true})');
 assert.equal(e.run('record().lastJudgment.decisions.advanced_route'),'none');
 assert.equal(e.run('record().pendingPlan.decisions.advanced_route'),'none','manual rejudge must replace the unconsumed prior plan');

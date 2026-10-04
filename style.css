@@ -475,3 +475,11 @@
     #scene-reader-dialog .sr-connection-card .sr-connection-grid { grid-template-columns:minmax(0,1fr); }
     #scene-reader-dialog .sr-connection-card .menu_button { min-height:40px; }
 }
+
+/* New generation controls share the existing theme and flow layout. */
+#scene-reader-dialog .sr-opportunity-controls { grid-column: 1 / -1; }
+#scene-reader-dialog .sr-opportunity-controls .checkbox_label { min-height: 44px; }
+#scene-reader-dialog .sr-opportunity-controls select { min-height: 44px; }
+#scene-reader-dialog .sr-opportunity-controls .sr-grid-2 { margin-top: 8px; }
+#scene-reader-dialog .sr-opportunity-controls select:disabled { opacity: .5; }
+@media (max-width: 340px) { #scene-reader-dialog .sr-opportunity-controls .sr-grid-2 { grid-template-columns: 1fr; } }

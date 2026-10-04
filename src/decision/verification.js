@@ -1,5 +1,6 @@
 
 
+import {commitOpportunityState} from '../scene/opportunity-state.js';
 export function createDecisionVerification(deps) {
 function registerSceneOpportunity(rec, key) {
     const marker = String(key || '');
@@ -21,6 +22,12 @@ async function commitPriorVerification(rec, decisions, run = null) {
     const verification = deps.verificationSummary(pending, decisions);
     const before = JSON.parse(JSON.stringify(pending.stateSnapshot || deps.reversibleStateSnapshot(rec)));
     const result = deps.commitVerifiedPlan(rec, pending, verification);
+    const additions=commitOpportunityState(rec,pending,decisions);
+    for(const item of additions)if(item.verification==='fulfilled'||item.feature==='event'&&item.verification==='partial') {
+        result.committedEffects[`addition_${item.feature}`]=item.verification==='fulfilled'?'full':'partial';
+        result.committed=true;
+    }
+    for(const item of additions)deps.noteDiagnostic?.('opportunity_verification',{module:'src/scene/opportunity-state.js',feature:item.feature,templateId:item.templateId,reasonCode:item.verification});
     const followed = rec.continuity?.followups?.find((item) => item.id === pending.decisions?.selected_continuity_id);
     if (followed) {
         followed.lastOffered = rec.sceneOpportunity;

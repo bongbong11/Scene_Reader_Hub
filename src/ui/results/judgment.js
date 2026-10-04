@@ -3,6 +3,7 @@ import { DECISION_LABELS } from "../../../prompt-library.js";
 import { selectExecutionCorrectionKeys } from "../../scene/correction-selection.js";
 import { displayValue, verificationText } from "../presentation.js";
 import {appearanceRollText} from '../appearance-status.js';
+import {opportunityRows} from '../opportunity-results.js';
 
 export function createJudgmentView(deps) {
 function decisionTitle(key) {
@@ -74,7 +75,8 @@ function renderJudgment() {
     const actionPlan = judgment.actionPlan || d.action_plan || {};
     const excludedRoutes = (actionPlan.excluded || []).map((item) => `${item.label}: ${item.reason}`).join(' / ');
     summary.innerHTML = [
-        ['중심 전개', actionPlan.primary?.label || resultLabel('primary_focus', d.primary_focus)],
+        ...opportunityRows(judgment,deps.record()?.lastOpportunityVerification||[]),
+        [judgment.opportunityPlan ? '기존 진행' : '중심 전개', actionPlan.primary?.label || resultLabel('primary_focus', d.primary_focus)],
         ['함께 넣는 변화', actionPlan.secondary?.label || '없음'],
         ['같은 장면 안의 반응', (actionPlan.overlays || []).map(item=>item.label).join(' · ') || '중심 전개에 포함'],
         ['이번에 넣지 않은 내용', excludedRoutes || '없음'],

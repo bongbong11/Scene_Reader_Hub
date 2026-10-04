@@ -3,6 +3,7 @@ import { checkCompilerCopies } from './browser-compiler-copies.mjs';
 import { checkPresetSlots } from './browser-preset-slots.mjs';
 import { checkRecordProtection } from './browser-record-protection.mjs';
 import { checkRecoverySettings } from './browser-recovery-settings.mjs';
+import {checkOpportunitySettings} from './browser-opportunity-settings.mjs';
 import { createRecordBank } from '../src/characters/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
@@ -139,6 +140,8 @@ try{
         assert.ok(layout.scroll<=layout.client+1,'header actions fit at '+width);
         assert.ok(layout.buttons.every(button=>Math.abs(button.top-layout.buttons[0].top)<2),'header buttons stay on one row at '+width);
         assert.ok(layout.buttons.every(button=>button.width>=44 && button.height>=44),'touch targets remain usable at '+width);
+        assert.ok(layout.buttons.every((button,index)=>button.left>=0 && button.right<=width && (index===0||button.left>=layout.buttons[index-1].right)),'header controls stay in viewport without overlap at '+width);
+        assert.equal(await page.locator('.sr-header-actions').evaluate(node=>[...node.querySelectorAll('button')].every(button=>{const r=button.getBoundingClientRect();return button.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));})),true,'header controls are reachable at '+width);
         if(width===390){await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot({path:path.join(root,'artifacts','mobile-header.png')});}
     }
     await page.locator('#sr-settings-button').click();
@@ -528,6 +531,8 @@ try{
         assert.equal(await page.locator('#'+id).inputValue(),value);
     }
     await page.locator('[data-sr-tab="advanced"]').click();
+    await page.locator('#sr-advanced-enabled').check();
+    await page.locator('[data-sr-tab="flow"]').click();
     await page.locator('#sr-advanced-style').selectOption('active');
     await page.locator('[data-sr-tab="flow"]').click();await page.locator('[data-sr-tab="advanced"]').click();
     assert.equal(store.chat.preferences.advancedStyle,'active');
@@ -985,6 +990,7 @@ try{
     await checkBundlesAndProviders(page,store,requests,root,setViewportSize);
     await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
     await checkRecoverySettings(page,store,requests,setViewportSize);
+    await checkOpportunitySettings(page,store,requests,setViewportSize,root);
     assert.deepEqual(errors,[]);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

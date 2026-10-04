@@ -1,6 +1,9 @@
+import {opportunityDetail,resolveOpportunities} from '../scene/opportunity-policy.js';
+import {opportunitySummary,reportOpportunities} from '../debug/opportunity-events.js';
+import {archiveCurrentEvent} from '../scene/state-effects.js';
 import {drawDiagnostics} from './draw-diagnostics.js';
 import { resolveCharacterPresence } from '../character/presence.js';
-import { makeAppearanceOffer, addAppearanceQuestions, applyAppearanceOffer } from "../scene/appearance.js";
+import { applyAppearanceOffer } from "../scene/appearance.js";
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
 
 export function createDecisionResolution(deps) {
@@ -8,7 +11,9 @@ async function resolveDecision(run,frame) {
 (frame.details = {});
         for (const key of Object.keys(frame.questions)) {
             const choices = Object.keys(frame.questions[key]?.criteria || {});
-            frame.details[key] = key.startsWith('sexual_')
+            frame.details[key] = key.endsWith('_opportunity')
+                ? opportunityDetail(frame.data.answers[key],frame.opportunityOffers?.[key.split('_')[0]])
+                : key.startsWith('sexual_')
                 ? applySexualChoice(frame.data.answers[key], choices)
                 : frame.questions[key]?.type === 'noul' && /^character_\d+_record_\d+$/.test(key)
                 ? deps.applyRecordRelevance(frame.data.answers[key])
@@ -26,7 +31,8 @@ async function resolveDecision(run,frame) {
         (frame.stateBefore = deps.reversibleStateSnapshot(frame.rec));
         deps.commitObservedState(frame.rec, frame.decisions, frame.context.observationKey);
         if (['user_established', 'both'].includes(frame.decisions.context_change_source)) deps.registerSceneOpportunity(frame.rec, `user:${frame.context.contextKey}`);
-        applyAppearanceOffer(frame.rec, frame.details, frame.decisions);
+        if(frame.decisions.event_closure==='completed'&&frame.rec.eventProfile?.phase==='aftermath'){archiveCurrentEvent(frame.rec,'completed');frame.rec.eventProfile=null;}
+        if(!frame.opportunityOffers)applyAppearanceOffer(frame.rec, frame.details, frame.decisions);
         deps.coordinateDecisions(frame.rec, frame.details, frame.decisions);
         if (frame.prefs.settingsContract < 3 && ['create', 'replace'].includes(frame.decisions.npc_route) && frame.decisions.npc_identity_route === 'reuse_existing') {
             deps.overrideDecision(frame.details, frame.decisions, 'npc_route', 'reuse', `인물 판정 경로: ${frame.decisions.npc_identity_route}`);
@@ -117,6 +123,15 @@ async function resolveDecision(run,frame) {
             for (const key of ['npc_role', 'npc_weight', 'npc_knowledge', 'npc_disclosure']) deps.overrideDecision(frame.details, frame.decisions, key, 'none', frame.decisions.npc_route === 'waiting' ? '인물 등장 추첨 대기' : '이번 응답 NPC 실행 없음');
         }
         
+        frame.additions=frame.opportunityOffers?resolveOpportunities(frame.opportunityOffers,frame.data.answers):[];
+        if(frame.opportunityOffers){
+            frame.rec.appearanceOffer={...frame.opportunityOffers.person,candidates:undefined};
+            frame.rec.lastNpcRoll={...frame.rec.appearanceOffer};
+            frame.staged.lastNpcRoll={...frame.rec.appearanceOffer};
+            frame.opportunityPlan=opportunitySummary(frame.opportunityOffers,frame.additions);
+            frame.finalPlan.additions=frame.opportunityPlan.additions;
+            reportOpportunities(deps.noteDiagnostic,frame.opportunityPlan);
+        }
  frame.drawDiagnostics=drawDiagnostics(frame);
  deps.noteDiagnostic?.('draw_opportunities',{event:frame.drawDiagnostics.event.status,person:frame.drawDiagnostics.person.status,drawKey:frame.drawDiagnostics.key});
  deps.noteDiagnostic?.('policy_candidates',{primary:frame.finalPlan.primary?.id||'',secondary:frame.finalPlan.secondary?.id||'',excludedCount:frame.finalPlan.excluded.length,exclusions:frame.finalPlan.excluded.map(x=>x.id+': '+x.reason)});

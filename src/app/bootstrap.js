@@ -331,6 +331,7 @@ let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged
 
 const promptObserver=createPromptObserver({
     getExpected:()=>runtime.activeGenerationCycle?.injection,
+    getRecord:()=>record(),
     getNames:()=>({userName:getContext().name1,characterName:getContext().name2}),
     getCycleId:()=>hub.snapshot().state.cycleId,
     report:(...args)=>hub.report(...args),
@@ -905,7 +906,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,version:'0.1.10',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,version:'0.1.11',copyText:value=>copyText(value)});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot()});

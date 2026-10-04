@@ -1,3 +1,4 @@
+import {additionBlocks,incorporateAdditions} from './opportunity.js';
 import { selectExecutionCorrectionKeys } from "../scene/correction-selection.js";
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
 
@@ -55,16 +56,22 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             ? frame.npcTargets[Number(frame.decisions.npc_target.slice(6))] || null : null);
         (frame.correctionSelection = selectExecutionCorrectionKeys(frame.decisions, frame.details));
         (frame.payload = deps.buildInjection({ settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details }));
+        frame.additionBlocks=additionBlocks(frame.additions||[],frame.prefs,Boolean(frame.rec.eventProfile));
+        frame.payload=incorporateAdditions(frame.payload,frame.additionBlocks,frame.prefs);
         (frame.finalContinuityCacheKey = deps.settings.continuityEnabled
             ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id) })
             : '');
         (frame.rawChoices = Object.fromEntries(Object.entries(frame.data.answers || {}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));
         frame.rec.lastJudgment = { details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'', worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
+        frame.rec.lastJudgment.opportunityPlan=frame.opportunityPlan||null;
+        frame.rec.lastJudgment.additionBlocks=frame.additionBlocks;
         frame.rec.lastJudgment.correctionSelection = frame.correctionSelection;
         frame.rec.lastJudgment.drawDiagnostics=frame.drawDiagnostics;
         if (frame.rec.lastStateInput !== frame.inputKey || !frame.rec.pendingPlan) {
             const pendingOffset = String(frame.pendingUserText || '').trim() ? 1 : 0;
             frame.rec.pendingPlan = {
+                additions: structuredClone(frame.additions||[]),
+                opportunityKey: frame.opportunityOffers?.key||null,
                 inputKey: frame.inputKey,
                 sourceKey: frame.sourceKey,
                 generationMode: 'rp',

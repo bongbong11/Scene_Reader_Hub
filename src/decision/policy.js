@@ -1,5 +1,6 @@
+import {additionVerificationQuestions} from '../scene/opportunity-policy.js';
 export const OBSERVATION_KEYS = new Set([
-    'advanced_world_rules', 'scene_state', 'conflict_state', 'relationship_motion', 'trust_signal',
+    'event_closure', 'advanced_world_rules', 'scene_state', 'conflict_state', 'relationship_motion', 'trust_signal',
     'intimacy_signal', 'romance_evidence', 'counterevidence',
     'unresolved', 'event_state', 'event_valence', 'event_blocker',
     'progress_need', 'resolution_readiness', 'npc_presence', 'npc_valence', 'npc_knowledge_fit', 'context_change_source', 'continuity_trigger',
@@ -101,7 +102,7 @@ const EFFECT_LABELS = {
 
 export function buildVerificationQuestions(pendingPlan) {
     if (!pendingPlan?.outputText || !Array.isArray(pendingPlan.effects)) return {};
-    return Object.fromEntries(pendingPlan.effects.map((effect) => [`verification_${effect}`, {
+    return {...additionVerificationQuestions(pendingPlan),...Object.fromEntries(pendingPlan.effects.map((effect) => [`verification_${effect}`, {
         type: 'choice',
         instructions: effect === 'progress'
             ? 'Evaluate only the immediately following CHARACTER output. Material progress means that the output actually changes an active exchange, feeling, thought, decision, relationship pressure, event, access condition, knowledge state, action, or consequence. A quiet but specific new emotional or internal development counts; loud action is not required. Rephrasing, atmosphere, preparation, warning, repeated questions, or handing the turn back without a concrete step is not progress. Do not use the current USER reaction as proof.'
@@ -112,7 +113,7 @@ export function buildVerificationQuestions(pendingPlan) {
             missed: 'The prior CHARACTER output omitted, evaded, or replaced the planned effect.',
             not_applicable: 'The pending plan did not actually require this effect or the output cannot be evaluated.',
         },
-    }]));
+    }]))};
 }
 
 export function verificationSummary(pendingPlan, decisions = {}) {

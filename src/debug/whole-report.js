@@ -1,4 +1,5 @@
 import { latestStateEventForChat } from '../character/state-contract.js';
+import {safeOpportunityPlan,safeOpportunityVerification} from './opportunity-events.js';
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const symbol = value => typeof value === 'string' && /^[a-z0-9_]{1,80}$/.test(value) ? value : null;
 // Copy diagnostic structure, never names, file contents, explanations or model prose.
@@ -7,7 +8,7 @@ export function wholeDiagnosticReport({execution,judgment,record,chat,fingerprin
     const event=Array.isArray(chat)?latestStateEventForChat(record,chat,fingerprint):null;
     const capture=event?.capture || (Array.isArray(chat)?null:record?.characterStateCapture);
     const fields=['a','c','anger','joy','fear','sadness'];
-    return {...execution,status:judgment?'judgment_available':'no_judgment',
+    return {...execution,opportunities:safeOpportunityPlan(judgment?.opportunityPlan),opportunityVerification:safeOpportunityVerification(record?.lastOpportunityVerification),status:judgment?'judgment_available':'no_judgment',
         judgedAt:judgment?.judgedAt || null,
         scene:judgment?.sceneIntimacy ? {route:symbol(judgment.sceneIntimacy.route),level:number(judgment.sceneIntimacy.level),phase:symbol(judgment.sceneIntimacy.phase),confirmation:symbol(judgment.sceneIntimacy.confirmation),hasError:Boolean(judgment.sceneIntimacy.error)} : null,
         jevOriginalChoices:Object.fromEntries(details.map(([key])=>{const answer=judgment.rawChoices?.[key] || {};return [key,{choice:symbol(answer.choice),noul:number(answer.noul),confidence:number(answer.confidence)}];})),

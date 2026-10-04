@@ -45,6 +45,8 @@ export const CHAT_DEFAULTS = {
     progressIntensity: 1,
     characterVolume: 'generous',
     npcRecordLimit: 3,
+    newGenerationEnabled: true,
+    spontaneousMode: 'off',
     developmentStyle: 'balanced',
     progressionMode: 'natural',
     judgmentStyle: 'balanced',

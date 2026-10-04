@@ -1,3 +1,4 @@
+import {bindOpportunitySettings} from '../opportunity-settings.js';
 import { bindEmbeddingMaintenance } from '../embedding-maintenance.js';
 import { wholeDiagnosticReport } from '../../debug/whole-report.js';
 import { bindRetrievalSettings } from '../retrieval-settings.js';
@@ -14,6 +15,7 @@ import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
 export function createFormBindings(deps) {
 function bindForm() {
     bindPresetSlots(deps);
+    bindOpportunitySettings(deps);
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());
     for(const id of ['sr-world-edit-name','sr-world-edit-prompt','sr-world-advanced-json'])deps.document.getElementById(id)?.addEventListener('input',updateWorldCopy);
     deps.document.getElementById('sr-world-profile')?.addEventListener('change',updateWorldCopy);

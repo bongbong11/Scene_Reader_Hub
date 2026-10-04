@@ -22,4 +22,6 @@ for(const test of ['tests/hub-recovery-and-presence.mjs','tests/hub-emotion-cont
 }
 const stopChecks=spawnSync(process.execPath,['tests/hub-stop-boundaries.mjs'],{cwd:root,stdio:'inherit'});
 if(stopChecks.status!==0)process.exit(stopChecks.status||1);
+const opportunityChecks=spawnSync(process.execPath,['tests/hub-opportunity-upgrade.mjs'],{cwd:root,stdio:'inherit'});
+if(opportunityChecks.status!==0)process.exit(opportunityChecks.status||1);
 console.log('All source syntax and regression checks passed. Browser integration: npm run test:browser.');

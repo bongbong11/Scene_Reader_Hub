@@ -94,7 +94,7 @@ Use a typical UK academic year with an autumn term around September or October t
 </UK_CAMPUS_WORLD>` },
 ];
 
-const EVENT_TABLES = {
+export const EVENT_TABLES = {
     social: [
         ['세계의 일상 행사', 'A setting-appropriate class, shift, ceremony, market, performance, meal, training session, or gathering becomes immediately available.', 'Participate, observe, prepare, or decline without turning the activity into compulsory conflict.', 'The activity has timing, etiquette, access, or another participant\'s interest.', 'Let one ordinary world activity begin or materially move forward; use it to expose lived culture or character choices rather than filler.', 'ensemble'],
         ['뜻밖의 좋은 기회', 'A plausible invitation, opening, favor, reward, or welcome contact reaches the scene.', 'Decide how to use or answer the opportunity.', 'The benefit has a concrete limit, timing, obligation, or tradeoff.', 'Offer one genuinely favorable development grounded in the setting. Do not convert it into automatic success or romance.', 'major'],

@@ -13,7 +13,14 @@ function normalize(value){return JSON.parse(JSON.stringify(value));}
 function unchanged(value,parent='') {
  if(Array.isArray(value))return value.map(item=>unchanged(item,parent));
  if(!value||typeof value!=='object')return value==='macro'?'preset':value;
- const excluded=new Set(['drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot']);
+ // Creation is now a separate addition path; ordinary behavior and actual
+ // injection text must still match. Creation modes have full pipeline tests.
+ const excluded=new Set(['drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot',
+ 'newGenerationEnabled','spontaneousMode','opportunityPreferences','opportunities','opportunityPlan','opportunityKey','new_opportunities','lastOpportunityVerification','additionBlocks','additions',
+ 'arrival_mode','advanced_entry','advanced_route','advanced_cause','advanced_element','advanced_move']);
+ if(parent==='criteria')for(const key of ['create','replace'])delete value[key];
+ if(typeof value.instructions==='string')value.instructions=value.instructions.replace(' This question manages existing people only. A separately offered new person uses arrival_mode; do not require existing-person routing to approve that arrival.','');
+ if(typeof value.instructions==='string')value.instructions=value.instructions.replace(' For the offered new candidate, only its bounded general role competence and what it could perceive on arrival are available. A proposed entrance cannot establish prior observation, acquaintance, or hidden scene-specific access.','');
  return Object.fromEntries(Object.entries(value).filter(([key])=>!excluded.has(key)&&!(parent==='rolls'&&key==='npc')).map(([key,item])=>[key,unchanged(item,key)]));
 }
 try {
@@ -39,7 +46,7 @@ try {
     }))};
    };
    f.sandbox.setExtensionPrompt=async(key,value)=>{prompts[key]=value;};
-   f.run('record(true);Object.assign(record().preferences,scenario.preferences);macroAvailable=true;callJev=mockJev;');
+   f.run('record(true);Object.assign(record().preferences,scenario.preferences);record().preferences.newGenerationEnabled=false;macroAvailable=true;callJev=mockJev;');
    const result=await f.run('runJudge({force:true})');
    assert.ok(result,scenario.name+' completes');
    outcomes.push({judgment:normalize(result),chat:normalize(f.run('record()')),requests,prompts});

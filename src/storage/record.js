@@ -1,3 +1,5 @@
+import {normalizeOpportunities} from '../scene/opportunities.js';
+import {restoreOpportunityPreferences} from '../scene/opportunity-settings.js';
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
 // Shared storage contract retained across extension replacement.
 export function createRecordRepository(deps) {
@@ -28,6 +30,8 @@ function record(create = false) {
         if (!value.preferences.advancedElements.length) value.preferences.advancedElements = [...deps.ADVANCED_DEFAULT_ELEMENTS];
         for (const key of ['charmMemory', 'lorebookMemory', 'advancedEnabled', 'negativePriority', 'fightSustain', 'villainEnabled', 'socialEnabled', 'worldHostility', 'privatePromptEnabled', 'npcToUser', 'userMisfortune', 'allowUserImpersonation', 'profileEmotionJudgment']) value.preferences[key] = Boolean(value.preferences[key]);
         for (const key of ['appearanceChance']) value.preferences[key] = Math.max(1, Math.min(100, Number(value.preferences[key]) || deps.CHAT_DEFAULTS[key]));
+        restoreOpportunityPreferences(value,saved);
+        value.opportunities=normalizeOpportunities(value.opportunities);
         const pacing = value.pacingState && typeof value.pacingState === 'object' ? value.pacingState : {};
         const relation = pacing.relationship && typeof pacing.relationship === 'object' ? pacing.relationship : {};
         const event = pacing.event && typeof pacing.event === 'object' ? pacing.event : {};
@@ -75,6 +79,7 @@ function preferences() {
 
 async function persistChat(chatKey = deps.stateChatKey(), value = record()) {
     const snapshot = structuredClone(value);
+    if(snapshot?.preferences)restoreOpportunityPreferences(snapshot,snapshot.preferences);
     const saving = deps.saveServerChat(chatKey, snapshot);
     await Promise.all([saving, chatKey === deps.stateChatKey() ? deps.reconcileInjection({report:false}) : null]);
 }

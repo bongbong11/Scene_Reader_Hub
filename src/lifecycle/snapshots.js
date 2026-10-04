@@ -2,6 +2,8 @@
 export function createStateSnapshots(deps) {
 function reversibleStateSnapshot(rec) {
     return JSON.parse(JSON.stringify({
+        opportunities: rec.opportunities || null,
+        lastOpportunityVerification: rec.lastOpportunityVerification || null,
         pacingState: rec.pacingState,
         characterState: rec.characterState,
         relationshipState: rec.relationshipState,
@@ -38,6 +40,8 @@ function restoreReversibleState(rec, snapshot) {
     Object.assign(rec, JSON.parse(JSON.stringify(snapshot)));
     if(!snapshot.generatedCast)delete rec.generatedCast;
     if(!snapshot.drawOpportunityKey)delete rec.drawOpportunityKey;
+    rec.opportunities = snapshot.opportunities ? structuredClone(snapshot.opportunities) : null;
+    rec.lastOpportunityVerification = snapshot.lastOpportunityVerification ? structuredClone(snapshot.lastOpportunityVerification) : null;
     rec.sceneIntimacy = snapshot.sceneIntimacy ? structuredClone(snapshot.sceneIntimacy) : null;
     rec.characterStateEvents = structuredClone(snapshot.characterStateEvents || []);
     rec.characterStateCapture = snapshot.characterStateCapture ? structuredClone(snapshot.characterStateCapture) : null;

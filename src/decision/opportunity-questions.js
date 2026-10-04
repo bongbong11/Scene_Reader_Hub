@@ -1,0 +1,32 @@
+export const ROUTING_SCOPE = `Observe established facts from the recent roleplay. A claim, intention, proposal, hypothetical, or stored profile is not proof of a completed action or current presence. Current OOC may constrain routing but is not in-world evidence. Preserve the existing rules for expired OOC, knowledge access, world rules and user agency.
+Responding to the present interaction is the unconditional base of the reply, not a candidate competing with events, people, relationships or ongoing conflict. Judge established ongoing matters independently. Supported relationship expression can accompany an event or arrival; it does not cancel either.
+New-event and new-person opportunities are decided only by the supplied opportunity questions. Their draws have already been performed by the extension. Do not perform another probability judgment. Select a fitting supplied execution package; do not require it to be indispensable, foreshadowed, overdue, or better than the current conversation. A calm, active, romantic or emotional scene is not itself a rejection reason. In normal mode, connect the selected package to the ongoing activity or a supported thread. In spontaneous mode, ordinary plausible chance and ordinary access are sufficient; do not require an existing plot thread.
+Choose blocked only for the concrete constraint represented by its choice label. Do not invent access, devices, prior relationships, promises, injuries, powers or unavailable knowledge to make a package fit. Low certainty about which fitting package is most interesting is not evidence that all packages are impossible.
+The extension controls inclusion. You select material and manner, not a primary-versus-secondary winner. Relationship speed, resolution speed and development style adjust conduct and scale; they are not additional arrival or event probabilities. Negative-bias priority applies only to the individually enabled constraints and never creates a fact or a hidden rejection draw.`;
+
+export const EVENT_CHOICE_INSTRUCTIONS = `An event draw has passed. Select exactly one offered package that can start materially in the next response. Evaluate each package's condition against the current scene. In spontaneous mode it may be a small new happening; in normal mode tie it to the active activity, objective, setting condition or established consequence. Keep an ongoing central event intact: use an in-scene local change when that event is unresolved. Select a package that obeys the enabled content and direction settings. Do not pick blocked because direct response or romance is preferable, the scene is not stalled, or the event is not necessary. If every package conflicts, identify the concrete block. Unavailable details must not be invented merely to satisfy a package.`;
+export const PERSON_CHOICE_INSTRUCTIONS = `A common person draw has passed. Select exactly one offered person-and-entry package with plausible physical or established remote access to this scene. The person may have a small ordinary reason to act and need not advance a major plot. Evaluate the package as one coherent role, purpose and first action. Do not duplicate registered or already established people, invent prior acquaintance, or grant private knowledge. A private setting requires a real entrance or communication route; never manufacture a telephone or unlocked door. A focused or emotional interaction alone does not forbid a proportionate arrival. Block only when no offered package has a valid route or an explicit instruction forbids it. The ordinary-person versus antagonist kind has already been chosen; do not draw it again.`;
+
+export const BLOCK_CHOICES = Object.freeze({
+  blocked_access: 'Every offered package lacks the required physical or established communication access.',
+  blocked_world: 'Every offered package contradicts an established world, era, location or physical rule.',
+  blocked_user_constraint: 'An applicable explicit user instruction forbids all offered packages.',
+  blocked_prerequisite: 'Every offered package requires a prior fact or participant that is not established.',
+});
+export function opportunityQuestion(kind, candidates) {
+  if (!['event','person'].includes(kind) || !candidates.length || candidates.length>3) throw new Error('INVALID_OFFER');
+  return {type:'choice',instructions:kind==='event'?EVENT_CHOICE_INSTRUCTIONS:PERSON_CHOICE_INSTRUCTIONS,
+    criteria:Object.fromEntries([...candidates.map((c,i)=>[`candidate_${i+1}`,`${c.id}. Condition: ${c.condition} Execute: ${c.action} Material effect: ${c.effect}`]),...Object.entries(BLOCK_CHOICES)])};
+}
+
+export const VERIFICATION = {
+  event:`Compare only the targeted completed assistant output with the exact selected event action and expected effect. fulfilled means the selected action or change materially began and had its immediate effect; the whole event need not be resolved. partial means a concrete part happened but the expected immediate effect is incomplete. missed means only intention, a vague sign, atmosphere, a hypothetical, or an unrelated substitute appeared. not_applicable means no matching output can be assessed. Do not use the user's later reply as proof.`,
+  person:`Compare only the targeted completed assistant output with the selected arrival and first interaction. fulfilled means the selected person actually made the specified accessible contact or participated, with a material first interaction; physical entrance is not necessary for a selected remote contact or doorway interaction. partial means a concrete approach began but the interaction did not. missed means the person was only mentioned, vaguely anticipated, replaced or omitted. not_applicable means no matching output can be assessed. Do not use later user input as proof of this output.`,
+  closure:`Judge only whether the stored central event's concrete objective has been completed, explicitly abandoned or ended by an applicable user instruction in the actual output. An atmosphere of calm or a generic aftermath label is insufficient. Choose completed only when a concrete result is established; otherwise choose ongoing or unclear. Do not erase remaining consequences.`,
+};
+export const VERIFICATION_CHOICES = {
+  fulfilled:'The selected first action and immediate effect materially occurred.',
+  partial:'A concrete part occurred, but the selected immediate effect is incomplete.',
+  missed:'The selected action was absent, only anticipated, or replaced.',
+  not_applicable:'No matching completed output can be assessed.',
+};

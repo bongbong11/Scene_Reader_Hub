@@ -1,6 +1,7 @@
+import {makeOpportunities} from '../scene/opportunities.js';
+import {addOpportunityQuestions} from '../scene/opportunity-policy.js';
 import { searchCharacterRecords } from '../retrieval/character-search.js';
-import { makeAppearanceOffer, addAppearanceQuestions, applyAppearanceOffer } from "../scene/appearance.js";
-import {drawOpportunityKey,drawRandom} from '../scene/draw-opportunity.js';
+import {drawOpportunityKey} from '../scene/draw-opportunity.js';
 import {generatedActorCandidates} from '../scene/generated-cast.js';
 import { currentRecords, recordBankIsCurrent } from "../characters/records.js";
 import { stateForEntry } from "../characters/state-contract.js";
@@ -11,12 +12,10 @@ async function prepareQuestions(run,frame) {
 if (frame.prefs.settingsContract >= 3) {
         const offerKey=drawOpportunityKey({identity:run.identity,chat:deps.getContext().chat,pendingUserText:frame.pendingUserText,type:deps.pendingGenerationType,pendingPlan:frame.rec.pendingPlan,excluded:frame.rec.nonRpOutputIndices||[]});
         frame.rec.drawOpportunityKey=offerKey;
-        const cached = deps.appearanceOffers.get(offerKey);
-        frame.rec.appearanceOffer = makeAppearanceOffer({...frame.rec,appearanceOffer:cached||frame.rec.appearanceOffer},offerKey,drawRandom(offerKey,'appearance'));
-        if(frame.rec.appearanceOffer.candidate)frame.rec.appearanceOffer.candidate.id=`appearance-${offerKey}`;
-        deps.appearanceOffers.set(offerKey,frame.rec.appearanceOffer);
-        if (deps.appearanceOffers.size > 32) deps.appearanceOffers.delete(deps.appearanceOffers.keys().next().value);
-        frame.rec.lastNpcRoll = {...frame.rec.appearanceOffer,candidate:undefined};
+        frame.opportunityOffers=makeOpportunities(frame.rec,offerKey,{worldId:frame.world?.id,worldName:frame.world?.name});
+        frame.rec.appearanceOffer={...frame.opportunityOffers.person,candidates:undefined};
+        frame.rec.lastNpcRoll={...frame.opportunityOffers.person,candidates:undefined};
+
     }
     frame.generatedNpcTargets=generatedActorCandidates(frame.rec,'npc');
     frame.generatedVillainTargets=generatedActorCandidates(frame.rec,'villain');
@@ -99,7 +98,7 @@ if (frame.prefs.settingsContract >= 3) {
         type: 'choice', instructions: 'If a new NPC is needed, choose a naturally present canon person, a setting-compatible original, an existing person, or a group. Presence must follow location, time, role, access, and continuity. Do not create a duplicate of a registered sheet character.',
         criteria: { none: 'No NPC route.', reuse_existing: 'An established NPC fits.', canon_natural: 'A canon character naturally occupies the role.', original_major: 'A lasting original NPC fits.', original_minor: 'A temporary original NPC fits.', group: 'A group fits.' },
     };
-    if (frame.prefs.settingsContract >= 3) addAppearanceQuestions(frame.questions,frame.rec.appearanceOffer);
+    if (frame.opportunityOffers) addOpportunityQuestions(frame.questions,frame.opportunityOffers,frame.rec);
     (frame.structuredCharacterContext = frame.liveCharacters.length ? {
         policy: deps.CHARACTER_LIVE_SYSTEM,
         npcRolePolicy: 'NPC villain, ally, or mixed is a broad role hint, not a personality or knowledge override. Use the stored records and actual RP to judge this person\'s specific motives and conduct. An ally may disagree; a villain may cooperate for a reason.',
@@ -116,7 +115,7 @@ if (frame.prefs.settingsContract >= 3) {
     deps.updateStatus('Jev 판독 중…');
     deps.updateActivity(frame.mixedOoc ? 'OOC 지시 확인 · Jev가 RP 장면을 판독하고 있습니다…' : 'Jev가 최근 장면을 판독하고 있습니다…');
     
- deps.noteDiagnostic?.('appearance_offer',{passed:Boolean(frame.rec.appearanceOffer?.passed),chance:frame.rec.appearanceOffer?.chance||0,roll:frame.rec.appearanceOffer?.roll||0,availableNpc:!frame.rec.npcProfile||frame.rec.npcProfile.status==='retired',availableVillain:Boolean(frame.rec.preferences.villainEnabled&&!frame.rec.villainProfile),storedNpcStatus:frame.rec.npcProfile?.status||'absent',kind:frame.rec.appearanceOffer?.kind||''});
+ deps.noteDiagnostic?.('appearance_offer',{passed:Boolean(frame.rec.appearanceOffer?.passed),chance:frame.rec.appearanceOffer?.chance||0,roll:frame.rec.appearanceOffer?.roll||0,availableNpc:true,availableVillain:Boolean(frame.rec.preferences.villainEnabled),storedNpcStatus:frame.rec.npcProfile?.status||'absent',kind:frame.rec.appearanceOffer?.kind||''});
 }
 return {prepareQuestions};
 }

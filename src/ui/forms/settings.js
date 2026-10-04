@@ -1,3 +1,4 @@
+import {renderOpportunitySettings} from '../opportunity-settings.js';
 import { renderRetrievalSettings, refreshRetrievalSecret } from '../retrieval-settings.js';
 import { normalizeRetrievalPatch } from '../../retrieval/connection-settings.js';
 import { renderPresetSlots } from '../preset-slots.js';
@@ -69,9 +70,10 @@ function setFormValues() {
     const advancedNote = deps.document.getElementById('sr-basic-progression-note');
     if (advancedNote) advancedNote.textContent = prefs.advancedEnabled
         ? '고급 이벤트와 기본 전개 성향이 함께 작동합니다. 서술의 속도와 호흡은 메인 프롬프트에 명시된 지침을 따릅니다.'
-        : '새 이벤트는 고급 전개에서 설정합니다. 글의 속도·호흡은 프리셋을 따릅니다.';
+        : '기본 전개는 계속 유지됩니다. 새 생성과 돌발은 아래에서 조절합니다. 글의 속도·호흡은 프리셋을 따릅니다.';
     const advancedResults = deps.document.getElementById('sr-advanced-results');
     if (advancedResults) advancedResults.hidden = !prefs.advancedEnabled;
+    renderOpportunitySettings(deps);
     deps.renderWorldControls();
     deps.renderOwnerMode();
 }

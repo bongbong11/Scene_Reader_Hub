@@ -13,7 +13,7 @@ function sourceRevisionKey(rec, world) {
         characterStateContract: 2,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,
         sceneGateContract: 2,
-        drawContract: 1,
+        drawContract: 2,
         characterCore: CORE_SHA256,
         characterEnabled: Boolean(deps.characterStore.enabled),
         preferences: rec?.preferences, recentTurns: deps.settings.recentTurns,

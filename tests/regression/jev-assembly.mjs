@@ -126,8 +126,8 @@ assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS
     assert.ok(!fullRequest.questions.npc_route.criteria.create);
     assert.match(f.run('record().lastJudgment.payload'),/knowledge=suspects/);
     assert.equal(f.run('record().npcProfile') ?? null,null,'new actor remains a plan');
-    const offered=f.run('record().appearanceOffer.candidate.id');
-    await f.run('runJudge({force:true})');assert.equal(f.run('record().appearanceOffer.candidate.id'),offered,'rerun reuses offer');
+    const offered=f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id');
+    await f.run('runJudge({force:true})');assert.equal(f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id'),offered,'rerun reuses offer');
     f.ctx.chat.push({is_user:false,mes:'A visitor arrives. Rowan voices his suspicion without claiming certainty.'});
     await f.run('onCharacterMessageReceived(1)');
     f.ctx.chat.push({is_user:true,mes:'Welcome them.'});await f.run('runJudge({force:true})');
