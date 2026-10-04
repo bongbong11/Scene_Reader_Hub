@@ -23,7 +23,7 @@ for doc in ['README.md','CHANGELOG.md']:
             assert (root/target.removeprefix(prefix)).is_file(), target
         elif not target.startswith(('https://','http://','#')):
             assert (root/doc).parent.joinpath(target.split('#')[0]).is_file(), (doc,target)
-for relative in [manifest['js'],manifest['css'],'README.md','CHANGELOG.md','src/app/bootstrap.js','src/hub/orchestrator.js','src/hub/pipeline.js','src/hub/state.js','src/lifecycle/generation.js','src/adapters/generation-interceptor.js','src/injection/receipt.js','src/ui/trace.js','src/vendor/character-reasoner/index.js','src/scene/appearance.js','src/continuity/json-parser.js','src/retrieval/vectors.js','src/storage/contract.js','src/character/record-protection.js','src/character/record-questions.js','src/character/record-allocation.js','assets/mascot-face.webp']:
+for relative in [manifest['js'],manifest['css'],'README.md','CHANGELOG.md','src/app/bootstrap.js','src/hub/orchestrator.js','src/hub/pipeline.js','src/hub/state.js','src/lifecycle/generation.js','src/adapters/generation-interceptor.js','src/injection/receipt.js','src/ui/trace.js','src/vendor/character-reasoner/index.js','src/scene/appearance.js','src/continuity/json-parser.js','src/retrieval/vectors.js','src/storage/contract.js','src/character/record-protection.js','src/character/record-questions.js','src/character/record-allocation.js','assets/mascot-face.webp','assets/mascot-face-error.png','src/ui/current-status.js','src/ui/current-status-model.js']:
     assert (root/relative).is_file(), relative
 for pose in ['director','reading','success','warning','error','cover','peek','wave']:
     assert (root/f'assets/toasts/{pose}.webp').is_file(), pose

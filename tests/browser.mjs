@@ -1,3 +1,4 @@
+import {checkCurrentStatus} from './browser-current-status.mjs';
 import { checkBundlesAndProviders } from './browser-bundles-providers.mjs';
 import { checkCompilerCopies } from './browser-compiler-copies.mjs';
 import { checkPresetSlots } from './browser-preset-slots.mjs';
@@ -1026,6 +1027,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
     await checkRecoverySettings(page,store,requests,setViewportSize);
     await checkOpportunitySettings(page,store,requests,setViewportSize,root);
+    await checkCurrentStatus(page,requests,setViewportSize,root);
     assert.deepEqual(errors,[]);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

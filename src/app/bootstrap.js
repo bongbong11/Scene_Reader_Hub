@@ -28,6 +28,7 @@ import { installGenerationInterceptor } from '../adapters/generation-interceptor
 import { createPromptObserver } from '../injection/receipt.js';
 import { createPresetRequest } from '../injection/preset-request.js';
 import { createTraceView } from '../ui/trace.js';
+import { createCurrentStatusView } from '../ui/current-status.js';
 import { notifySceneReaderToast, updateSceneReaderToast } from '../ui/toasts.js';
 import { MASCOT_ICON_URL } from '../ui/mascot.js';
 import { MEMORY_REFERENCE_ENABLED } from "../context/memory.js";
@@ -253,7 +254,8 @@ let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnec
 
 let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSceneReader, createQuickEntry, ensureQuickEntry} = createShell({
     get window() { return window; },
-    bindHubTrace: () => traceView.bind(),
+    bindHubTrace: () => { traceView.bind(); currentStatusView.bind(); },
+    refreshCurrentStatus: () => currentStatusView.render(),
     get ADVANCED_ELEMENTS() { return ADVANCED_ELEMENTS; },
     get ADVANCED_STYLES() { return ADVANCED_STYLES; },
     get DEVELOPMENT_STYLES() { return DEVELOPMENT_STYLES; },
@@ -906,7 +908,8 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.15',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.16',copyText:value=>copyText(value)});
+const currentStatusView=createCurrentStatusView({hub,document,getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 window.SceneReaderHub=Object.freeze({diagnostics:()=>hub.snapshot()});

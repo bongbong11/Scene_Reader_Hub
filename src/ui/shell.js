@@ -57,6 +57,7 @@ function openSceneReader() {
     deps.setFormValues();
     deps.renderAll();
     if (!deps.dialog.open) deps.dialog.showModal();
+    deps.refreshCurrentStatus?.();
     const toastContainer = deps.document.getElementById('toast-container');
     if (toastContainer && toastContainer.parentElement !== deps.dialog) deps.dialog.append(toastContainer);
     const sceneToastContainer = deps.document.getElementById('scene-reader-toast-container');
@@ -83,6 +84,7 @@ function createQuickEntry() {
     button.addEventListener('click', openSceneReader);
     button.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') openSceneReader(); });
     extensionButton?.nextSibling ? holder.insertBefore(button, extensionButton.nextSibling) : holder.append(button);
+    deps.refreshCurrentStatus?.();
     return true;
 }
 
