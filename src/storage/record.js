@@ -1,6 +1,7 @@
 import {normalizeOpportunities} from '../scene/opportunities.js';
 import {restoreOpportunityPreferences} from '../scene/opportunity-settings.js';
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
+import { effectivePreferences } from './common-preferences.js';
 // Shared storage contract retained across extension replacement.
 export function createRecordRepository(deps) {
 function record(create = false) {
@@ -70,6 +71,7 @@ function record(create = false) {
         value.pendingContinuityCandidates = Array.isArray(value.pendingContinuityCandidates) ? value.pendingContinuityCandidates : [];
         value.nonRpOutputIndices = Array.isArray(value.nonRpOutputIndices) ? value.nonRpOutputIndices.filter(Number.isInteger).slice(-20) : [];
     }
+    if (value?.preferences) value.preferences = effectivePreferences(value.preferences, deps.settings);
     return value;
 }
 

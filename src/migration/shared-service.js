@@ -1,4 +1,5 @@
 import {backupSource} from '../storage/backup-label.js';
+import {preferencesForConnection} from '../storyline/preferences.js';
 import {clone,digest,chatRef,ownerRef,SHARED_LINK,bytes,fail} from '../storage/shared-document.js';
 import {projectBaseline,hasLegacyMaterial} from '../baseline/projector.js';
 import {confirmedStory,resetRuntime,splitRuntime,localCompanions} from '../storyline/projector.js';
@@ -104,6 +105,7 @@ export function createSharedService(deps,router) {
             const head=mode==='new'?(await documents.read('baseline_head',selected.baselineId,{fresh:true,signal}))?.data:null;
             const baseline=await required('baseline',selected.baselineId+':'+(head?.revision||selected.baselineRevision),{signal});
             if(baseline.ownerRef!==ownerRef(chatKey))throw fail('SHARED_OWNER_MISMATCH','같은 캐릭터의 이야기만 연결할 수 있습니다.');
+            const inheritedPreferences=await preferencesForConnection({mode,story:selected,baseline,currentRecord:deps.record(),catalog:await catalog(ownerRef(chatKey),true),post:rawPost,signal});assert();
             const operationId=digest([chatRef(chatKey),storylineId,mode,selected.revision]);
             const backupId=await backup(operationId,signal);assert();
             const view=router.views.get(chatKey);
@@ -122,7 +124,7 @@ export function createSharedService(deps,router) {
             const journalId=chatRef(chatKey)+':'+operationId;
             await documents.write('migration',journalId,{operationId,backupId,originalRef,storylineId:story.id,status:'staging',mode},{operationId,signal});
             await documents.write('storyline',story.id,story,{revision:story.revision,operationId,signal});assert();
-            const record=resetRuntime({preferences:baseline.defaultPreferences});
+            const record=resetRuntime({preferences:inheritedPreferences});
             const local=localCompanions(view?.record || view?.legacy?.chat || deps.record());
             if(Object.keys(local).length)record.companionStores=local;
             const link={schemaVersion:1,chatRef:chatRef(chatKey),ownerRef:ownerRef(chatKey),storylineId:story.id,baselineId:baseline.id,baselineRevision:baseline.revision,checkpointId:story.headCheckpointId,entryCheckpointId:story.headCheckpointId,epoch:story.pendingHandoff?.epoch || story.epoch,handoffOperation:mode==='continue'?operationId:null,summary:String(summary).slice(0,1800),mode};

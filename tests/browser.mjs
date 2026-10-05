@@ -1,4 +1,5 @@
 import {checkRoomBackups} from './browser-room-backups.mjs';
+import {checkCommonPreferences} from './browser-common-preferences.mjs';
 import {checkCurrentStatus} from './browser-current-status.mjs';
 import { checkBundlesAndProviders } from './browser-bundles-providers.mjs';
 import { checkCompilerCopies } from './browser-compiler-copies.mjs';
@@ -590,12 +591,12 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.locator('#sr-progress-intensity-up').click();
     await page.waitForFunction(()=>document.getElementById('sr-progress-intensity').value==='1.1');
     await page.locator('[data-sr-tab="flow"]').click();await page.locator('#sr-settings-button').click();
-    assert.equal(store.chat.preferences.progressIntensity,1.1);
+    assert.equal(store.settings.global.commonPreferences.progressIntensity,1.1);
     assert.equal(await page.locator('#sr-progress-intensity-value').textContent(),'1.1');
     await page.locator('#sr-progress-intensity-down').click();
     await page.waitForFunction(()=>document.getElementById('sr-progress-intensity').value==='1.0');
     await page.locator('#sr-progress-intensity-reset').click();
-    assert.equal(store.chat.preferences.progressIntensity,1);
+    assert.equal(store.settings.global.commonPreferences.progressIntensity,1);
     await page.screenshot({path:path.join(root,'artifacts','mobile-settings.png')});
     assert.equal(await page.locator('#sr-copy-macro').count(),0);
     assert.equal(await page.evaluate(()=>mock.macros['scene-reader']()),'');
@@ -1033,5 +1034,6 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await checkCurrentStatus(page,requests,setViewportSize,root);
     assert.deepEqual(errors,[]);
     await checkRoomBackups(page,setViewportSize);
+    await checkCommonPreferences(page,store,requests);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

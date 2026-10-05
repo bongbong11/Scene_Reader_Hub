@@ -1,5 +1,6 @@
 import {clone,digest,object} from '../storage/shared-document.js';
 import {latestStateForChat} from '../character/state-contract.js';
+import {roomPreferences} from '../storage/common-preferences.js';
 export const STORY_FIELDS=['pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','eventProfile','npcProfile','villainProfile','generatedCast','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','continuity','opportunities','lastOpportunityVerification'];
 const TRANSIENT=new Set(['sharedSource','sharedWorld','sharedReference','sharedLinkV1']);
 function portableCompanions(value,sourceChatRef) {
@@ -37,6 +38,7 @@ export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef=''}
         ...(sceneInfo.match(/(?:Loc|Location|장소)\s*:\s*([^\n<]+)/i)?{location:clean(sceneInfo.match(/(?:Loc|Location|장소)\s*:\s*([^\n<]+)/i)[1])}:{}),
         sourceChatRef,
     };
+    result.continuationPreferences=roomPreferences(record.preferences || {});
     return result;
 }
 export function splitRuntime(record,confirmed) {
@@ -60,7 +62,7 @@ export function resetRuntime(record={}) {
 }
 export function resolveRecord(link,baseline,asset,checkpoint,stored={}) {
     const state=clone(checkpoint.state || {}),characters=state.inheritedCharacterStates || [];
-    delete state.inheritedCharacterStates;delete state.continuationContext;
+    delete state.inheritedCharacterStates;delete state.continuationContext;delete state.continuationPreferences;
     return {...state,...clone(stored.overlay || {}),...clone(stored.runtime || {}),
         companionStores:{...clone(state.companionStores || {}),...clone(stored.overlay?.companionStores || {}),...clone(stored.runtime?.companionStores || {})},
         preferences:{...clone(baseline.defaultPreferences),...clone(stored.runtime?.preferences || {})},

@@ -4,6 +4,7 @@ import { normalizeRetrievalPatch } from '../../retrieval/connection-settings.js'
 import { renderPresetSlots } from '../preset-slots.js';
 import { renderJevProviderSelection } from '../jev-settings.js';
 import { normalizePresetSlot } from '../../injection/preset-catalog.js';
+import { COMMON_PREFERENCE_KEYS, commonPreferences } from '../../storage/common-preferences.js';
 import { notifySceneReaderToast } from "../toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
 import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
@@ -118,6 +119,7 @@ async function saveRetrievalSetting(key,value) { return saveRetrievalSettings({[
 async function retrievalSecretState() { const services=Object.create(deps); services.saveRetrievalSettings=saveRetrievalSettings; return refreshRetrievalSecret(services); }
 
 async function savePreference(key, value) {
+    if (COMMON_PREFERENCE_KEYS.includes(key)) return saveCommonPreferences({[key]:value});
     const chatKey=deps.stateChatKey();
     const initialRecord = deps.record(true);
     return deps.queueWrite(`preferences:${chatKey}`, async () => {
@@ -149,19 +151,27 @@ async function savePreference(key, value) {
     });
 }
 
-async function saveInjectionSetting(modeKey,slotKey,value) {
-    const rec=deps.record(true),chatKey=deps.stateChatKey();
-    return deps.queueWrite(`injection:${chatKey}`,async()=>{
-        const mode=typeof value==='object'?value.mode:value;
-        const previous={mode:rec.preferences[modeKey],slot:rec.preferences[slotKey]};
-        rec.preferences[modeKey]=mode==='preset'?'preset':'depth';
-        if(typeof value==='object')rec.preferences[slotKey]=normalizePresetSlot(value.slot);
-        try {await deps.persistChat(chatKey,rec);}
-        catch(error){rec.preferences[modeKey]=previous.mode;rec.preferences[slotKey]=previous.slot;if(chatKey===deps.stateChatKey())setFormValues();throw error;}
-        if(chatKey!==deps.stateChatKey() || rec!==deps.record())return;
-        await deps.applyStoredInjection();
-        if(chatKey===deps.stateChatKey())setFormValues();
+async function saveCommonPreferences(patch) {
+    return deps.queueWrite('common-preferences',async()=>{
+        const target=deps.settings,previous=target.commonPreferences,chatKey=deps.stateChatKey();
+        const next=commonPreferences({...deps.preferences(),...previous,...patch});
+        deps.invalidateReasonerJobs();target.commonPreferences=next;
+        try {await deps.saveServerSettings();deps.saveSettingsDebounced();}
+        catch(error){if(target.commonPreferences===next)target.commonPreferences=previous;setFormValues();throw error;}
+        if(target!==deps.settings || chatKey!==deps.stateChatKey())return;
+        const rec=deps.record(true);
+        if(Object.hasOwn(patch,'progressIntensity')) {
+            rec.lastJudgment=null;if(!rec.pendingPlan?.outputText)rec.pendingPlan=null;
+            await deps.clearInjection({chatKey,onlyIfOrphaned:true});
+        } else await deps.applyStoredInjection();
+        setFormValues();deps.renderAll();
     });
+}
+async function saveInjectionSetting(modeKey,slotKey,value) {
+    const mode=typeof value==='object'?value.mode:value;
+    const patch={[modeKey]:mode==='preset'?'preset':'depth'};
+    if(typeof value==='object')patch[slotKey]=normalizePresetSlot(value.slot);
+    return saveCommonPreferences(patch);
 }
 async function saveInjectionMode(value) {return saveInjectionSetting('injectionMode','scenePresetSlot',value);}
 async function saveWorldInjectionMode(value) {return saveInjectionSetting('worldInjectionMode','worldPresetSlot',value);}

@@ -1,5 +1,4 @@
-
-
+import { migrateCommonPreferences } from './common-preferences.js';
 export function createHydration(deps) {
 async function hydrateServerState({ migrate = true } = {}) {
     const chatKey = deps.stateChatKey();
@@ -57,6 +56,17 @@ async function hydrateServerState({ migrate = true } = {}) {
     delete deps.chat_metadata[deps.MODULE];
     if (!current()) return false;
     const loadedChat = deps.chatRecords.get(chatKey);
+    const migratedCommon = deps.getContext().chatId && migrateCommonPreferences(deps.settings, loadedChat?.preferences);
+    if (migratedCommon) {
+        const target=deps.settings, previous=target.commonPreferences;
+        target.commonPreferences=migratedCommon;
+        const migratedSettings={...saved,global:{...saved.global,commonPreferences:migratedCommon}};
+        // A hydrated world list is a view; retain its catalog without rewriting it.
+        if(migratedSettings.worldCatalog)delete migratedSettings.worlds;
+        try { await deps.storagePost('settings',{settings:migratedSettings}); }
+        catch(error) { if(target.commonPreferences===migratedCommon)target.commonPreferences=previous;throw error; }
+        if (!current()) return false;
+    }
     if (loadedChat) {
         const savedPreferences = loadedChat.preferences || {};
         const needsPreferenceMigration = savedPreferences.settingsContract !== 4 || !Object.hasOwn(savedPreferences, 'characterVolume');

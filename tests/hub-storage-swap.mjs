@@ -39,7 +39,9 @@ try {
  const returned=await call('bootstrap',{chatKey,legacyChatKey});
  assert.equal(returned.chat.marker,oldChat.marker);assert.equal(returned.chat.lastJudgment.payload,oldChat.lastJudgment.payload);
  assert.deepEqual(returned.characters,oldBank);assert.deepEqual(returned.history,oldHistory);
- assert.deepEqual(returned.settings,oldSettings,'global settings, world IDs and private settings remain in the shared namespace');
+ assert.equal(returned.settings.global.commonPreferences.injectionMode,oldChat.preferences.injectionMode);
+ const unchangedSettings=structuredClone(returned.settings);delete unchangedSettings.global.commonPreferences;
+ assert.deepEqual(unchangedSettings,oldSettings,'only common selections migrate; existing settings, world content and private settings are preserved');
  assert.equal(returned.storageVersion,3);
  f.run("record().generatedCast=[{kind:'npc',profile:{id:'preserved-actor',role:'witness',status:'active'}}];record().drawOpportunityKey='durable-ticket';");
  await f.run('persistChat()');

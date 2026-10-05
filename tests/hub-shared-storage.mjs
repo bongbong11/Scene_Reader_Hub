@@ -57,10 +57,16 @@ try {
     assert.ok(storedA.chat[SHARED_LINK]);assert.equal(storedA.chat.eventProfile,undefined);
     assert.deepEqual((await router.required('original',storedA.chat.originalRef)).chat,original);
     const assetCount=calls.filter(item=>item.route==='chat' && item.body.chatKey.startsWith(documentKey('asset',''))).length;
+    Object.assign(records.get(key()).preferences,{developmentStyle:'dynamic',newGenerationEnabled:false,spontaneousMode:'both',negativePriority:true,appearanceChance:75});
+    await router.post('chat',{chatKey:key(),value:records.get(key())});
     await load('B');await service.connect({storylineId:storyId,mode:'continue'});
     const continued=await load('B');
     assert.equal(continued.chat.sharedSource.storylineId,storyId);assert.equal(continued.chat.sharedSource.baselineId,baselineId);
     assert.equal(continued.chat.pendingPlan,null);assert.equal(continued.chat.characterStateEvents.length,0);
+    assert.equal(continued.chat.preferences.developmentStyle,'dynamic');
+    assert.equal(continued.chat.preferences.newGenerationEnabled,false);
+    assert.equal(continued.chat.preferences.spontaneousMode,'both');
+    assert.equal(continued.chat.preferences.appearanceChance,75);
     assert.equal(continued.history.length,0);assert.equal(continued.chat.eventProfile.title,original.eventProfile.title);
     assert.equal(continued.chat.companionStores.knowledgeVaultV1.cards[0].acquisitions[0].sceneDate,'2025-01-02');
     assert.equal(calls.filter(item=>item.route==='chat' && item.body.chatKey.startsWith(documentKey('asset',''))).length,assetCount,'continue reuses source assets');
@@ -86,6 +92,7 @@ try {
     records.get(key()).pendingPlan=null;
     await load('C');await service.connect({storylineId:storyId,mode:'new'});
     const clean=await load('C');assert.notEqual(clean.chat.sharedSource.storylineId,storyId);assert.equal(clean.chat.sharedSource.baselineId,baselineId);
+    assert.equal(clean.chat.preferences.developmentStyle,'steady','fresh story starts from baseline, not the previous room choices');
     assert.equal(clean.chat.eventProfile,undefined);assert.equal(clean.chat.characterState,undefined);assert.deepEqual(clean.chat.companionStores || {},{});
     await companion.post('bootstrap',{chatKey:key()});companion.chatLoaded(key());
     assert.equal(await companion.bridge.load('knowledgeVaultV1',{metadata:ctx.chatMetadata,legacy:{cards:[{id:'old-secret'}]}}),null,'fresh story never reimports old host knowledge');
