@@ -1,6 +1,6 @@
 """Verify Hub install files, data identifiers, bundled plugin and unchanged core."""
 from pathlib import Path
-import hashlib, json, re
+import hashlib, json, re, zipfile
 root = Path(__file__).resolve().parents[1]
 manifest = json.loads((root/'manifest.json').read_text(encoding='utf-8'))
 package = json.loads((root/'package.json').read_text(encoding='utf-8'))
@@ -17,6 +17,15 @@ for relative, expected in provenance['sharedPluginFiles'].items():
     assert hashlib.sha256((root/relative).read_bytes().replace(b'\r\n', b'\n')).hexdigest() == expected, relative
 assert hashlib.sha256((root/'server-plugin/vendor/character-core.mjs').read_bytes()).hexdigest() == lock['sha256']
 assert set(provenance['sharedPluginFiles']) == {str(file.relative_to(root)).replace('\\', '/') for file in (root/'server-plugin').rglob('*') if file.is_file()}
+plugin_zip = root/'downloads'/f"scene-reader-jev-plugin-v{plugin['version']}.zip"
+with zipfile.ZipFile(plugin_zip) as archive:
+    assert archive.testzip() is None
+    expected_names = {'scene-reader-jev/'+name.removeprefix('server-plugin/') for name in provenance['sharedPluginFiles']}
+    assert set(archive.namelist()) == expected_names
+    assert len(archive.namelist()) == len(expected_names)
+    for relative, expected in provenance['sharedPluginFiles'].items():
+        data = archive.read('scene-reader-jev/'+relative.removeprefix('server-plugin/'))
+        assert hashlib.sha256(data.replace(b'\r\n', b'\n')).hexdigest() == expected, relative
 contract = (root/'src/storage/contract.js').read_text(encoding='utf-8')
 for value in ['sceneReader','scene-reader-router','scene-reader-world','scene-reader-state-capture','sceneReader.jevApiKey','/api/plugins/scene-reader-jev/systemone','/api/plugins/scene-reader-jev/storage','scene-reader-state','chat-snapshots']:
     assert repr(value) in contract, value

@@ -91,7 +91,9 @@ Hub는 위 GitHub 주소로 설치하고 확장 목록의 업데이트 기능으
 
 ### 2. Jev 서버 플러그인
 
-이 저장소의 **server-plugin 폴더 전체**를 `scene-reader-jev`라는 이름으로 SillyTavern의 **plugins** 폴더에 넣습니다. 이미 설치했다면 폴더 전체를 덮어씁니다. 화면 확장과 설치 위치가 다릅니다.
+**[서버 플러그인 0.8.0 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.8.0.zip)**
+
+SillyTavern을 종료한 뒤 압축을 풀고, 안의 **scene-reader-jev 폴더 전체**를 SillyTavern의 **plugins** 폴더에 넣습니다. 이미 설치했다면 같은 이름의 폴더에 전체 파일을 덮어씁니다. 기존 사용자 데이터 폴더는 삭제하지 마세요. 화면 확장과 설치 위치가 다릅니다.
 
 최종 위치는 다음과 같습니다.
 
