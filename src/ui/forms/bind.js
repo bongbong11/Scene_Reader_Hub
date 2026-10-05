@@ -1,4 +1,6 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
+import {downloadStoredFile,importBackupStream} from '../../storage/backup-stream.js';
+import {openBackupCharacters} from '../backup-characters.js';
 import { bindEmbeddingMaintenance } from '../embedding-maintenance.js';
 import { wholeDiagnosticReport } from '../../debug/whole-report.js';
 import { vaultDiagnosticReport } from '../../integration/vault-diagnostics.js';
@@ -11,6 +13,7 @@ import { bindCharacterTransfer } from "../character-transfer.js";
 import { openPersonPreview } from "../person-preview.js";
 import { worldCompilerPrompt, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from "../../world/advanced.js";
 import { characterCopyNotice, worldCopyNotice } from '../compiler-copy.js';
+import {ensureSharedWorld} from '../../world/shared-library.js';
 import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
 
 export function createFormBindings(deps) {
@@ -81,7 +84,7 @@ function bindForm() {
     deps.document.getElementById('sr-development-style')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('developmentStyle', event.target.value)));
     deps.document.getElementById('sr-world-direction')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('worldDirection', event.target.value)));
     deps.document.getElementById('sr-relationship-direction')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('relationshipDirection', event.target.value)));
-    deps.document.getElementById('sr-world-profile')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('selectedWorldId', event.target.value)));
+    deps.document.getElementById('sr-world-profile')?.addEventListener('change', (event) => deps.runUiTask((async()=>{await ensureSharedWorld(event.target.value);await deps.savePreference('selectedWorldId',event.target.value);updateWorldCopy();})()));
     for (const key of Object.keys(SEASONAL_OPTIONS)) deps.document.getElementById(`sr-season-${key}`)?.addEventListener('change', () => {
         const selected = Object.keys(SEASONAL_OPTIONS).filter(option => deps.document.getElementById(`sr-season-${option}`)?.checked);
         deps.runUiTask(deps.savePreference('seasonalReferences', selected).then(deps.setFormValues));
@@ -231,7 +234,7 @@ function bindForm() {
         const item = event.target.closest('.sr-world-item');
         if (item) {
             const world = deps.loadCustomWorlds().find((entry) => entry.id === item.dataset.worldId);
-            if (world) deps.showWorldEditor(world);
+            if (world)deps.runUiTask((async()=>{const loaded=await ensureSharedWorld(world.id);deps.showWorldEditor(loaded||world);})(),'세계관을 불러오지 못했습니다.');
         }
     });
     deps.document.getElementById('sr-world-new')?.addEventListener('click', () => deps.showWorldEditor());
@@ -514,8 +517,10 @@ function bindForm() {
                 await deps.hydrateServerState({ migrate: false }); deps.setFormValues(); deps.renderAll();
                 notifySceneReaderToast(deps.window, 'success', '백업을 복원했습니다. 복원 직전 상태도 자동 백업했습니다.', '씬판독기');
             } else if (action === 'download') {
-                const data = await deps.storagePost('backup/export', { id }); deps.downloadJson(`scene-reader-${id}.json`, data.snapshot);
-                notifySceneReaderToast(deps.window, 'success', '백업을 다운로드했습니다.', '씬판독기');
+                const data = await deps.storagePost('backup/export', { id });if(data.stream)downloadStoredFile(deps.document,'backup/download',{id},`scene-reader-${id}.srbackup`);else deps.downloadJson(`scene-reader-${id}.json`, data.snapshot);
+                notifySceneReaderToast(deps.window, 'success', '백업 내려받기를 시작했습니다.', '씬판독기');
+            } else if(action==='characters') {
+                await openBackupCharacters({document:deps.document,post:deps.storagePost,notify:message=>notifySceneReaderToast(deps.window,'info',message,'씬판독기')},id);
             } else if (action === 'delete') {
                 const data = await deps.storagePost('backup/delete', { id }); deps.backupList = data.backups || []; deps.renderBackups();
                 notifySceneReaderToast(deps.window, 'success', '백업을 삭제했습니다.', '씬판독기');
@@ -530,8 +535,7 @@ function bindForm() {
     deps.document.getElementById('sr-backup-import')?.addEventListener('change', (event) => deps.runUiTask((async () => {
         deps.invalidateReasonerJobs();
         const file = event.target.files?.[0]; if (!file) return;
-        const snapshot = JSON.parse(await file.text());
-        const data = await deps.storagePost('backup/import', { snapshot }); deps.backupList = data.backups || [];
+        const data = await importBackupStream(file,deps.storagePost); deps.backupList = data.backups || [];
         await deps.hydrateServerState({ migrate: false }); deps.setFormValues(); deps.renderAll(); event.target.value = '';
         notifySceneReaderToast(deps.window, 'success', '백업 파일을 가져와 복원했습니다.', '씬판독기');
     })(), '백업 파일을 가져오지 못했습니다.'));

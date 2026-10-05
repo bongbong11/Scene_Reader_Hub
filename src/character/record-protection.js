@@ -9,7 +9,7 @@ export function supplementRecordCandidates(entry, baseline, transcript, { limit,
     const query = words(transcript), own = words([entry.name, ...(entry.aliases || [])].join(' '));
     const seen = new Set(baseline.map(item => item.id));
     const overlap = text => [...words(text)].filter(term => query.has(term) && !own.has(term)).length;
-    const ranked = currentRecords(entry).map((record, index) => ({ record, index, id: `record:${entry.id}:${index}` }))
+    const ranked = currentRecords(entry).map((record, localIndex) => {const index=entry.recordBank?.recordIndices?.[localIndex] ?? localIndex;return {record,index,id:`record:${entry.id}:${index}`};})
         .filter(item => isProtectiveRecord(item.record) && !seen.has(item.id))
         .map(item => ({ ...item, score: overlap(item.record.target) * 4 + overlap(item.record.when) * 3 +
             overlap([item.record.rule, item.record.knowledge_domain].join(' ')) + (categoryHints.includes(item.record.type) ? 3 : 0) }))

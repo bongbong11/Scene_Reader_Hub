@@ -23,7 +23,7 @@ function renderWorldControls() {
         select.value = worlds.some((world) => world.id === current) ? current : 'current';
     }
     const manager = deps.document.getElementById('sr-world-manager-list');
-    if (manager) manager.innerHTML = deps.loadCustomWorlds().map((world) => `<button type="button" class="sr-world-item" data-world-id="${deps.escapeHtml(world.id)}"><span>${deps.escapeHtml(world.name)}${world.franchise ? ' · 원작 세계' : ''}${world.advanced ? ' · 고급' : ''}</span><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`).join('') || '<div class="sr-empty-small">저장한 커스텀 세계관 없음</div>';
+    if (manager) manager.innerHTML = deps.loadCustomWorlds().map((world) => `<button type="button" class="sr-world-item" data-world-id="${deps.escapeHtml(world.id)}"><span>${deps.escapeHtml(world.name)}${world.franchise ? ' · 원작 세계' : ''}${world.advanced||world.advancedStub ? ' · 고급' : ''}</span><i class="fa-solid fa-pen" aria-hidden="true"></i></button>`).join('') || '<div class="sr-empty-small">저장한 커스텀 세계관 없음</div>';
     worldCopyNotice(deps.document,worlds);
 }
 

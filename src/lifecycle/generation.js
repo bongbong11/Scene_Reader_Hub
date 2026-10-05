@@ -42,6 +42,11 @@ async function prepareGeneration(type, data, dryRun, preparation) {
     preparation?.assert();
     if (dryRun || data?.quiet_prompt || type === 'quiet') return;
     const startedChatKey = deps.stateChatKey();
+    if(deps.isStorageBusy?.()) {
+        await deps.clearInjection({chatKey:startedChatKey});
+        deps.updateStatus('자료 연결 중 · 이번 응답은 Hub 판독 없이 진행합니다.');
+        return;
+    }
     if(deps.isEmbeddingBusy?.()) {
         deps.generationMode='embedding_maintenance';
         deps.activeGenerationCycle={mode:'embedding_maintenance',chatKey:startedChatKey,inputKey:'',startedAt:new Date().toISOString()};

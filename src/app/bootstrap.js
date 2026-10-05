@@ -9,8 +9,7 @@ import { createOwnerStorage } from '../storage/owner.js';
 import { createActivity } from '../ui/activity.js';
 import { createOwnerUi } from '../ui/owner.js';
 import { createVaultLauncher } from '../ui/vault-launcher.js';
-import { createVaultAccess } from '../storage/vault-access.js';
-import { createVaultPasswordPrompt } from '../ui/vault-password.js';
+import { createSharedStorageUi } from '../ui/shared-storage.js';
 import { createClipboard } from '../ui/clipboard.js';
 import { createHtml } from '../shared/html.js';
 import { createRecordRepository } from '../storage/record.js';
@@ -257,8 +256,8 @@ let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnec
 
 let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSceneReader, createQuickEntry, ensureQuickEntry} = createShell({
     get window() { return window; },
-    bindHubTrace: () => { traceView.bind(); currentStatusView.bind(); vaultLauncher.bind(); },
-    refreshCurrentStatus: () => currentStatusView.render(),
+    bindHubTrace: () => { traceView.bind(); currentStatusView.bind(); vaultLauncher.bind(); sharedStorageUi.bind(); },
+    refreshCurrentStatus: () => {currentStatusView.render();sharedStorageUi.refresh();},
     get ADVANCED_ELEMENTS() { return ADVANCED_ELEMENTS; },
     get ADVANCED_STYLES() { return ADVANCED_STYLES; },
     get DEVELOPMENT_STYLES() { return DEVELOPMENT_STYLES; },
@@ -282,6 +281,7 @@ let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSc
 
 let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged,prepareFallback} = createGenerationLifecycle({
     isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
+    isStorageBusy:()=>sharedStorage.isBusy(),
     get judgmentFailureState() { return judgmentFailureState; },
     get hub() { return hub; },
     get MAX_TRANSCRIPT_CHARS() { return MAX_TRANSCRIPT_CHARS; },
@@ -445,6 +445,7 @@ const vectorRetrieval = createVectorRetrieval({ fetch: (...args) => fetch(...arg
     onProgress: progress => renderRetrievalProgress({document,updateActivity},progress),
 });
 const embeddingMaintenance = createEmbeddingMaintenance({
+    shared:()=>Boolean(record()?.sharedSource),
     get characterStore() { return runtime.characterStore; },
     get chatReadyKey() { return runtime.chatReadyKey; },
     get jobs() { return runtime.jobs; },
@@ -496,7 +497,7 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
 let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,
-    onBeforeRender: () => { if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
+    onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
     isStateCapturePending: requestId => runtime.pendingProfileStateRequests.has(requestId),
     readState: () => ({settings: runtime.settings, characterStore: runtime.characterStore, backupList: runtime.backupList, reasonerProfiles: runtime.reasonerProfiles, reasonerProfileError: runtime.reasonerProfileError, characterAnalysisSelection: runtime.characterAnalysisSelection, activeInjectionPayload: runtime.activeInjectionPayload}),
@@ -516,7 +517,11 @@ let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults,
 
 
 
-let {companionStorage, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory} = createRepository({
+let {sharedStorage, companionStorage, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory} = createRepository({
+    get selectedWorld() { return selectedWorld; },
+    get stableFingerprint() { return stableFingerprint; },
+    get invalidateReasonerJobs() { return invalidateReasonerJobs; },
+    isStorageActionBlocked:()=>Boolean(runtime.judgeInFlight || runtime.pendingGenerationType || embeddingMaintenance.isBusy()),
     get ready() { return () => startupPromise || Promise.resolve(); },
     get chatReadyKey() { return runtime.chatReadyKey; },
     get noteDiagnostic() { return noteDiagnostic; },
@@ -671,6 +676,7 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
 });
 
 let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalCandidates, sourceUserRpForOutput, postVerifiedCharacterOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+    isStorageBusy:()=>sharedStorage.isBusy(),
     isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
     get pendingGenerationType() { return runtime.pendingGenerationType; },
     hub,
@@ -913,14 +919,16 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.1.19',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.0',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
-const vaultAccess=createVaultAccess(window);
 const vaultNotice=message=>notifySceneReaderToast(window,'info',message,'씬판독기',{timeOut:1800});
-const vaultPassword=createVaultPasswordPrompt({document,verify:vaultAccess.unlock,onUnlocked:()=>{vaultLauncher.refresh();vaultLauncher.open();},onWrong:()=>vaultNotice('쉿, 업데이트 중')});
-const vaultLauncher=createVaultLauncher({document,window,isUnlocked:vaultAccess.isUnlocked,notify:vaultNotice,requestUnlock:()=>vaultPassword.show()});
+const vaultLauncher=createVaultLauncher({document,window,notify:vaultNotice});
+const sharedStorageUi=createSharedStorageUi({document,service:sharedStorage,record,chatKey:stateChatKey,
+    ready:()=>runtime.chatReadyKey===stateChatKey(),isBusy:()=>Boolean(runtime.judgeInFlight||runtime.pendingGenerationType),
+    hydrate:async()=>{runtime.chatReadyKey='';if(await hydrateServerState())runtime.chatReadyKey=stateChatKey();else throw new Error('저장 상태를 다시 불러오지 못했습니다. 원본 복구나 백업 복원을 사용해 주세요.');},
+    refresh:()=>{setFormValues();renderAll();},notify:vaultNotice});
 window.SceneReaderHub=Object.freeze({companionStorage,diagnostics:()=>hub.snapshot(),canUseKnowledgeVault:vaultLauncher.canUse,openKnowledgeVault:vaultLauncher.open});
 jQuery(() => void (startupPromise=init().then(()=>{
     registerSlashCommands({getContext,hub,document,openSceneReader,saveGlobal,setFormValues,invalidateReasonerJobs,clearInjection,updateStatus,diagnosticSnapshot,noteDiagnostic,get settings(){return runtime.settings;}});

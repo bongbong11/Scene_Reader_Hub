@@ -2,6 +2,9 @@ import { setCharacterImportMode, characterImportMode } from './character-import-
 import { notifySceneReaderToast } from './toasts.js';
 import { castCompilerPrompt, importRecordBundle, validateRecordBundle } from "../character/bundles.js";
 import { characterCopyNotice } from './compiler-copy.js';
+import {digest} from '../storage/shared-document.js';
+import {downloadStoredFile} from '../storage/backup-stream.js';
+import {readCharacterFile} from '../storage/character-file.js';
 import { applyRecordVersion, deleteRecordVersion, bankOutput, allEntries } from "../character/versions.js";
 
 export { renderRecordBundles as renderRecordVersions } from "./record-bundles.js";
@@ -11,13 +14,14 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
     const status=text=>{if(el('sr-character-import-status'))el('sr-character-import-status').textContent=text;};
     deps.document.querySelectorAll('[data-character-import-mode]').forEach(button=>button.addEventListener('click',()=>{
         if(busy)return;
+        uploadedOutputs=null;
         setCharacterImportMode(deps.document,button.dataset.characterImportMode);
         el('sr-character-import-json').value='';
         el('sr-character-import-preview').innerHTML='';
         el('sr-character-file-summary').textContent='선택한 파일 없음 · .json';
         status('선택한 탭의 분석 명령문을 복사하고 완성된 파일을 올리세요.');
     }));
-    let busy=false;
+    let busy=false,uploadedOutputs=null,uploadedSourceSignature='';
     const task=(fn,stage='parse')=>deps.runUiTask((async()=>{
         if(busy) return;
         busy=true;
@@ -27,11 +31,11 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
         const job=deps.jobs.begin('character-transfer'), chat=deps.stateChatKey();
         let saved=false,applied=false;
         try {
-            await deps.saveCharacterStore(chat,next);
+            const result=await deps.saveCharacterStore(chat,next);
             saved=true;
             if(chat!==deps.stateChatKey())return false;
             job.assert();
-            deps.characterStore=deps.normalizeCharacterStore(next);
+            deps.characterStore=deps.normalizeCharacterStore(result?.characters||next);
             applied=true;
             job.finish();
             invalidatePreparedJudgment();
@@ -70,7 +74,9 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
             form.cardCast={cardName:card?.data?.name || card?.name || context.name2 || ''};
         }
         const sourceHash=form.source ? await deps.sha256Hex(form.source) : '';
+        if(uploadedOutputs&&uploadedSourceSignature!==digest([form.source,form.selectedLore]))throw new Error('파일 확인 후 원문이 바뀌었습니다. 인물 JSON 파일을 다시 불러와 주세요.');
         const result=importRecordBundle(deps.characterStore,el('sr-character-import-json').value,el('sr-character-import-name').value,{...form,sourceHash});
+        if(uploadedOutputs)for(const entry of result.entries){const packed=uploadedOutputs.find(value=>value.entity_name===entry.name);if(!packed?.pagedRecords)continue;Object.assign(entry.recordBank,{pagedRecords:packed.pagedRecords,storageRefs:packed.storageRefs,recordIndices:packed.recordIndices,seedRecords:packed.seedRecords,seedIndices:packed.seedIndices,recordIds:[]});const version=result.store.recordGroups.flatMap(group=>group.versions).find(version=>version.id===entry.appliedRecordVersion);if(version)version.bank=structuredClone(entry.recordBank);}
         if(!await persist(result.store,result.entry))return;
         const label=result.entries.map(entry=>entry.name).join(", ");
         status(`${label} · ${result.entries.length}명을 묶음으로 저장하고 각각 적용했습니다.`);
@@ -80,21 +86,23 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
     async function readFile(file) {
         if(!file)return;
         el('sr-character-import-json').value='';
+        uploadedOutputs=null;
         if(el('sr-character-import-preview'))el('sr-character-import-preview').innerHTML='';
         el('sr-character-file-summary').textContent=`${file.name} · 아직 저장되지 않음`;
         if(!/\.json$/i.test(file.name))throw new Error('.json 파일을 선택하세요.');
-        const chat=deps.stateChatKey(),raw=await file.text();
+        const chat=deps.stateChatKey(),form=characterForm(),sourceSignature=digest([form.source,form.selectedLore,form.kind,form.importMode]),job=deps.jobs.begin('character-file');let loaded;try{loaded=await readCharacterFile(file,deps.storagePost,form,{signal:job.controller.signal,onProgress:(done,total)=>status(`파일 확인 중 · ${Math.round(done/total*100)}%`)});job.assert();}finally{job.finish();}const raw=loaded.raw;
+        const currentForm=characterForm();if(sourceSignature!==digest([currentForm.source,currentForm.selectedLore,currentForm.kind,currentForm.importMode]))throw new Error('파일 확인 중 원문이나 인물 종류가 바뀌었습니다. 파일을 다시 불러와 주세요.');
         if(chat!==deps.stateChatKey())throw new Error('채팅이 바뀌었습니다. 현재 채팅에서 파일을 다시 불러오세요.');
         let outputs;
-        try { ({outputs}=validateRecordBundle(raw)); }
+        try { ({outputs}=validateRecordBundle(raw));if(loaded.outputs){uploadedOutputs=loaded.outputs;uploadedSourceSignature=digest([form.source,form.selectedLore]);outputs=loaded.outputs;} }
         catch(error) { error.characterInputLength=raw.length; error.characterStage='parse'; throw error; }
         if(characterImportMode(deps.document)==='single' && outputs.length>1)throw new Error('여러 인물이 있는 파일입니다. 다인 캐릭터 탭에서 불러오세요.');
         if(characterImportMode(deps.document)==='multi' && outputs.length<2)throw new Error('다인 캐릭터 파일에는 2명 이상이 필요합니다.');
         if(deps.characterEditorKind && outputs.some(output=>output.entity_type!==deps.characterEditorKind))throw new Error('선택한 인물 종류와 JSON의 인물 종류가 다릅니다.');
         el('sr-character-import-json').value=raw;
         const preview=el('sr-character-import-preview'),esc=deps.escapeHtml;
-        if(preview)preview.innerHTML=outputs.map(output=>`<details class="sr-import-person-preview"><summary>${esc(output.entity_name)} · ${output.records.length}개 기록 확인</summary><ul>${output.records.map(record=>`<li>${esc(record.rule)}</li>`).join('')}</ul>${output.intimacy_reference?.text?`<p>${esc(output.intimacy_reference.text)}</p>`:''}</details>`).join('');
-        el('sr-character-file-summary').textContent=`${file.name} · ${outputs.length}명 · ${outputs.reduce((sum,output)=>sum+output.records.length,0)}개 기록`;
+        if(preview)preview.innerHTML=outputs.map(output=>`<details class="sr-import-person-preview"><summary>${esc(output.entity_name)} · ${output.pagedRecords?.count||output.records.length}개 기록 확인</summary><ul>${output.records.slice(0,50).map(record=>`<li>${esc(record.rule)}</li>`).join('')}</ul>${(output.pagedRecords?.count||output.records.length)>50?'<p>전체 기록을 확인했습니다. 미리보기에는 일부 기록만 표시합니다.</p>':''}${output.intimacy_reference?.text?`<p>${esc(output.intimacy_reference.text)}</p>`:''}</details>`).join('');
+        el('sr-character-file-summary').textContent=`${file.name} · ${outputs.length}명 · ${outputs.reduce((sum,output)=>sum+(output.pagedRecords?.count||output.records.length),0)}개 기록`;
         if(!el('sr-character-import-name').value.trim())el('sr-character-import-name').value=file.name.replace(/\.json$/i,'');
         status(`형식 검사 완료 · ${outputs.map(output=>output.entity_name).join(', ')} — ${outputs.length}명으로 나눠 저장합니다. 묶음 이름을 확인한 뒤 저장하세요.`);
     }
@@ -108,6 +116,8 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
             const {recordGroup:groupId,recordVersion:versionId,recordAction:action}=button.dataset;
             const group=deps.characterStore.recordGroups.find(g=>g.id===groupId), version=group?.versions.find(v=>v.id===versionId);
             if(!version)throw new Error('저장한 버전을 찾지 못했습니다.');
+            if(action==='download'&&version.bank.pagedRecords){const operationId=digest(['character-export',version.id,Date.now()]);await deps.storagePost('v2/character/export',{operationId,bank:version.bank});downloadStoredFile(deps.document,'character/download',{id:operationId},'characters.json');return;}
+            if(action==='copy'&&version.bank.pagedRecords)throw new Error('큰 인물 파일은 복사 대신 JSON 내려받기를 사용해 주세요.');
             const output=bankOutput(version.bank);
             if(action==='copy'){await deps.copyText(JSON.stringify(output,null,2));status('판독시트를 복사했습니다.');}
             if(action==='download')downloadJson(`${group.name.replace(/[<>:"/\\|?*]/g,'_')}.json`,output);

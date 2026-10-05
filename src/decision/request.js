@@ -1,4 +1,5 @@
 import {ROUTING_SCOPE} from './opportunity-questions.js';
+import {CONTINUATION_POLICY} from '../context/storyline-reference.js';
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
 import { publishKnowledgeVault, knowledgeVaultDecisionState } from '../integration/knowledge-vault.js';
 
@@ -40,6 +41,7 @@ async function requestDecision(run,frame) {
             questions: frame.questions,
         });
         if(frame.questions.event_opportunity||frame.questions.person_opportunity)frame.jevRequest.state.scope=ROUTING_SCOPE;
+        if(frame.storylineReference){frame.jevRequest.state.continuation_reference=frame.storylineReference;frame.jevRequest.state.scope+=' '+CONTINUATION_POLICY;}
         frame.jevRequest.state.new_opportunities=frame.opportunityOffers?{key:frame.opportunityOffers.key,event:{mode:frame.opportunityOffers.event.spontaneous?'spontaneous':'normal',scope:frame.opportunityOffers.event.scope},person:{mode:frame.opportunityOffers.person.spontaneous?'spontaneous':'normal',kind:frame.opportunityOffers.person.kind}}:null;
         (frame.data = await deps.callJev(frame.jevRequest, frame.recoveryAttempt ? 60000 : 30000, run.controller.signal));
         run.assert();

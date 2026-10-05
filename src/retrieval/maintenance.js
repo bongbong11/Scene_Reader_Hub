@@ -1,4 +1,6 @@
 import { currentRecords, recordBankIsCurrent } from '../character/records.js';
+import {bankIdentity} from './bank-identity.js';
+import {bankPages} from '../storage/character-pages.js';
 
 // Maintenance touches derived indexes only. Source records and judgments stay intact.
 export function createEmbeddingMaintenance(deps) {
@@ -7,11 +9,11 @@ export function createEmbeddingMaintenance(deps) {
         const store = deps.characterStore;
         const entries = [...(store.characters || []), ...(store.npcs || []), ...(store.persona ? [store.persona] : [])];
         const result = entries.filter(recordBankIsCurrent).map(entry => ({
-            kind:'character', bankId:`${deps.stateChatKey()}:${entry.id}`, items:currentRecords(entry),
+            kind:'character', bankId:entry.recordBank?.pagedRecords?.bankId||bankIdentity('character',`${deps.stateChatKey()}:${entry.id}`,currentRecords(entry),Boolean(deps.shared?.())), items:currentRecords(entry),...(entry.recordBank?.pagedRecords?{pagedBank:entry.recordBank}:{}),
         }));
         const world = deps.selectedWorld();
-        if (world?.advanced?.records?.length) result.push({kind:'world',bankId:world.id,items:world.advanced.records});
-        return result.filter(bank => bank.items.length);
+        if (world?.advanced?.records?.length) result.push({kind:'world',bankId:bankIdentity('world',world.id,world.advanced.records,Boolean(deps.shared?.())),items:world.advanced.records});
+        return result.filter(bank => bank.items.length||bank.pagedBank?.pagedRecords?.count);
     }
     const revision = () => JSON.stringify([deps.vectorRetrieval.config(), banks()]);
     const isBusy = () => Boolean(active?.valid());
@@ -33,6 +35,7 @@ export function createEmbeddingMaintenance(deps) {
             deps.vectorRetrieval.clear();
             for (const bank of targets) {
                 validate();
+                if(bank.pagedBank)bank.items=(await loadBankRecords(bank.pagedBank,{all:true,signal:job.controller.signal})).records;
                 const result = await deps.vectorRetrieval.rebuild({...bank,forceRebuild,signal:job.controller.signal,validate});
                 validate();
                 if (result.status !== 'rebuilt') throw Object.assign(new Error(result.error || '임베딩을 완료하지 못했습니다.'),{code:result.code || 'EMBEDDING_REBUILD_FAILED'});
@@ -41,7 +44,7 @@ export function createEmbeddingMaintenance(deps) {
                 generatedCount+=result.generatedCount || 0;
             }
             deps.noteDiagnostic('embedding_rebuild',{module:'src/retrieval/maintenance.js',status:'succeeded',bankCount:completed,reusedCount,generatedCount,forceRebuild});
-            return {bankCount:completed,recordCount:targets.reduce((sum,bank)=>sum+bank.items.length,0),reusedCount,generatedCount};
+            return {bankCount:completed,recordCount:targets.reduce((sum,bank)=>sum+(bank.pagedBank?.pagedRecords?.count||bank.items.length),0),reusedCount,generatedCount};
         } catch(error) {
             deps.noteDiagnostic('embedding_rebuild',{module:'src/retrieval/maintenance.js',status:job.valid()?'failed':'cancelled',completedCount:completed,errorKind:error.code || error.name});
             throw error;

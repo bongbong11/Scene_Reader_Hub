@@ -7,7 +7,8 @@ export function selectRecordCandidates(entry, transcript, {limit=20,maxChars=160
     const query=words(transcript), own=words([entry.name,...(entry.aliases || [])].join(' '));
     const semanticRank=new Map(semanticIndices.map((index,rank)=>[index,rank]));
     const hinted=new Set(categoryHints);
-    const rank=currentRecords(entry).map((record,index)=>{
+    const rank=currentRecords(entry).map((record,localIndex)=>{
+        const index=entry.recordBank?.recordIndices?.[localIndex] ?? localIndex;
         const terms=words([record.target,record.when,record.rule,record.knowledge_domain,record.type].join(' '));
         let overlap=0;
         for(const term of terms) if(query.has(term) && !own.has(term)) overlap++;
@@ -42,7 +43,7 @@ export function selectRecordCandidates(entry, transcript, {limit=20,maxChars=160
         used+=size;
         selected.push({...item.record,id:`record:${entry.id}:${item.index}`,kind:item.record.type,topic:item.record.knowledge_domain || 'none'});
     }
-    if(stats)Object.assign(stats,{storedCount:rank.length,candidateCount:selected.length,candidateChars:used,excludedByChars,excludedByLimit:Math.max(0,rank.length-selected.length-excludedByChars),semanticHits:semanticRank.size,limit,maxChars});
+    if(stats)Object.assign(stats,{storedCount:entry.recordBank?.pagedRecords?.count||rank.length,candidateCount:selected.length,candidateChars:used,excludedByChars,excludedByLimit:Math.max(0,rank.length-selected.length-excludedByChars),semanticHits:semanticRank.size,limit,maxChars});
     return selected;
 }
 export function scopedRecordLine(name, record) {

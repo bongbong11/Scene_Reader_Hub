@@ -93,7 +93,7 @@ function showVersionEditor(kind,entry,group,version){
     showCharacterEditor(kind,version.entrySnapshot || entry);
     deps.document.getElementById('sr-character-editor-title').textContent=`${kind==='npc'?'NPC':kind==='persona'?'페르소나':'캐릭터'} · 저장본 수정`;
     deps.document.getElementById('sr-character-import-name').value=group.name;
-    deps.document.getElementById('sr-character-import-json').value=JSON.stringify({entity_type:version.bank.entity_type,entity_name:version.bank.entity_name,intimacy_reference:version.bank.intimacy_reference,records:version.bank.records},null,2);
+    deps.document.getElementById('sr-character-import-json').value=version.bank.pagedRecords?'':JSON.stringify({entity_type:version.bank.entity_type,entity_name:version.bank.entity_name,intimacy_reference:version.bank.intimacy_reference,records:version.bank.records},null,2);
     deps.document.getElementById('sr-character-file-summary').textContent=`${new Date(version.savedAt).toLocaleString('ko-KR')} 저장본 · 새 JSON을 업로드하면 새 날짜로 저장됩니다.`;
 }
 

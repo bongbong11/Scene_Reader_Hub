@@ -1,4 +1,4 @@
-"""Verify Hub install bytes, imports, data identifiers and unchanged shared plugin/core."""
+"""Verify Hub install files, data identifiers, bundled plugin and unchanged core."""
 from pathlib import Path
 import hashlib, json, re
 root = Path(__file__).resolve().parents[1]
@@ -11,8 +11,12 @@ assert manifest['generate_interceptor'] == 'SceneReaderHubBeforeGenerate'
 assert lock['sourceDirty'] is False
 assert lock['sourceCommit'] == provenance['characterCommit']
 assert hashlib.sha256((root/'src/vendor/character-reasoner/index.js').read_bytes()).hexdigest() == lock['sha256']
+plugin = json.loads((root/'server-plugin/package.json').read_text(encoding='utf-8'))
+assert plugin['version'] == provenance['sharedPluginVersion']
 for relative, expected in provenance['sharedPluginFiles'].items():
-    assert hashlib.sha256((root/relative).read_bytes()).hexdigest() == expected, relative
+    assert hashlib.sha256((root/relative).read_bytes().replace(b'\r\n', b'\n')).hexdigest() == expected, relative
+assert hashlib.sha256((root/'server-plugin/vendor/character-core.mjs').read_bytes()).hexdigest() == lock['sha256']
+assert set(provenance['sharedPluginFiles']) == {str(file.relative_to(root)).replace('\\', '/') for file in (root/'server-plugin').rglob('*') if file.is_file()}
 contract = (root/'src/storage/contract.js').read_text(encoding='utf-8')
 for value in ['sceneReader','scene-reader-router','scene-reader-world','scene-reader-state-capture','sceneReader.jevApiKey','/api/plugins/scene-reader-jev/systemone','/api/plugins/scene-reader-jev/storage','scene-reader-state','chat-snapshots']:
     assert repr(value) in contract, value
@@ -36,4 +40,4 @@ for file in files:
             assert dependency.is_file(), (file.relative_to(root),spec)
 assert not list((root/'downloads').glob('scene-reader-hub-v*.zip'))
 assert not list((root/'downloads').glob('scene-reader-sillytavern-v*.zip'))
-print(f"Hub GitHub install passed: {manifest['version']}, original data identifiers, unchanged core/shared plugin, entry points, assets and complete imports.")
+print(f"Hub GitHub install passed: {manifest['version']}, plugin {plugin['version']}, original data identifiers, unchanged character core, entry points, assets and complete imports.")

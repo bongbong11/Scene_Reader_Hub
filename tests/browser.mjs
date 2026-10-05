@@ -159,7 +159,9 @@ try{
         assert.ok(Math.abs(heading.y+heading.height/2-layout.buttons[0].top-layout.buttons[0].height/2)<2,'title and buttons share a row');
         assert.ok(heading.x+heading.width<=layout.buttons[0].left,'title and buttons do not overlap');
         if(width===390){
-            assert.equal(await page.locator('.sr-header p').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),12.48);
+            assert.equal(await page.locator('.sr-header p').evaluate(node=>getComputedStyle(node).whiteSpace),'nowrap');
+            assert.ok(await page.locator('.sr-header p').evaluate(node=>node.scrollWidth<=node.clientWidth+1),'mobile description stays on one complete line');
+            assert.equal(await page.locator('#sr-embedding-rebuild span').isVisible(),true);
             assert.equal(await page.locator('#sr-tab-flow .sr-explanation').first().evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),10.5);
             assert.equal(await page.locator('.sr-injection-credit').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),9);
             assert.equal(await page.locator('.sr-seasonal-caption').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),10.5);
@@ -205,7 +207,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.equal(store.settings.global.enabled,false);
     await page.locator('#sr-extension-open').click();
     await page.locator('#scene-reader-dialog[open]').waitFor();
-    await page.waitForFunction(()=>document.querySelector('.sr-header-mascot')?.naturalWidth>0);
+    await page.waitForFunction(()=>document.querySelector('#sr-vault-button img')?.naturalWidth>0);
     assert.equal(await page.locator('#sr-run').isDisabled(),true);
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-enabled').check();

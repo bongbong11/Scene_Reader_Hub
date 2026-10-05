@@ -1,6 +1,10 @@
 import { bundledWorldBank } from "./bundled.js";
 import { parseAdvancedWorld, storedWorldToJson } from "./advanced.js";
 export const CUSTOM_WORLD_STORAGE = 'scene-reader-custom-worlds-v1';
+let remoteWorlds=null;
+let worldScope='';
+export function setWorldScope(scope){if(scope&&scope!==worldScope){worldScope=scope;remoteWorlds=null;}}
+const worldStorage=()=>worldScope?`${CUSTOM_WORLD_STORAGE}:${worldScope}`:CUSTOM_WORLD_STORAGE;
 
 export const INITIAL_CUSTOM_WORLDS = [
     {
@@ -218,6 +222,7 @@ Keep this check internal.`,
 ];
 
 function normalizeCustomWorld(world) {
+    if(world.worldStub&&world.worldRef)return {id:String(world.id),name:String(world.name),hint:String(world.hint||''),prompt:'',franchise:Boolean(world.franchise),worldRef:world.worldRef,worldStub:true,advancedStub:Boolean(world.advancedStub)};
     const prompt = String(world.prompt || '');
     const bank = world.advanced ? parseAdvancedWorld(storedWorldToJson(world)) : null;
     return {
@@ -225,6 +230,7 @@ function normalizeCustomWorld(world) {
         name: String(world.name),
         hint: String(world.hint || world.name || ''),
         prompt,
+        ...(world.worldRef?{worldRef:world.worldRef}:{}),
         franchise: Object.hasOwn(world, 'franchise')
             ? Boolean(world.franchise)
             : /CANON_FIDELITY_PASS|HARRY_POTTER_WORLD_CHECK|established[- ]franchise|원작\s*(?:세계|인물|캐릭터)/i.test(`${world.id} ${world.name} ${world.hint || ''} ${prompt}`),
@@ -239,13 +245,14 @@ export function isFranchiseWorld(world) {
 }
 
 export function loadCustomWorlds() {
+    if(remoteWorlds)return remoteWorlds.map(normalizeCustomWorld);
     try {
-        const parsed = JSON.parse(localStorage.getItem(CUSTOM_WORLD_STORAGE) || 'null');
+        const parsed = JSON.parse(localStorage.getItem(worldStorage()) || 'null');
         if (Array.isArray(parsed)) {
             const seen = new Set();
             return parsed.filter((world) => {
                 if (!world || typeof world !== 'object') return false;
-                if (!String(world.id || '').trim() || !String(world.name || '').trim() || !String(world.prompt || '').trim()) return false;
+                if (!String(world.id || '').trim() || !String(world.name || '').trim() || !String(world.prompt || '').trim()&&!world.worldStub) return false;
                 if (seen.has(world.id)) return false;
                 seen.add(world.id);
                 return true;
@@ -253,14 +260,21 @@ export function loadCustomWorlds() {
         }
     } catch { /* use bundled defaults */ }
     const initial = structuredClone(INITIAL_CUSTOM_WORLDS);
-    try { localStorage.setItem(CUSTOM_WORLD_STORAGE, JSON.stringify(initial)); } catch { /* storage optional */ }
+    try { localStorage.setItem(worldStorage(), JSON.stringify(initial)); } catch { /* storage optional */ }
     return initial;
 }
 
 export function saveCustomWorlds(worlds) {
     try {
-        const normalized = (Array.isArray(worlds) ? worlds : []).filter((world) => world?.id && world?.name && world?.prompt).map(normalizeCustomWorld);
-        localStorage.setItem(CUSTOM_WORLD_STORAGE, JSON.stringify(normalized));
+        const normalized = (Array.isArray(worlds) ? worlds : []).filter((world) => world?.id && world?.name && (world?.prompt||world?.worldStub)).map(normalizeCustomWorld);
+        if(normalized.some(world=>world.worldRef)){
+            remoteWorlds=normalized;
+            const metadata=normalized.map(world=>world.worldRef?{id:world.id,name:world.name,hint:world.hint,franchise:world.franchise,prompt:'',worldRef:world.worldRef,worldStub:true,advancedStub:Boolean(world.advanced||world.advancedStub)}:world);
+            try{localStorage.setItem(worldStorage(),JSON.stringify(metadata));}catch{/* Server documents remain authoritative. */}
+            return true;
+        }
+        remoteWorlds=null;
+        localStorage.setItem(worldStorage(), JSON.stringify(normalized));
         return true;
     } catch {
         return false;
@@ -269,7 +283,7 @@ export function saveCustomWorlds(worlds) {
 
 export function allWorlds(builtins, customs = loadCustomWorlds()) {
     return [...builtins.map((world) => bundledWorldBank({ ...world, franchise: Boolean(world.franchise), builtin: true })), ...customs.map((world) => {
-        const normalized = { ...normalizeCustomWorld(world), builtin: false };
+        const normalized = { ...normalizeCustomWorld(world), builtin: false };if(world.worldStub)return normalized;
         const original = INITIAL_CUSTOM_WORLDS.find(item => item.id === world.id);
         const oldHarryPrompt = original?.id === 'custom-harry-potter' ? original.prompt.replace(/\n\nAt Hogwarts,[\s\S]*?magical school\./, '') : '';
         if (!world.advanced && original && [original.prompt, oldHarryPrompt].includes(world.prompt)) return bundledWorldBank({ ...normalized, prompt: original.prompt, calendarTopics: original.calendarTopics || [] });

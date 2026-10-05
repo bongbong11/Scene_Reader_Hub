@@ -12,7 +12,7 @@ async function saveServerChat(chatKey = deps.stateChatKey(), value = deps.record
 async function saveSession(chatKey, chat, history) {
     const snapshot = structuredClone(chat);
     const limited = structuredClone(history.slice(-deps.STATE_HISTORY_LIMIT));
-    if (deps.storageVersion < 2) throw new Error('서버 플러그인을 0.7.0으로 업데이트한 뒤 다시 시작하세요.');
+    if (deps.storageVersion < 2) throw new Error('서버 플러그인을 0.8.0으로 업데이트한 뒤 다시 시작하세요.');
     const previousChat = deps.chatRecords.get(chatKey), previousHistory = deps.stateHistoryCache.get(chatKey);
     const working = structuredClone(snapshot), workingHistory = structuredClone(limited);
     // Publish before waiting: later edits must start from this state, and a late
@@ -40,7 +40,7 @@ async function saveCharacterStore(chatKey = deps.stateChatKey(), value = deps.ch
     if (!deps.serverStoreAvailable && !loaded) throw new Error('씬판독기 서버 저장소에 연결되지 않았습니다.');
     const snapshot = structuredClone(value);
     snapshot.updatedAt = new Date().toISOString();
-    await deps.queueWrite(`characters:${chatKey}`, () => deps.storagePost('characters', { chatKey, value: snapshot }));
+    return deps.queueWrite(`characters:${chatKey}`, () => deps.storagePost('characters', { chatKey, value: snapshot }));
 }
 return {saveServerChat,saveSession,saveCharacterStore};
 }

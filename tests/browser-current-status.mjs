@@ -33,7 +33,7 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
         await setViewportSize(size);
         const layout=await page.evaluate(()=>{
             const header=document.querySelector('.sr-header'),title=header.querySelector('h2').getBoundingClientRect();
-            const buttons=[...header.querySelectorAll('button')].map(node=>node.getBoundingClientRect());
+            const buttons=[...header.querySelectorAll('.sr-header-actions button')].map(node=>node.getBoundingClientRect());
             const panel=document.getElementById('sr-current-status-panel');panel.scrollTop=panel.scrollHeight;
             const last=panel.lastElementChild.lastElementChild.getBoundingClientRect(),rect=panel.getBoundingClientRect();
             return {overlap:title.right>buttons[0].left+1,overflow:header.scrollWidth>header.clientWidth+1,buttonsVisible:buttons.every(b=>b.left>=0&&b.right<=innerWidth),bottomReachable:last.bottom<=rect.bottom+1};

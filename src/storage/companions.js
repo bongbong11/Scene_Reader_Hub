@@ -1,5 +1,6 @@
 // Companion records share the session file, but never the scene rollback snapshot.
 // All writes use the existing per-chat queue and the most recent confirmed session.
+import {chatRef} from './shared-document.js';
 export function createCompanionStorage(deps) {
     const sessions = new Map(), loaded = new Map(), revisions = new Map(), listeners = new Set();
     let epoch = 0;
@@ -34,7 +35,7 @@ export function createCompanionStorage(deps) {
             sessions.set(chatKey,clone(route === 'chat' ? request.value : request.chat));
             revisions.set(chatKey,(revisions.get(chatKey) || 0)+1);
         }
-        if (route === 'backup/restore' || route === 'backup/import') { epoch++; sessions.clear(); loaded.clear(); revisions.clear(); }
+        if (['backup/restore','backup/import','v2/backup/restore','v2/backup/import/finish'].includes(route)) { epoch++; sessions.clear(); loaded.clear(); revisions.clear(); }
         return data;
     }
     function chatLoaded(chatKey) { loaded.set(chatKey,deps.getContext().chatMetadata); notify(); }
@@ -60,6 +61,9 @@ export function createCompanionStorage(deps) {
             assert(namespace,metadata,chatKey,startedEpoch);
             const saved = sessions.get(chatKey)?.companionStores;
             if (object(saved) && Object.hasOwn(saved,namespace)) return clone(saved[namespace]);
+            // A freshly linked story is authoritative even when its namespace is
+            // empty. Old host metadata must not resurrect the previous story.
+            if (sessions.get(chatKey)?.sharedSource) return null;
             if (!object(legacy)) return null;
             return write(namespace,clone(legacy),metadata,chatKey,startedEpoch,true);
         });
@@ -89,5 +93,9 @@ export function createCompanionStorage(deps) {
         await waitForChat(metadata,chatKey);
         return deps.queueWrite(`session:${chatKey}`,()=>write(namespace,snapshot,metadata,chatKey,startedEpoch));
     }
-    return {post,chatLoaded,chatLoading:chatKey=>loaded.delete(chatKey), bridge:Object.freeze({version:1,load,save,subscribe(listener){listeners.add(listener);return ()=>listeners.delete(listener);}})};
+    function scope({metadata}={}) {
+        if(!current(metadata) || loaded.get(deps.stateChatKey())!==metadata)return null;
+        return {chatRef:chatRef(deps.stateChatKey()),linked:Boolean(sessions.get(deps.stateChatKey())?.sharedSource)};
+    }
+    return {post,chatLoaded,chatLoading:chatKey=>loaded.delete(chatKey), bridge:Object.freeze({version:1,load,save,scope,subscribe(listener){listeners.add(listener);return ()=>listeners.delete(listener);}})};
 }

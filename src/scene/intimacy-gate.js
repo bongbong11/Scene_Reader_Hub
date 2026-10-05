@@ -19,7 +19,7 @@ export function sceneGateAnswersConflict(answers) {
 export function sceneGateConflictRequest(request,answers) {
     return {
         model:request.model,
-        state:{scope:'Resolve only the conflicting current-scene status. Use current RP evidence; do not infer an ending from silence or elapsed time.',recent_roleplay:request.state.recent_roleplay,previous_route:request.state.previous_route,first_level:choice(answers?.scene_level),first_phase:choice(answers?.scene_phase)},
+        state:{...request.state,scope:request.state.scope+' Resolve only the conflicting current-scene status. Use current RP evidence; do not infer an ending from silence or elapsed time.',first_level:choice(answers?.scene_level),first_phase:choice(answers?.scene_phase)},
         questions:{
             scene_resolution:{type:'choice',instructions:'Has the current sexual interaction actually ended, is it still active, or is it briefly paused? Select unclear if the latest RP does not establish this.',criteria:{active:'Activity is happening now.',paused:'The same interaction is briefly paused.',ended:'The interaction actually ended or shifted to another purpose.',unclear:'Current RP does not establish the status.'}},
             scene_evidence:request.questions.scene_evidence,

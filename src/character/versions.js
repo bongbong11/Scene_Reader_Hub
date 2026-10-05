@@ -59,7 +59,8 @@ export function applyRecordVersion(store, groupId, versionId) {
     if (!entry) {
         const sameName=allEntries(next).find(e=>[e.name,...e.aliases].some(name=>normalized(name)===normalized(version.entityName)));
         if (sameName && sameName.kind!==group.kind) throw new Error('같은 인물이 다른 종류로 등록돼 있습니다. 등록 이름을 먼저 확인하세요.');
-        entry=sameName || (version.entrySnapshot ? structuredClone(version.entrySnapshot) : null);
+        if(sameName)throw new Error('같은 이름의 새 인물이 등록돼 있습니다. 이전 인물의 저장본을 자동으로 연결하지 않습니다.');
+        entry=version.entrySnapshot ? structuredClone(version.entrySnapshot) : null;
         if (!entry) throw new Error('이 인물의 원본 등록이 없습니다. 버전을 복사한 뒤 다시 가져오세요.');
     }
     if (!recordBankIsCurrent({...entry,recordBank:version.bank})) throw new Error('원문 또는 판독 기준이 바뀌었습니다. 결과를 다시 검증해 가져오거나 새로 판독하세요.');

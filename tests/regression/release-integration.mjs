@@ -88,6 +88,6 @@ for(const style of ['static','dynamic']) for(const focus of ['event','npc','conf
     f.ctx.characters=[{avatar:'Hunter.png'}];f.ctx.characterId=0;
     assert.equal(f.run('stateChatKey()'),owner,'reordering the SillyTavern character list cannot switch stored ownership');
     f.sandbox.fetch=async()=>({ok:true,json:async()=>({storageVersion:2})});
-    await assert.rejects(f.run('hydrateServerState()'),/0.7.0/,'old plugins must not load an empty new identity or overwrite legacy data');
+    await assert.rejects(f.run('hydrateServerState()'),/0.8.0/,'old plugins must not load an empty new identity or overwrite legacy data');
 }
 console.log(`Release integration passed: ${count} scene/style/advanced/world-selection combinations, same-scene responses, scoped character records, matching world injection, and cache refresh.`);

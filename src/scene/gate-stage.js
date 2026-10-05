@@ -1,4 +1,6 @@
 import {sceneDisplayState} from './display-state.js';
+import {inheritedStates,CONTINUATION_POLICY,storylineInjection,storylineRetrievalCue} from '../context/storyline-reference.js';
+import {bankIdentity} from '../retrieval/bank-identity.js';
 import { notifySceneReaderToast } from "../ui/toasts.js";
 import { MEMORY_REFERENCE_ENABLED } from "../memory/context.js";
 import { sceneGateRequest, resolveSceneGate, sceneGateAnswersConflict, sceneGateConflictRequest, resolveSceneGateConflict } from "./intimacy-gate.js";
@@ -18,15 +20,20 @@ async function prepareGate(run,frame) {
     (frame.carriedGateIds = [...new Set([...frame.previousParticipantIds,...(frame.rec.lastJudgment?.characterTrace || []).filter(item=>(item?.presence||item?.final?.presence)==='active').map(item=>item.id)])]);
     (frame.gatePeople = deps.characterStore.enabled ? deps.selectActiveEntries(deps.characterStore, frame.transcript, deps.getContext().name2 || '', frame.carriedGateIds, {allowUserImpersonation:frame.prefs.allowUserImpersonation}).slice(0,6) : []);
     (frame.gateRequest = sceneGateRequest({model:deps.JEV_MODEL,transcript: frame.transcript,previous:frame.previousSceneRoute,people:frame.gatePeople,previousParticipantIds: frame.previousParticipantIds}));
-    (frame.rawPriorStates = new Map(deps.latestStateForChat(frame.rec, deps.getContext().chat, deps.stableFingerprint).map(item => [item.id, item])));
+    (frame.rawPriorStates = new Map(inheritedStates(frame.rec,deps.latestStateForChat(frame.rec, deps.getContext().chat, deps.stableFingerprint)).map(item => [item.id, item])));
+    if(frame.storylineReference) {
+        frame.gateRequest.state.continuation_reference=frame.storylineReference;
+        frame.gateRequest.state.scope+=' '+CONTINUATION_POLICY;
+    }
     frame.gateRequest.state.prior_output_character_states = frame.gatePeople.map(entry => {
         const state = stateForEntry(frame.rawPriorStates.get(entry.id), entry);
         return state ? { ...state, name: entry.name } : null;
     }).filter(Boolean);
     if (frame.gateRequest.state.prior_output_character_states.length) frame.gateRequest.state.scope += ' Prior output feelings may guide character-record retrieval. They are not evidence that sexual activity has begun, a conditional world state is active, or anyone knows another person’s feelings.';
+    frame.retrievalTranscript=[frame.transcript,storylineRetrievalCue(frame.storylineReference)].filter(Boolean).join('\n');
     (frame.worldRecords = frame.world?.advanced?.records || []);
     (frame.worldRetrieval = frame.world?.advanced && frame.worldRecords.length
-        ? await deps.vectorRetrieval.search({kind:'world',bankId:frame.world.id,items:frame.worldRecords,transcript: frame.transcript,limit:10,signal:run.controller.signal})
+        ? await deps.vectorRetrieval.search({kind:'world',bankId:bankIdentity('world',frame.world.id,frame.worldRecords,Boolean(frame.rec.sharedSource)),items:frame.worldRecords,transcript: frame.retrievalTranscript,limit:10,signal:run.controller.signal})
         : {indices:[],status:'plain'});
     run.assert();
     (frame.worldRecordCandidates = addWorldQuestions(frame.gateRequest, frame.world, frame.transcript, frame.worldRetrieval.indices));
@@ -92,7 +99,8 @@ async function prepareGate(run,frame) {
             if(reference)referenceLines.push(`<CHARACTER_REFERENCE name="${String(entry.name).replace(/["<>]/g,'')}">Use this person's stored information in the current interaction without inventing traits or forcing an action: ${reference}</CHARACTER_REFERENCE>`);
         }
         (frame.payload = deps.buildPausedInjection({settings:frame.prefs,privatePrompt:frame.prefs.privatePromptEnabled?deps.ownerPrompt():'',referenceLines,activeWorldName:frame.world?.name||''}));
-        frame.rec.lastJudgment={details:{},decisions:{},payload: frame.payload,worldSelection: frame.worldSelection,worldId:frame.world?.id||'',worldPayload:frame.selectedWorldPayload,inputKey: frame.inputKey,contextKey:frame.context.contextKey,sourceKey: frame.sourceKey,continuityCacheKey: frame.continuityCacheKey,memoryKey: frame.memoryKey,characterTrace:[],sceneIntimacy:frame.rec.sceneIntimacy,judgedAt:new Date().toISOString(),model:deps.JEV_MODEL};
+        const carry=storylineInjection(frame.rec);if(carry)frame.payload=carry+'\n\n'+frame.payload;
+        frame.rec.lastJudgment={details:{},decisions:{},payload: frame.payload,worldSelection: frame.worldSelection,worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}),worldPayload:frame.selectedWorldPayload,inputKey: frame.inputKey,contextKey:frame.context.contextKey,sourceKey: frame.sourceKey,continuityCacheKey: frame.continuityCacheKey,memoryKey: frame.memoryKey,characterTrace:[],sceneIntimacy:frame.rec.sceneIntimacy,judgedAt:new Date().toISOString(),model:deps.JEV_MODEL};
         run.assert();
         if(deps.storageVersion>=2)await deps.queueWrite('session:'+run.identity,()=>{run.assert();return deps.storagePost('transaction',{chatKey:run.identity,chat:structuredClone(frame.rec),history:run.history.slice(-deps.STATE_HISTORY_LIMIT)});});
         else await deps.persistChat(run.identity,frame.rec);

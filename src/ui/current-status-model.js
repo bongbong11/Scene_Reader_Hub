@@ -78,6 +78,7 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
             set('profile',event,{state:event.status==='failed'?'failed':event.status==='running'?'running':event.status==='needs_setup'?'needs_setup':'not_needed',message:messages[event.reasonCode] || '이번 실행에서는 추가 분석을 호출하지 않았습니다.'});return;
         }
         if(event.stage==='auxiliary_result' && event.status==='partial') {set('profile',event,{state:'partial',message:'모델은 응답했지만 일부 분석 결과를 확인하지 못했습니다.'});return;}
+        if(event.stage==='storage_resolution'&&event.status==='succeeded'){set('storage',event,{key:event.phase||'',sticky:false,message:'실제 저장 완료를 다시 확인했습니다.'});pendingFailures.delete('storage');return;}
         if(event.stage==='storage_request') {set('storage',event,{key:event.phase || ''});return;}
         if(event.code==='PROMPT_REGISTERED') {
             set('preparation',event,{state:'success',message:'주입문 등록 완료 · 실제 요청 포함은 아직 확인 전입니다.'});

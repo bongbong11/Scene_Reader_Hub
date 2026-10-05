@@ -6,6 +6,7 @@ export function createSourceRevision(deps) {
 function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
     const vaultRevision=includeVault ? knowledgeVaultRevision(deps.window?.KnowledgeVaultV1,deps.stableFingerprint) : '';
     return deps.stableFingerprint({
+        ...(rec?.sharedSource?{sharedReference:[rec.sharedSource.baselineId,rec.sharedSource.baselineRevision,rec.sharedSource.assetId,rec.sharedSource.epoch,rec.sharedReference?.sourceCheckpoint]}:{}),
         ...(vaultRevision ? {vaultRevision} : {}),
         world: { id: world?.id || '', name: world?.name || '', hint: world?.hint || '', prompt: world?.prompt || '', franchise: Boolean(world?.franchise), calendarTopics: world?.calendarTopics || [], advanced: world?.advanced || null },
         reasoner: deps.settings.reasonerProfileId || '',

@@ -172,5 +172,27 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         }
         return `${RETRIEVAL_PROVIDERS[options.source].label} 연결 성공`;
     }
-    return { search, rebuild:options=>search({...options,indexOnly:true,forceRebuild:options.forceRebuild===true,recovery:true}), test, config, clear: () => {queries.clear();credentials.clear();} };
+    async function searchPaged({kind,bankId,count,transcript,signal,recovery=false}) {
+        const bounded=boundedSignal(signal,recovery);
+        try {const options=config();await credentials.inspect(options,bounded.signal);const result=await post('query',{...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`,searchText:queryText(transcript),topK:Math.min(12,count),threshold:.01},bounded.signal,recovery);
+            if(!Array.isArray(result?.metadata))throw new Error('검색 결과 형식 오류');return {status:result.metadata.length?'ready':'fallback',indices:result.metadata.map(item=>item.index).filter(index=>Number.isInteger(index)&&index>=0&&index<count),hashes:result.metadata.map(item=>item.hash),...(!result.metadata.length?{code:'EMBEDDING_INDEX_MISSING',error:'임베딩이 준비되지 않아 기록 매칭으로 찾습니다. 임베딩 재시도를 사용할 수 있습니다.'}:{})};
+        }catch(error){if(signal?.aborted)throw signal.reason||error;return {status:'fallback',indices:[],hashes:[],code:error.code||'RETRIEVAL_FAILED',error:'검색 연결에 실패해 기록 매칭으로 찾습니다.'};}finally{bounded.finish();}
+    }
+    async function rebuildPaged({kind,bankId,count,pages,signal,forceRebuild=false,validate=()=>{}}){
+        let reusedCount=0,generatedCount=0;const entries=new Set();
+        try{
+            validate();const options=config();await credentials.inspect(options,signal);const body={...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`};
+            const saved=await post('list',body,signal,true);if(!Array.isArray(saved))throw new Error('검색 색인 목록 오류');const savedHashes=new Set(saved.map(Number));
+            for await(const page of pages){validate();signal?.throwIfAborted();const missing=[];
+                for(let at=0;at<page.records.length;at++){const item=page.records[at],index=page.indices[at],text=recordText(kind,item),hash=hash53(JSON.stringify([kind,item.id||index,item,text]));if(entries.has(hash))throw new Error('검색 기록 해시 충돌');entries.add(hash);if(!forceRebuild&&savedHashes.has(hash))reusedCount++;else missing.push({hash,index,text});}
+                for(let offset=0;offset<missing.length;){const batch=[];let chars=0;while(offset<missing.length&&batch.length<20){const entry=missing[offset];if(batch.length&&chars+entry.text.length>16000)break;batch.push(entry);chars+=entry.text.length;offset++;}validate();if(forceRebuild){const hashes=batch.map(item=>item.hash).filter(hash=>savedHashes.has(hash));if(hashes.length)await post('delete',{...body,hashes},signal,true);}validate();await post('insert',{...body,items:batch},signal,true);generatedCount+=batch.length;}
+                onProgress({kind,phase:'syncing',totalCount:count,reusedCount,generatedCount});
+            }
+            validate();if(entries.size!==count)throw new Error('일부 인물 기록을 읽지 못해 임베딩 완료로 처리하지 않았습니다.');
+            const actual=await post('list',body,signal,true),verified=new Set(Array.isArray(actual)?actual.map(Number):[]);if(!Array.isArray(actual)||[...entries].some(hash=>!verified.has(hash)))throw new Error('임베딩 저장 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
+            const stale=[...savedHashes].filter(hash=>!entries.has(hash));if(stale.length){validate();await post('delete',{...body,hashes:stale},signal,true);}queries.clear();
+            report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'succeeded',bankHash:hash32(bankId),totalCount:count,reusedCount,generatedCount,forceRebuild});return {status:'rebuilt',recordCount:count,reusedCount,generatedCount};
+        }catch(error){if(signal?.aborted)throw signal.reason||error;return {status:'fallback',code:error.code||'EMBEDDING_REBUILD_FAILED',error:status(error)};}
+    }
+    return { search, searchPaged, rebuildPaged, rebuild:options=>search({...options,indexOnly:true,forceRebuild:options.forceRebuild===true,recovery:true}), test, config, clear: () => {queries.clear();credentials.clear();} };
 }

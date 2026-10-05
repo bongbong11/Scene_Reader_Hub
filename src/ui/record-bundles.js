@@ -27,7 +27,7 @@ export function renderRecordBundles(document, store, esc) {
         const people = bundle.people.map(person => {
             const versions = person.versions.map(version => {
                 const applied = person.entry?.appliedRecordVersion === version.id;
-                const actions = [['view', '보기'], ['edit', '수정'], ...(applied ? [] : [['apply', '적용']]), ['delete', '삭제']];
+                const actions = [['view', '보기'], ['edit', '수정'], ['download','JSON'], ...(applied ? [] : [['apply', '적용']]), ['delete', '삭제']];
                 return `<div class="sr-record-version"><span>${esc(new Date(version.savedAt).toLocaleString('ko-KR'))}${applied ? ' · 적용 중' : ''}</span><div class="sr-version-actions">${actions.map(([action, label]) => `<button type="button" class="menu_button" data-record-action="${action}" data-record-group="${esc(bundle.id)}" data-record-version="${esc(version.id)}">${label}</button>`).join('')}</div></div>`;
             }).join('');
             const nameAction = person.entry ? `data-character-view-kind="${esc(kind)}" data-character-view-id="${esc(person.id)}"` : `data-record-action="view" data-record-group="${esc(bundle.id)}" data-record-version="${esc(person.versions[0].id)}"`;

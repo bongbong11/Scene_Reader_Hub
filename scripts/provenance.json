@@ -4,11 +4,29 @@
   "sceneVersion": "0.26.2",
   "characterRepository": "https://github.com/bongbong11/Character_Reasoner",
   "characterCommit": "3d3787e512052ff4de787dde2ca86f1b9523c0e5",
-  "sharedPluginVersion": "0.7.0",
+  "sharedPluginVersion": "0.8.0",
   "sharedPluginFiles": {
-    "server-plugin/index.cjs": "ce3f024b7d5d1539afc4020ad73ca0f89cce1e54aa82d44d0dc9cba2abb5f4f1",
-    "server-plugin/package.json": "2eee364133eacccd9ddea7d527302c73eedf2cd69e02d7ce9e5ce31d24851b69",
+    "server-plugin/index.cjs": "b71cab0860e909cdf89d746055a64b4256ba58caf93c588efb5c58eaa6c6433f",
+    "server-plugin/package.json": "e98387d08e552fac17ffc3568f05c46684c3673b1b06f302c8ea86d88110b26f",
     "server-plugin/retrieval-cache.cjs": "fe3546ae43881614d52f668a30ce70281657eb38d8237f8608a31d9435873066",
-    "server-plugin/storage.cjs": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873"
+    "server-plugin/storage/backups.cjs": "114c5543c4a12ba431a2aaca09df996894ad82561c49adcd0714dc9c980ec71e",
+    "server-plugin/storage/canonical.cjs": "1271a361a01a0fd52f3757fb2909756cb3a1e512650af5560c7b6c6b4a78c1a0",
+    "server-plugin/storage/character-export.cjs": "bd1683f6f56f9ad0e63d05f6cc7bd176367de59605b7199fed15ae14c7e38bb9",
+    "server-plugin/storage/character-import-worker.mjs": "149104a40af96fb869ddf05a85205fb26af506dcdf8e27fa6ad73738197eb617",
+    "server-plugin/storage/character-import.cjs": "5f31903c9a0bc3ad145f4a58f3ea8dbee986ea7ef967ea0d70765ca8be54109b",
+    "server-plugin/storage/character-packer.cjs": "27b1eae0a9cf6c6a52e7b8f1767db97e8650cc48ec39fd98a04b5ab54763f97c",
+    "server-plugin/storage/character-records.cjs": "634e8d722a5091c446c4cdb0ba57b81cfc20895a2d59cf59cc8c9f4233f60720",
+    "server-plugin/storage/character-stream.cjs": "ce2d37b2320b82dc4e01951e77c15a161fbe1d4da598f06460b0f2b4d91d652e",
+    "server-plugin/storage/chunks.cjs": "31fa221fb4134bda90db71424d5a1d140a8c369a46283b00da5e9065a53ee699",
+    "server-plugin/storage/cleanup.cjs": "acde61bfb3fa3cd230483688b48065e185b67a179cf992993dfc8c89b97d80d3",
+    "server-plugin/storage/legacy.cjs": "72cd0d08b34ed563460b85838b2aea6431c0f0e00d9a84f2057ebe8cd5b4297a",
+    "server-plugin/storage/limits.cjs": "450c6b8beed00e1d9377d66274125a22adebb7b63b43092fbe3678d60884f49e",
+    "server-plugin/storage/migration.cjs": "ab017acb09caaa31428e7c68f8f9aeace151d53bf3944456ce28475e54682c71",
+    "server-plugin/storage/paths.cjs": "fb2c6f58e41e954229b17cf0d512ca065314e558cb556d1c9b29cb0c8e6ee58c",
+    "server-plugin/storage/routes.cjs": "87317e6cfa00aa719e6f27b1e13674add7dff081b5cabddc381163944f133b33",
+    "server-plugin/storage/transactions.cjs": "91ba3d4caf106dc19039c1a746d4dab9c5b71d8ccb8dcbcfe4b2404be67e2dbd",
+    "server-plugin/storage/world-library.cjs": "7ff6af39cbad208a277cebae247be542a865914f7d100f411cc9fc102ab0d1b5",
+    "server-plugin/storage.cjs": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873",
+    "server-plugin/vendor/character-core.mjs": "57958076cb49fbc4c5bec8f4ef30f4570fa9ee7c07d34bb43cdb4d84045787b7"
   }
 }

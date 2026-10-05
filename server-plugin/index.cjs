@@ -3,6 +3,10 @@ const { changedCharacterCollections, changedWorldCollections, retrievalConfigCha
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const storageV2=require('./storage/routes.cjs');
+const legacyV2=require('./storage/legacy.cjs');
+const backupsV2=require('./storage/backups.cjs');
+const transactionsV2=require('./storage/transactions.cjs');
 
 const UPSTREAM = 'https://api.typesafe.ai/v1/systemone';
 const MODEL = 'jev-latest';
@@ -10,6 +14,7 @@ const MAX_BODY_BYTES = 1_000_000;
 const MAX_STORAGE_BYTES = 20_000_000;
 const TIMEOUT_MS = 35_000;
 const STORE_FOLDER = 'scene-reader';
+const tempChecks=new Map();
 
 function sendError(response, status, message) { return response.status(status).json({ error: message }); }
 
@@ -61,6 +66,7 @@ async function walkFiles(root, current = root) {
 
 async function createSnapshot(request, reason = 'manual') {
     const { root, backups } = pathsFor(request);
+    if((await transactionsV2.snapshot(root)).revision)return backupsV2.capture(root,reason);
     await fs.mkdir(backups, { recursive: true });
     const createdAt = new Date().toISOString();
     const id = createdAt.replaceAll(':', '-').replace('.', '-').replace('Z', `-${crypto.randomInt(1_000_000_000)}Z`);
@@ -76,76 +82,84 @@ async function createSnapshot(request, reason = 'manual') {
 async function listBackups(request) {
     const { backups } = pathsFor(request);
     let entries = [];
-    try { entries = await fs.readdir(backups, { withFileTypes: true }); } catch { return []; }
-    const rows = [];
+    try { entries = await fs.readdir(backups, { withFileTypes: true }); } catch(error) { if(error.code!=='ENOENT')throw error; }
+    const rows = await backupsV2.list(pathsFor(request).root);
     for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith('.json'))) {
         let snapshot;
-        try { snapshot = await readJson(path.join(backups, entry.name), null); } catch { continue; }
+        const metadata=path.join(backups,'.metadata',entry.name);
+        try { snapshot=await readJson(metadata,null);if(snapshot?.id){rows.push(snapshot);continue;}snapshot = await readJson(path.join(backups, entry.name), null); } catch { continue; }
         if (snapshot?.id && Array.isArray(snapshot.files)) rows.push({ id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason || 'manual', fileCount: snapshot.files.length });
+        if(snapshot?.id&&Array.isArray(snapshot.files))await writeJsonAtomic(metadata,rows.at(-1));
     }
     return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 async function restoreSnapshot(request, snapshot) {
+    if(snapshot?.schemaVersion===2){const root=safeRoot(request);await createSnapshot(request,'before_restore');await backupsV2.restore(root,snapshot);await scheduleCleanup(root,request.user.directories,{all:true});return;}
     validateSnapshot(snapshot);
     const { root } = pathsFor(request);
     await createSnapshot(request, 'before_restore');
-    await restoreFiles(root, snapshot);
+    if((await transactionsV2.snapshot(root)).revision)await backupsV2.restore(root,await backupsV2.fromLegacy(root,snapshot));else await restoreFiles(root, snapshot);
     await scheduleCleanup(root, request.user.directories, {all:true});
 }
 
 function storageHandler(handler) {
     return async (request, response) => {
-        try { return await serialize(safeRoot(request), () => handler(request, response)); }
-        catch (error) { return sendError(response, 500, error?.message || 'Scene Reader storage failed.'); }
+        try { return await serialize(safeRoot(request), async()=>{if(request.body?.chatKey&&request.body?.storageProtocol!==2&&await legacyV2.active(safeRoot(request)))throw Object.assign(new Error('새 저장 형식을 지원하는 씬판독기로 자료를 다시 불러와 주세요.'),{code:'STORAGE_SCHEMA_UNSUPPORTED',status:409});return handler(request,response);}); }
+        catch (error) { return response.status(error.status||500).json({ok:false,code:error.code||'STORAGE_ERROR',error:error?.message || 'Scene Reader storage failed.'}); }
     };
 }
 
-async function readSession(files) {
-    return await readJson(files.session, null) || { chat: await readJson(files.chat, null), history: await readJson(files.history, []) };
+async function readSession(files,context) {
+    const load=context?.load||((file,fallback)=>legacyV2.load(files.root,file,fallback));
+    return await load(files.session, null) || { chat: await load(files.chat, null), history: await load(files.history, []) };
 }
 async function writeSession(files, session) {
-    await writeJsonAtomic(files.session, {...session,history:Array.isArray(session.history)?session.history.slice(-12):[]});
+    await legacyV2.save(files.root,files.session, {...session,history:Array.isArray(session.history)?session.history.slice(-12):[]});
     // Remove legacy duplicates only after the combined replacement is durable.
     await removeFile(files.chat); await removeFile(files.history);
 }
 async function migrateChatIdentity(request, chatKey, legacyChatKey) {
     if(typeof legacyChatKey!=='string' || chatKey===legacyChatKey || !chatKey.startsWith('character-avatar:') || !legacyChatKey.startsWith('character:') || chatKey.slice(chatKey.indexOf('|chat:'))!==legacyChatKey.slice(legacyChatKey.indexOf('|chat:')))return;
     const files=pathsFor(request,chatKey),old=pathsFor(request,legacyChatKey);
-    const previousSession=await readSession(old),previousCharacters=await readJson(old.characters,null);
+    const previousSession=await readSession(old),previousCharacters=await legacyV2.load(old.root,old.characters,null);
     if(!previousSession.chat && !previousSession.history?.length && !previousCharacters)return;
     const currentSession=await readSession(files);
-    const currentCharacters=await readJson(files.characters,null);
+    const currentCharacters=await legacyV2.load(files.root,files.characters,null);
     if((currentSession.chat || currentSession.history?.length) && currentSession.migrationSource!==legacyChatKey)return;
     if(currentCharacters && JSON.stringify(currentCharacters)!==JSON.stringify(previousCharacters))return;
     if(!currentSession.chat && !currentSession.history?.length && (previousSession.chat || previousSession.history?.length))await writeSession(files,{...previousSession,migrationSource:legacyChatKey});
-    if(previousCharacters && !currentCharacters)await writeJsonAtomic(files.characters,previousCharacters);
+    if(previousCharacters && !currentCharacters)await legacyV2.save(files.root,files.characters,previousCharacters);
     // New files are durable before any old duplicate is removed. A failed write
     // leaves the old files intact, so the next bootstrap can retry the migration.
-    for(const file of [old.session,old.chat,old.history,old.characters])await removeFile(file);
+    if(!await legacyV2.active(files.root))for(const file of [old.session,old.chat,old.history,old.characters])await removeFile(file);
     await scheduleCleanup(files.root,request.user.directories,{collections:changedCharacterCollections(legacyChatKey,previousCharacters,null)});
 }
 async function init(router) {
+    storageV2.register(router,{safeRoot,serialize});
     router.get('/health', (_request, response) => response.json({ ok: true, service: 'scene-reader-jev', model: MODEL, storage: true }));
 
     router.post('/storage/bootstrap', storageHandler(async (request, response) => {
         const chatKey = String(request.body?.chatKey || 'unsaved');
         await migrateChatIdentity(request,chatKey,request.body?.legacyChatKey);
         const files = pathsFor(request, chatKey);
-        await cleanupStaleTemps(files.root);
+        const context=await legacyV2.readContext(files.root);
+        if(!context.active&&Date.now()-(tempChecks.get(files.root)||0)>3600000){tempChecks.set(files.root,Date.now());await cleanupStaleTemps(files.root);if(tempChecks.size>128)tempChecks.delete(tempChecks.keys().next().value);}
         await retryCleanup(files.root, request.user.directories).catch(error=>console.warn('[Scene Reader] Search cache cleanup will retry:',error.code || error.name));
-        const session = await readSession(files);
+        if(context.active&&request.body?.storageProtocol!==2)throw Object.assign(new Error('새 저장 형식을 지원하는 씬판독기 복귀판을 사용해 주세요.'),{code:'STORAGE_SCHEMA_UNSUPPORTED',status:409});
+        const session = await readSession(files,context);
         const [settings, chat, history, characters, secret, backups] = await Promise.all([
-            readJson(files.settings, {}), session.chat, session.history, readJson(files.characters, null), readJson(files.secret, {}), listBackups(request),
+            context.load(files.settings, {}), session.chat, session.history, session.chat?.sharedLinkV1?null:context.load(files.characters, null), context.load(files.secret, {}), listBackups(request),
         ]);
-        response.json({ ok: true, storageVersion: 3, migrated: Boolean(await readJson(files.session, null)), settings, chat, history: Array.isArray(history) ? history : [], characters, keyStatus: secret.jevKey ? `저장됨 ····${String(secret.jevKey).slice(-4)}` : '저장된 키 없음', backups });
+        response.json({ ok: true, storageVersion: 3, storageV2:{scope:recordId(files.root),active:context.active,sessionRevision:(await context.entry(files.session))?.revision||0,charactersRevision:(await context.entry(files.characters))?.revision||0}, migrated: context.active || Boolean(await readJson(files.session, null)), settings, chat, history: Array.isArray(history) ? history : [], characters, keyStatus: secret.jevKey ? `저장됨 ····${String(secret.jevKey).slice(-4)}` : '저장된 키 없음', backups });
     }));
 
     router.post('/storage/settings', storageHandler(async (request, response) => {
         const files=pathsFor(request);
-        const previous=await readJson(files.settings, {});
-        const next=request.body?.settings && typeof request.body.settings === 'object' ? request.body.settings : {};
-        await writeJsonAtomic(files.settings, next);
+        const previous=await legacyV2.load(files.root,files.settings, {});
+        let next=request.body?.settings && typeof request.body.settings === 'object' ? request.body.settings : {};if(await legacyV2.active(files.root)&&request.body?.storageProtocol!==2)throw Object.assign(new Error('새 저장 형식을 지원하는 확장을 사용해 주세요.'),{code:'STORAGE_SCHEMA_UNSUPPORTED',status:409});
+        if(request.body?.storageProtocol===2&&!await legacyV2.active(files.root)&&!(await backupsV2.legacyFiles(files.root)).some(file=>!file.includes('secrets')))await transactionsV2.writeDocument(files.root,'metadata:migration-v2',{schemaVersion:2,status:'completed',files:[],converted:[]});
+        if(await legacyV2.active(files.root)&&Array.isArray(next.worlds))next=await require('./storage/world-library.cjs').project(files.root,next);await legacyV2.save(files.root,files.settings, next);
         await scheduleCleanup(files.root, request.user.directories, {all:retrievalConfigChanged(previous,next),collections:changedWorldCollections(previous,next)});
         response.json({ ok: true });
     }));
@@ -161,8 +175,8 @@ async function init(router) {
                 session[field] = value === null ? (field === 'history' ? [] : null) : value;
                 await writeSession(files, session);
             } else {
-                const previous=await readJson(file,null);
-                if(value===null)await removeFile(file);else await writeJsonAtomic(file,value);
+                const previous=await legacyV2.load(files.root,file,null);
+                if(value===null&&!await legacyV2.active(files.root))await removeFile(file);else await legacyV2.save(files.root,file,value);
                 await scheduleCleanup(files.root, request.user.directories, {collections:changedCharacterCollections(chatKey,previous,value)});
             }
             response.json({ ok: true });
@@ -177,24 +191,27 @@ async function init(router) {
     }));
     router.post('/storage/key', storageHandler(async (request, response) => {
         const key = String(request.body?.key || '').trim();
-        const file = pathsFor(request).secret;
-        if (key) await writeJsonAtomic(file, { jevKey: key }); else await removeFile(file);
+        const files=pathsFor(request),file=files.secret;
+        if(key||await legacyV2.active(files.root))await legacyV2.save(files.root,file,key?{jevKey:key}:null);else await removeFile(file);
         response.json({ ok: true, keyStatus: key ? `저장됨 ····${key.slice(-4)}` : '저장된 키 없음' });
     }));
 
     router.post('/storage/backup/create', storageHandler(async (request, response) => {
         const snapshot = await createSnapshot(request, 'manual');
-        response.json({ ok: true, backup: { id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason, fileCount: snapshot.files.length }, backups: await listBackups(request) });
+        response.json({ ok: true, backup: { id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason, schemaVersion:snapshot.schemaVersion, fileCount: snapshot.fileCount ?? snapshot.files.length }, backups: await listBackups(request) });
     }));
     router.post('/storage/backup/delete', storageHandler(async (request, response) => {
         const id = String(request.body?.id || '');
         if (!/^\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(id)) throw new Error('Invalid backup id.');
         await removeFile(path.join(pathsFor(request).backups, `${id}.json`));
+        await removeFile(path.join(pathsFor(request).backups,'.metadata',`${id}.json`));
+        await removeFile(require('./storage/paths.cjs').location(safeRoot(request),'backups',backupsV2.backupRef(id)));
         response.json({ ok: true, backups: await listBackups(request) });
     }));
     router.post('/storage/backup/export', storageHandler(async (request, response) => {
         const id = String(request.body?.id || '');
         if (!/^\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(id)) throw new Error('Invalid backup id.');
+        if(await require('./storage/paths.cjs').read(require('./storage/paths.cjs').location(safeRoot(request),'backups',backupsV2.backupRef(id))))return response.json({ok:true,stream:true,id});
         const snapshot = await readJson(path.join(pathsFor(request).backups, `${id}.json`), null);
         validateSnapshot(snapshot);
         response.json({ ok: true, snapshot: portableSnapshot(snapshot) });
@@ -202,7 +219,7 @@ async function init(router) {
     router.post('/storage/backup/restore', storageHandler(async (request, response) => {
         const id = String(request.body?.id || '');
         if (!/^\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(id)) throw new Error('Invalid backup id.');
-        const snapshot = await readJson(path.join(pathsFor(request).backups, `${id}.json`), null);
+        const snapshot = await require('./storage/paths.cjs').read(require('./storage/paths.cjs').location(safeRoot(request),'backups',backupsV2.backupRef(id))) || await readJson(path.join(pathsFor(request).backups, `${id}.json`), null);
         await restoreSnapshot(request, snapshot);
         response.json({ ok: true, backups: await listBackups(request) });
     }));
@@ -214,7 +231,7 @@ async function init(router) {
 
     router.post('/systemone', async (request, response) => {
         let saved = {};
-        try { saved = await readJson(pathsFor(request).secret, {}); } catch { /* compatibility with tests without a user root */ }
+        try { const files=pathsFor(request);saved = await legacyV2.load(files.root,files.secret, {}); } catch { /* compatibility with tests without a user root */ }
         const apiKey = String(request.get('X-Jev-Key') || saved.jevKey || '').trim();
         if (!apiKey) return sendError(response, 401, 'Jev API key is missing.');
         const body = request.body;

@@ -1,7 +1,14 @@
 import { MEMORY_REFERENCE_ENABLED } from "../memory/context.js";
+import {storylineReference} from './storyline-reference.js';
+import {ensureSharedWorld} from '../world/shared-library.js';
 
 export function createContextStage(deps) {
 async function prepareContext(run,frame) {
+    if(deps.isStorageBusy?.()) {
+        await deps.clearInjection();
+        deps.updateActivity('자료 연결 중 · 마친 뒤 다시 판독해 주세요.',{done:true});
+        frame.done=true;frame.result=undefined;return;
+    }
 await deps.waitForOutputChanges?.();
     if (deps.judgeInFlight) await deps.judgeCompletionPromise;
     run.assert();
@@ -31,10 +38,12 @@ await deps.waitForOutputChanges?.();
     if (frame.waitingReasoner) await Promise.race([frame.waitingReasoner, new Promise((resolve) => setTimeout(resolve, 180))]).catch((error) => console.warn('[씬판독기] Reasoner 결과 대기 실패', error));
     run.assert();
     (frame.rec = deps.stagedRecord(deps.record(true)));
+    frame.storylineReference=storylineReference(frame.rec);
     run.history = structuredClone(await deps.loadStateHistory(run.identity));
     run.assert();
     (frame.prefs = frame.rec.preferences);
     (frame.inputKey = deps.currentInputKey(frame.pendingUserText, frame.cycleSalt));
+    await ensureSharedWorld(frame.prefs.selectedWorldId,{signal:run.controller?.signal});run.assert();
     (frame.world = deps.selectedWorld(frame.rec));
     (frame.sourceKey = deps.sourceRevisionKey(frame.rec, frame.world));
     (frame.assertCurrentSnapshot = () => {

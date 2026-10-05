@@ -8,7 +8,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     const current = () => sequence === deps.hydrateSequence && chatKey === deps.stateChatKey();
     const data = await deps.storagePost('bootstrap', { chatKey, legacyChatKey:deps.legacyStateChatKey?.() }, { allowFailure: true });
     if (!data || !current()) return false;
-    if(Number(data.storageVersion)>0 && Number(data.storageVersion)<3) throw new Error('서버 플러그인을 0.7.0으로 교체하고 SillyTavern을 다시 시작하세요. 저장한 인물과 설정은 그대로 보관됩니다.');
+    if(Number(data.storageVersion)>0 && Number(data.storageVersion)<3) throw new Error('서버 플러그인을 0.8.0으로 교체하고 SillyTavern을 다시 시작하세요. 저장한 인물과 설정은 그대로 보관됩니다.');
     if (!migrate) {
         deps.jobs.invalidate();
         deps.stateHistoryCache.clear();

@@ -56,6 +56,8 @@ try {
     await writeFile(oldTemp,'partial');await writeFile(recentTemp,'partial');
     const yesterday=new Date(Date.now()-2*86400000);await utimes(oldTemp,yesterday,yesterday);
     await call('bootstrap',{chatKey:'chat-a'});
+    assert.equal(await exists(oldTemp),true,'repeated bootstrap does not rescan all legacy folders');
+    await require('../../server-plugin/storage.cjs').cleanupStaleTemps(storageRoot);
     assert.equal(await exists(oldTemp),false);assert.equal(await exists(recentTemp),true);
     const manual=(await call('backup/create')).value.backup.id;
     const exported=(await call('backup/export',{id:manual})).value.snapshot;

@@ -6,6 +6,8 @@ import {createSessionRepository} from './session.js';
 import {createHydration} from './hydrate.js';
 import {createHistoryRepository} from './history.js';
 import {selectCapabilities} from '../shared/capabilities.js';
+import {createSharedRouter} from './shared-router.js';
+import {createSharedService} from '../migration/shared-service.js';
 // Runtime coordination; dependencies are explicit and supplied by the application.
 export function createRepository(deps) {
 const services=Object.create(deps);
@@ -22,8 +24,13 @@ Object.defineProperty(services,'loadStateHistory',{configurable:true,get:()=>loa
 Object.defineProperty(services,'saveStateHistory',{configurable:true,get:()=>saveStateHistory});
 Object.defineProperty(services,'clearStateHistory',{configurable:true,get:()=>clearStateHistory});
 const {storagePost:rawStoragePost} = createStorageHttp(selectCapabilities(services,["noteDiagnostic","STORAGE_API_URL","fetch","getRequestHeaders","pluginError","serverStoreAvailable"]));
+const sharedDeps=selectCapabilities(services,['noteDiagnostic','stateChatKey','getContext','queueWrite','window','chatRecords','stableFingerprint']);
+sharedDeps.post=rawStoragePost;
+const sharedRouter=createSharedRouter(sharedDeps);
+const sharedService=createSharedService(selectCapabilities(services,['noteDiagnostic','stateChatKey','getContext','chatReadyKey','record','characterStore','selectedWorld','loadCustomWorlds','stableFingerprint','clearInjection','invalidateReasonerJobs','isStorageActionBlocked']),sharedRouter);
+const sharedStorage={...sharedService,subscribe:sharedRouter.subscribe,metadata:sharedRouter.metadata};
 const companionDeps = selectCapabilities(services,['getContext','stateChatKey','chatRecords','queueWrite','storageVersion','noteDiagnostic','ready']);
-Object.defineProperty(companionDeps,'post',{value:rawStoragePost});
+Object.defineProperty(companionDeps,'post',{value:sharedRouter.post});
 const companions = createCompanionStorage(companionDeps);
 const storagePost = companions.post;
 Object.defineProperty(services,'companionStorage',{get:()=>companions});
@@ -58,5 +65,5 @@ const {openStateDb,loadStateHistory,saveStateHistory,clearStateHistory} = create
 
 
 
-return {companionStorage:companions.bridge, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory};
+return {sharedStorage, companionStorage:companions.bridge, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory};
 }

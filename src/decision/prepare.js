@@ -62,7 +62,7 @@ if (frame.prefs.settingsContract >= 3) {
     (frame.npcTargets = frame.activeCharacters.filter((entry) => entry.kind === 'npc').slice(0, 6));
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));
     frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? frame.activeCharacters : [],
-        recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
+        shared:Boolean(frame.rec.sharedSource),recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.retrievalTranscript || frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
     run.assert();
     (frame.liveCharacters = deps.characterStore.enabled ? deps.buildLiveCharacterPlan(frame.activeCharacters, {
         selected: frame.context.selected.map((message) => ({ ...message, _sceneReaderIndex: deps.getContext().chat?.indexOf(message) ?? -1 })),
