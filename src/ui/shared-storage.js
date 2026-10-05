@@ -1,6 +1,6 @@
 // User choices never hold a generation hook open. No model calls belong here.
 export function createSharedStorageUi(deps) {
-    let dialog,seen='',scope='',accountScope,busy=false;const inspected=new Map(),linkAttempts=new Set();
+    let dialog,seen='',scope='',accountScope,busy=false;const inspected=new Map();
     const doc=deps.document;
     const node=(tag,text,className)=>{const element=doc.createElement(tag);if(text)element.textContent=text;if(className)element.className=className;return element;};
     function close(){if(dialog?.open)dialog.close();}
@@ -76,10 +76,11 @@ export function createSharedStorageUi(deps) {
     }
     async function refresh() {
         const key=deps.chatKey();if(!doc.getElementById('sr-shared-storage'))return;
-        const currentAccount=deps.service.scope?.();if(accountScope!==currentAccount){accountScope=currentAccount;inspected.clear();linkAttempts.clear();seen='';close();}
+        const currentAccount=deps.service.scope?.();if(accountScope!==currentAccount){accountScope=currentAccount;inspected.clear();seen='';close();}
         if(scope!==key){scope=key;close();deps.service.cancel();}
         if(!deps.ready()){
             inspected.delete(key);
+            const roomLink=doc.getElementById('sr-room-link');if(roomLink)roomLink.hidden=true;
             const line=doc.getElementById('sr-story-status');if(line)line.textContent='현재 채팅의 자료를 불러오는 중';
             return;
         }
@@ -91,7 +92,8 @@ export function createSharedStorageUi(deps) {
         line.textContent=({active:'같은 이야기로 이어가는 중',archived:'이전 방의 기록 · 최신 이야기와 분리',legacy:'기존 방식 · 자료 이관 가능',choose:'새 채팅 · 이야기 연결 선택 가능',empty:'기존 방식',loading:'자료 연결 확인 중',unavailable:'자료 연결 확인 필요'})[state.status] || '자료 연결 확인 필요';
         const identity=key+':'+state.status;
         const migration=await deps.service.account.inspect();if(key!==deps.chatKey())return;
-        if(['completed','cleaned'].includes(migration.status)&&state.status==='legacy'&&!state.legacyOptOut&&!busy&&deps.ready()&&!deps.isBusy()&&!linkAttempts.has(key)){linkAttempts.add(key);busy=true;try{await deps.service.migrate();await reload();}catch(error){deps.notify('이 방의 이야기 연결을 마치지 못했어요. 자료·이야기 연결에서 다시 시도해 주세요.');}finally{busy=false;}return;}
+        // Reading a room must not migrate it or create a protective backup.
+        const roomLink=doc.getElementById('sr-room-link');if(roomLink)roomLink.hidden=state.status!=='legacy';
         const move=doc.getElementById('sr-migration-button'),row=doc.getElementById('sr-migration-row');
         row.hidden=!['eligible','running','paused','failed'].includes(migration.status);move.textContent=['paused','failed'].includes(migration.status)?'📦 이사 계속':'📦 자료 이사';move.disabled=busy||migration.status==='running';
         if(!busy && doc.getElementById('scene-reader-dialog')?.open && !state.deferred && state.status==='choose' && seen!==identity && deps.ready() && !deps.isBusy()) {
@@ -102,6 +104,7 @@ export function createSharedStorageUi(deps) {
         if(doc.getElementById('sr-shared-storage'))return;
         const host=doc.getElementById('sr-backup-list')?.parentElement;if(!host)return;
         const section=node('section','','sr-settings-card');section.id='sr-shared-storage';section.append(node('h3','자료·이야기 연결'));
+        const roomLink=button('이 방 자료 연결',async()=>open('room'),true);roomLink.id='sr-room-link';roomLink.hidden=true;section.append(roomLink);
         const row=node('div','','sr-action-row');row.append(button('이야기 연결',async()=>open('connect'),true),button('이전 파일 정리',async()=>open('cleanup'),true),button('복구·기존 방식',async()=>open('restore'),true),button('브라우저 자료 가져오기',()=>deps.service.importBrowserWorlds()),button('임시 자료 정리',async()=>{const result=await deps.service.cleanStaging();deps.notify(`오래된 임시 작업 ${result.deleted}개를 정리했어요. 저장 자료와 백업은 그대로 있어요.`);}));section.append(row);host.before(section);
         const migrationRow=node('div','','sr-migration-row');migrationRow.id='sr-migration-row';migrationRow.hidden=true;
         const move=button('📦 자료 이사',async()=>open('migrate'),true);move.id='sr-migration-button';move.classList.add('sr-migration-button');migrationRow.append(move);doc.querySelector('.sr-header')?.after(migrationRow);

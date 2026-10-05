@@ -40,7 +40,7 @@ Object.defineProperty(services,'continuityLabels',{configurable:true,get:()=>con
 Object.defineProperty(services,'continuityLabel',{configurable:true,get:()=>continuityLabel,set:value=>{continuityLabel=value}});
 const {decisionTitle,resultLabel,renderJudgment,renderProfiles} = createJudgmentView(selectCapabilities(services,["RESULT_GROUPS","document","escapeHtml","getContext","ownerPrompt","readState","record"]));
 const {characterTurnLabel,renderCharacterTurnResults,renderCharacterStore,renderCharacterAnalysisBrowser} = createCharacterView(selectCapabilities(services,["CHARACTER_TURN_LABELS","SEXUAL_TURN_LABELS","characterCardOpen","characterCardViews","document","escapeHtml","getContext","isStateCapturePending","readState","record","selectCharacter","stableFingerprint"]));
-const {renderStoredState,renderBackups} = createStorageView(selectCapabilities(services,["document","escapeHtml","readState","record"]));
+const {renderStoredState,renderBackups} = createStorageView(selectCapabilities(services,["document","escapeHtml","getContext","readState","record"]));
 const {renderReasonerProfiles,renderContinuity} = createContinuityView(selectCapabilities(services,["continuityLabel","document","escapeHtml","readState","record","resultLabel"]));
 
 const characterCardViews = new Map();

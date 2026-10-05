@@ -3,7 +3,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {backupSource,backupLabel,backupFilename} from '../src/storage/backup-label.js';
+import {backupSource,backupLabel,backupFilename,backupsForRoom} from '../src/storage/backup-label.js';
 import {createResults} from '../src/ui/results.js';
 const require=createRequire(import.meta.url);
 const labels=require('../server-plugin/storage/backup-label.cjs');
@@ -16,6 +16,12 @@ assert.ok(!backupFilename(sample).includes('/'));
 assert.equal(backupLabel({}),'이름 정보 없는 백업');
 assert.equal(labels.source({characterName:'a\r\nb',chatName:'x'.repeat(200)}).characterName,'ab');
 assert.equal(labels.source({chatName:'x'.repeat(200)}).chatName.length,100);
+const listed=[sample,{id:'unnamed'},{id:'other-room',source:{...source,chatName:'Other room'}},{id:'other-character',source:{...source,characterName:'Other'}}];
+const context={name2:source.characterName,chatId:source.chatName};
+assert.deepEqual(backupsForRoom(listed,context),[sample]);
+assert.deepEqual(backupsForRoom(listed,{chatId:null}),listed);
+assert.deepEqual(backupsForRoom(listed,{...context,chatId:'empty'}),[]);
+assert.deepEqual(backupsForRoom(listed,{chatId:source.chatName}),[]);
 
 // A loading/failed room must never render even a cached room's result or payload.
 let ready=false;

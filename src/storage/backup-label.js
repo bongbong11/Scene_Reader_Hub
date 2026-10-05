@@ -7,6 +7,15 @@ export function backupSource(context = {}) {
 export function backupLabel(backup = {}) {
     return [text(backup.source?.characterName),text(backup.source?.chatName)].filter(Boolean).join(' · ') || '이름 정보 없는 백업';
 }
+// Source names are supported by existing plugins. Filtering changes only the
+// list, never the contents or restore scope of an account snapshot.
+export function backupsForRoom(backups, context = {}) {
+    const rows = Array.isArray(backups) ? backups : [];
+    if (!context.chatId) return rows;
+    const source = backupSource(context);
+    if (!source.characterName || !source.chatName) return [];
+    return rows.filter(item => item?.source?.characterName === source.characterName && item?.source?.chatName === source.chatName);
+}
 export function backupFilename(backup = {}, extension = 'srbackup') {
     const name = Array.from(backupLabel(backup).replace(/[<>:"/\\|?*]/g, '_')).slice(0,40).join('');
     return `${name} · 전체 백업 · ${text(backup.id) || 'backup'}.${extension}`;
