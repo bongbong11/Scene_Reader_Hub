@@ -292,6 +292,7 @@ let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged
     get buildRecentContext() { return buildRecentContext; },
     get characterStore() { return runtime.characterStore; }, set characterStore(value) { runtime.characterStore = value; },
     get chatReadyKey() { return runtime.chatReadyKey; }, set chatReadyKey(value) { runtime.chatReadyKey = value; },
+    get closeCharacterEditor() { return closeCharacterEditor; },
     get clearInjection() { return clearInjection; },
     get currentInputKey() { return currentInputKey; },
     get debugInjectionArmed() { return runtime.debugInjectionArmed; }, set debugInjectionArmed(value) { runtime.debugInjectionArmed = value; },
@@ -497,6 +498,7 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
 let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,
+    isRoomReady:()=>runtime.chatReadyKey===null||runtime.chatReadyKey===stateChatKey(),
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
     isStateCapturePending: requestId => runtime.pendingProfileStateRequests.has(requestId),
@@ -919,7 +921,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.0',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.1',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

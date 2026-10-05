@@ -189,12 +189,15 @@ async function onChatChanged() {
     const chatKey=deps.stateChatKey();
     deps.invalidateReasonerJobs();
     deps.chatReadyKey = '';
+    deps.closeCharacterEditor?.();
     deps.characterStore = deps.normalizeCharacterStore(null);
     deps.updateActivity('채팅 전환 · 이전 작업을 정리했습니다.', { done: true });
     deps.handledOocMarkers.length = 0;
     deps.debugInjectionArmed = false;
     deps.generationMode = 'rp';
     deps.activeGenerationCycle = { mode: 'rp', inputKey: '', startedAt: '' };
+    deps.setFormValues();
+    deps.renderAll();
     await deps.clearInjection();
     if(chatKey!==deps.stateChatKey())return;
     const loaded = await deps.hydrateServerState();

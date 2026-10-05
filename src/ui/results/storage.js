@@ -1,3 +1,4 @@
+import {backupLabel} from '../../storage/backup-label.js';
 import { DECISION_LABELS } from "../../../prompt-library.js";
 import { displayValue, verificationText } from "../presentation.js";
 
@@ -27,7 +28,7 @@ function renderBackups() {
     const {settings, characterStore, backupList, reasonerProfiles, reasonerProfileError, characterAnalysisSelection, activeInjectionPayload} = deps.readState();
     const root = deps.document.getElementById('sr-backup-list');
     if (!root) return;
-    root.innerHTML = backupList.map((item) => `<div class="sr-backup-item"><span><strong>${deps.escapeHtml(new Date(item.createdAt).toLocaleString())}</strong><small>${deps.escapeHtml(({manual:'수동 백업',before_restore:'복원 전 자동 백업',before_import:'가져오기 전 자동 백업'})[item.reason] || '저장소 백업')} · ${Number(item.fileCount) || 0}개 파일</small></span><div><button type="button" class="menu_button" data-backup-action="restore" data-backup-id="${deps.escapeHtml(item.id)}">복원</button><button type="button" class="menu_button" data-backup-action="download" data-backup-id="${deps.escapeHtml(item.id)}">다운로드</button><button type="button" class="menu_button" data-backup-action="characters" data-backup-id="${deps.escapeHtml(item.id)}">인물만 내보내기</button><button type="button" class="menu_button" data-backup-action="delete" data-backup-id="${deps.escapeHtml(item.id)}">삭제</button></div></div>`).join('') || '<div class="sr-empty-small">저장된 백업 없음</div>';
+    root.innerHTML = backupList.map((item) => `<div class="sr-backup-item"><span><strong>${deps.escapeHtml(backupLabel(item))}</strong><small>${deps.escapeHtml(new Date(item.createdAt).toLocaleString())} · 전체 백업 · ${deps.escapeHtml(({manual:'수동 백업',before_restore:'복원 전 자동 백업',before_import:'가져오기 전 자동 백업',before_migration:'자료 이사 전 자동 백업',before_room_migration:'방 자료 연결 전 자동 백업',before_story_link:'이야기 연결 전 자동 백업',before_room_restore:'방별 저장 복귀 전 자동 백업',before_baseline_update:'공통 인물 자료 갱신 전 자동 백업'})[item.reason] || '저장소 백업')} · ${Number(item.fileCount) || 0}개 파일</small></span><div><button type="button" class="menu_button" data-backup-action="restore" data-backup-id="${deps.escapeHtml(item.id)}">복원</button><button type="button" class="menu_button" data-backup-action="download" data-backup-id="${deps.escapeHtml(item.id)}">다운로드</button><button type="button" class="menu_button" data-backup-action="characters" data-backup-id="${deps.escapeHtml(item.id)}">인물만 내보내기</button><button type="button" class="menu_button" data-backup-action="delete" data-backup-id="${deps.escapeHtml(item.id)}">삭제</button></div></div>`).join('') || '<div class="sr-empty-small">저장된 백업 없음</div>';
 }
 return {renderStoredState,renderBackups};
 }

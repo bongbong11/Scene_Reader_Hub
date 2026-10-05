@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.0');
+assert.equal(manifest.version, '0.2.1');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -49,7 +49,7 @@ assert.match(library, /If a new-event route fails, an existing event, relationsh
 assert.match(library, /A registered person being active does not prohibit another suitable NPC from entering/);
 assert.equal(pkg.main, 'index.js');
 assert.equal(pluginPkg.main, 'index.cjs');
-assert.equal(pluginPkg.version, '0.8.0');
+assert.equal(pluginPkg.version, '0.8.1');
 assert.match(source, /GENERATION_AFTER_COMMANDS/);
 assert.match(source, /extensionsMenu/);
 assert.match(source, /id = 'scene-reader-quick-button'/);

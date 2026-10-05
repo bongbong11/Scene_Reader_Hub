@@ -82,8 +82,11 @@ function setup() {
 {
     const {f}=setup();
     f.run('characterStore.npcs=[{id:"old-chat-npc",kind:"npc",name:"Old"}];');
+    const renders=[];
+    f.sandbox.captureRoomRender=()=>renders.push(f.run('({key:stateChatKey(),ready:chatReadyKey,npcs:characterStore.npcs.length})'));
+    f.run('renderAll=captureRoomRender;');
     f.ctx.chatId='room-B';
-    f.sandbox.fetch=async()=>({ok:false,status:503,json:async()=>({error:'offline'})});
+    f.sandbox.fetch=async()=>{assert.ok(renders.length,'clear old display before waiting for the server');assert.equal(renders[0].npcs,0);assert.equal(renders[0].ready,'');return {ok:false,status:503,json:async()=>({error:'offline'})};};
     await f.run('onChatChanged()');
     assert.equal(f.run('characterStore.npcs.length'),0,'failed hydration must not retain prior chat cast');
     assert.equal(f.run('chatReadyKey'),'');

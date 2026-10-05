@@ -584,7 +584,7 @@
 #scene-reader-dialog .sr-tab-panel .sr-character-item { min-height: 32px; padding: 5px 8px; gap: 6px; font-size: .82rem; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-list { gap: 5px; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-item { gap: 4px 7px; padding: 6px 7px; font-size: .76rem; }
-#scene-reader-dialog .sr-tab-panel .sr-backup-item strong { font-weight: 500; }
+#scene-reader-dialog .sr-tab-panel .sr-backup-item strong { font-weight: 500; overflow-wrap: anywhere; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-item small { font-size: 11px; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-item > div { justify-content: flex-start; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-item .menu_button { flex: none; min-height: 28px; padding: 3px 6px; font-size: .75rem; }

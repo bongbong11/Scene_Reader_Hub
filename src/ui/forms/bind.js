@@ -1,5 +1,6 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
 import {downloadStoredFile,importBackupStream} from '../../storage/backup-stream.js';
+import {backupSource,backupFilename} from '../../storage/backup-label.js';
 import {openBackupCharacters} from '../backup-characters.js';
 import { bindEmbeddingMaintenance } from '../embedding-maintenance.js';
 import { wholeDiagnosticReport } from '../../debug/whole-report.js';
@@ -513,11 +514,11 @@ function bindForm() {
         deps.runUiTask((async () => {
             if (action === 'restore') {
                 deps.invalidateReasonerJobs();
-                const data = await deps.storagePost('backup/restore', { id }); deps.backupList = data.backups || [];
+                const data = await deps.storagePost('backup/restore', { id, source:backupSource(deps.getContext()) }); deps.backupList = data.backups || [];
                 await deps.hydrateServerState({ migrate: false }); deps.setFormValues(); deps.renderAll();
                 notifySceneReaderToast(deps.window, 'success', '백업을 복원했습니다. 복원 직전 상태도 자동 백업했습니다.', '씬판독기');
             } else if (action === 'download') {
-                const data = await deps.storagePost('backup/export', { id });if(data.stream)downloadStoredFile(deps.document,'backup/download',{id},`scene-reader-${id}.srbackup`);else deps.downloadJson(`scene-reader-${id}.json`, data.snapshot);
+                const data = await deps.storagePost('backup/export', { id });const item=deps.backupList.find(item=>item.id===id)||{id};if(data.stream)downloadStoredFile(deps.document,'backup/download',{id},backupFilename(item));else deps.downloadJson(backupFilename(data.snapshot,'json'), data.snapshot);
                 notifySceneReaderToast(deps.window, 'success', '백업 내려받기를 시작했습니다.', '씬판독기');
             } else if(action==='characters') {
                 await openBackupCharacters({document:deps.document,post:deps.storagePost,notify:message=>notifySceneReaderToast(deps.window,'info',message,'씬판독기')},id);
@@ -529,13 +530,13 @@ function bindForm() {
     });
     deps.document.getElementById('sr-backup-create')?.addEventListener('click', () => deps.runUiTask((async () => {
         await deps.saveServerSettings(); await deps.saveServerChat(); await deps.saveCharacterStore();
-        const data = await deps.storagePost('backup/create'); deps.backupList = data.backups || []; deps.renderBackups();
-        notifySceneReaderToast(deps.window, 'success', '현재 데이터를 날짜·시간 백업으로 저장했습니다.', '씬판독기');
+        const data = await deps.storagePost('backup/create',{source:backupSource(deps.getContext())}); deps.backupList = data.backups || []; deps.renderBackups();
+        notifySceneReaderToast(deps.window, 'success', '모든 방의 씬판독기 자료를 전체 백업했습니다.', '씬판독기');
     })(), '백업을 만들지 못했습니다.'));
     deps.document.getElementById('sr-backup-import')?.addEventListener('change', (event) => deps.runUiTask((async () => {
         deps.invalidateReasonerJobs();
         const file = event.target.files?.[0]; if (!file) return;
-        const data = await importBackupStream(file,deps.storagePost); deps.backupList = data.backups || [];
+        const data = await importBackupStream(file,deps.storagePost,{source:backupSource(deps.getContext())}); deps.backupList = data.backups || [];
         await deps.hydrateServerState({ migrate: false }); deps.setFormValues(); deps.renderAll(); event.target.value = '';
         notifySceneReaderToast(deps.window, 'success', '백업 파일을 가져와 복원했습니다.', '씬판독기');
     })(), '백업 파일을 가져오지 못했습니다.'));

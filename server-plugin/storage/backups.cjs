@@ -4,6 +4,7 @@ const {hash,location,atomic,read,safeDirectory,safeFile}=require('./paths.cjs');
 const {reader,encode}=require('./chunks.cjs');
 const {snapshot,headFile}=require('./transactions.cjs');
 const {failure}=require('./limits.cjs');
+const backupLabel=require('./backup-label.cjs');
 const backupRef=id=>{if(typeof id!=='string'||!/^\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(id))throw failure('STORAGE_INVALID_ID','백업을 확인하지 못했습니다.');return hash(id);};
 const tree=documents=>({schemaVersion:2,documents,storageRefs:Object.values(documents).map(meta=>meta.root)});
 async function legacyFiles(root) {
@@ -17,17 +18,17 @@ async function allDocuments(root,state=undefined) {
  state ||=await snapshot(root);const nodes=reader(root),documents={};
  for(const ref of Object.values(state.buckets))Object.assign(documents,await nodes.value(ref));return documents;
 }
-async function capture(root,reason='manual') {
+async function capture(root,reason='manual',source) {
  const documents=await allDocuments(root),files=await legacyFiles(root),nodes=reader(root);
  for(const file of files){const key='legacy:'+file;if(!documents[key])documents[key]={root:await encode(root,await read(path.join(root,file))),revision:0};}
  let parts=new Set();for(const meta of Object.values(documents))await nodes.verify(meta.root,parts);
  const createdAt=new Date().toISOString(),id=createdAt.replaceAll(':','-').replace('.','-').replace('Z','-'+crypto.randomInt(1000000000)+'Z');
- const rootRef=await encode(root,tree(documents)),info={schemaVersion:2,id,createdAt,reason,status:'verified',root:rootRef,fileCount:Object.keys(documents).length,partCount:(await nodes.verify(rootRef)).size};
+ const rootRef=await encode(root,tree(documents)),info={schemaVersion:2,id,createdAt,reason,source:backupLabel.source(source),status:'verified',root:rootRef,fileCount:Object.keys(documents).length,partCount:(await nodes.verify(rootRef)).size};
  await atomic(root,location(root,'backups',hash(id)),JSON.stringify(info));return info;
 }
-async function get(root,id) {let backup=await read(location(root,'backups',backupRef(id)));if(!backup){const old=await read(path.join(root,'backups',id+'.json'));if(old?.schemaVersion===1){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};backup={schemaVersion:2,id,createdAt:old.createdAt,reason:old.reason,status:'verified',root:await encode(root,tree(documents)),fileCount:old.files.length};await atomic(root,location(root,'backups',hash(id)),JSON.stringify(backup));}}if(!backup||backup.status!=='verified')throw failure('STORAGE_BACKUP_MISSING','백업을 찾지 못했습니다.');return backup;}
+async function get(root,id) {let backup=await read(location(root,'backups',backupRef(id)));if(!backup){const old=await read(path.join(root,'backups',id+'.json'));if(old?.schemaVersion===1){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};backup={schemaVersion:2,id,createdAt:old.createdAt,reason:old.reason,source:backupLabel.source(old.source),status:'verified',root:await encode(root,tree(documents)),fileCount:old.files.length};await atomic(root,location(root,'backups',hash(id)),JSON.stringify(backup));}}if(!backup||backup.status!=='verified')throw failure('STORAGE_BACKUP_MISSING','백업을 찾지 못했습니다.');return backup;}
 async function list(root) {const directory=path.join(root,'storage-v2','backups');let entries;try{entries=await fs.readdir(directory,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return [];throw error;}const rows=[];for(const entry of entries)if(entry.isFile()&&/^[a-f0-9]{64}\.json$/.test(entry.name)){const backup=await read(path.join(directory,entry.name));if(backup?.status==='verified')rows.push(backup);}return rows.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));}
-async function fromLegacy(root,old){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};return {schemaVersion:2,id:old.id,createdAt:old.createdAt,reason:old.reason,status:'verified',root:await encode(root,tree(documents))};}
+async function fromLegacy(root,old){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};return {schemaVersion:2,id:old.id,createdAt:old.createdAt,reason:old.reason,source:backupLabel.source(old.source),status:'verified',root:await encode(root,tree(documents))};}
 function clean(value,privatePrompt='') {
  if(value?.format==='legacy-browser'&&typeof value.text==='string'){try{return {...value,text:JSON.stringify(clean(JSON.parse(value.text),privatePrompt))};}catch{return {...value,text:''};}}
  if(Array.isArray(value))return value.map(item=>clean(item,privatePrompt));
@@ -52,7 +53,7 @@ async function *frames(root,backup) {
  yield JSON.stringify({complete:true,partCount:parts.size})+'\n';
 }
 async function stream(root,id,response) {
- const backup=await get(root,id);response.set('Content-Type','application/x-scene-reader-backup').set('Content-Disposition',`attachment; filename="scene-reader-${id}.srbackup"`);
+ const backup=await get(root,id);response.set('Content-Type','application/x-scene-reader-backup').set('Content-Disposition',`attachment; filename="scene-reader-${id}.srbackup"; filename*=UTF-8''${encodeURIComponent(backupLabel.filename(backup))}`);
  for await(const frame of frames(root,backup)){if(response.destroyed)return;if(!response.write(frame))await new Promise((resolve,reject)=>{const done=()=>{response.off('close',closed);resolve();},closed=()=>{response.off('drain',done);reject(failure('STORAGE_CANCELLED','내려받기가 중단됐습니다.'));};response.once('drain',done);response.once('close',closed);});}response.end();
 }
 async function restore(root,backup,{preserveCredentials=true,receipt}={}) {

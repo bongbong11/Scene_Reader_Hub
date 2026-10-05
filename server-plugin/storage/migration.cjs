@@ -6,9 +6,9 @@ const {entry,writeDocument}=require('./transactions.cjs');
 const {failure}=require('./limits.cjs');
  const key='metadata:migration-v2';
 async function progress(root){const meta=await entry(root,key);return meta?await reader(root).value(meta.root):{status:(await legacyFiles(root)).some(file=>!file.includes('secrets'))?'eligible':'empty'};}
-async function migrate(root,{signal}={}) {
+async function migrate(root,{signal,source}={}) {
  let journal=await progress(root);if(['completed','cleaned'].includes(journal.status))return journal;
- if(!journal.backupId){const backup=await capture(root,'before_migration');journal={schemaVersion:2,status:'running',backupId:backup.id,files:await legacyFiles(root),converted:[],createdAt:new Date().toISOString()};await writeDocument(root,key,journal);}
+ if(!journal.backupId){const backup=await capture(root,'before_migration',source);journal={schemaVersion:2,status:'running',backupId:backup.id,files:await legacyFiles(root),converted:[],createdAt:new Date().toISOString()};await writeDocument(root,key,journal);}
  for(const file of journal.files){signal?.throwIfAborted();if(journal.converted.some(item=>item.file===file))continue;if(!require('../storage.cjs').isBackupPath(file))throw failure('STORAGE_INVALID_PATH','이관 원본 경로가 올바르지 않습니다.');const text=await fs.readFile(await safeFile(root,path.join(root,file)),'utf8');let value=JSON.parse(text);if(file==='settings.json'&&Array.isArray(value.worlds))value=await require('./world-library.cjs').project(root,value);if(file.startsWith('characters/'))value=await require('./character-packer.cjs').packStore(root,value);const ref=await encode(root,value);
   const current=await entry(root,'legacy:'+file);if(current){if(current.root!==ref)throw failure('STORAGE_CONFLICT','이관 중 원본이 바뀌었습니다. 원본과 백업은 보존했습니다.',409);}else await writeDocument(root,'legacy:'+file,value,{expectedRevision:0});
   const saved=await entry(root,'legacy:'+file);if(saved.root!==ref)throw failure('STORAGE_CORRUPT','이관 결과를 확인하지 못했습니다.');

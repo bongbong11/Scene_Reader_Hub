@@ -14,7 +14,9 @@ import { normalizeContinuity } from "../continuity/engine.js";
 import { displayValue, verificationText } from './presentation.js';
 import { renderRecordVersions } from './character-transfer.js';
 import { latestStateForChat, latestStateEventForChat, stateForEntry } from "../character/state-contract.js";
-export function createResults({readState, document, getContext, record, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, isStateCapturePending = () => true, onBeforeRender = () => {}}) {
+export function createResults({readState:readRawState, document, getContext, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, isStateCapturePending = () => true, onBeforeRender = () => {}}) {
+const record=()=>isRoomReady()?readRecord():null;
+const readState=()=>{const state=readRawState();return isRoomReady()?state:{...state,characterStore:{enabled:false,characters:[],npcs:[],persona:null,recordGroups:[]},activeInjectionPayload:''};};
 const services={readState,document,getContext,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,onBeforeRender};
 Object.defineProperty(services,'decisionTitle',{configurable:true,get:()=>decisionTitle});
 Object.defineProperty(services,'resultLabel',{configurable:true,get:()=>resultLabel});
@@ -91,6 +93,11 @@ const continuityLabel = value => continuityLabels[value] || '확인 대기';
 
 
 function renderAll() {
+    if(!isRoomReady()){
+        const preview=document.getElementById('sr-character-preview');if(preview)preview.hidden=true;
+        const records=document.getElementById('sr-character-analysis-result');if(records)records.srPageToken=null;
+        characterCardViews.clear();characterCardOpen.clear();
+    }
     onBeforeRender();
     const memoryNode = document.getElementById('sr-memory-status');
     if (memoryNode) memoryNode.textContent = MEMORY_REFERENCE_ENABLED ? memoryStatusText(record()?.preferences, record()?.lastJudgment?.memoryStatus) : '준비 중 · 현재 RP 판독에서는 사용하지 않습니다.';

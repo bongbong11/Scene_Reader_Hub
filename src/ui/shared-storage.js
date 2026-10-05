@@ -78,6 +78,11 @@ export function createSharedStorageUi(deps) {
         const key=deps.chatKey();if(!doc.getElementById('sr-shared-storage'))return;
         const currentAccount=deps.service.scope?.();if(accountScope!==currentAccount){accountScope=currentAccount;inspected.clear();linkAttempts.clear();seen='';close();}
         if(scope!==key){scope=key;close();deps.service.cancel();}
+        if(!deps.ready()){
+            inspected.delete(key);
+            const line=doc.getElementById('sr-story-status');if(line)line.textContent='현재 채팅의 자료를 불러오는 중';
+            return;
+        }
         let state=inspected.get(key);
         if(deps.record()?.sharedSource){state={status:deps.record().sharedSource.active?'active':'archived'};inspected.set(key,state);}
         else if(!state){inspected.set(key,{status:'loading'});try{state=await deps.service.inspect();inspected.set(key,state);}catch{state={status:'unavailable'};inspected.set(key,state);}}

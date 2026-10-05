@@ -1,3 +1,4 @@
+import {backupSource} from '../storage/backup-label.js';
 import {clone,digest,chatRef,ownerRef,SHARED_LINK,bytes,fail} from '../storage/shared-document.js';
 import {projectBaseline,hasLegacyMaterial} from '../baseline/projector.js';
 import {confirmedStory,resetRuntime,splitRuntime,localCompanions} from '../storyline/projector.js';
@@ -10,7 +11,7 @@ import {expandCharacterStore} from '../storage/character-pages.js';
 // Explicit user operations only. No inference, startup scans, or background migration.
 export function createSharedService(deps,router) {
     let active=null,allController=null;const {documents,required,rawPost,serial}=router;
-    const account=createAccountMigration(rawPost,()=>router.scope?.());
+    const account=createAccountMigration(rawPost,()=>router.scope?.(),()=>backupSource(deps.getContext()));
     const report=(phase,status,code)=>deps.noteDiagnostic?.('shared_operation',{module:'src/migration/shared-service.js',phase,status,...(code?{code}:{})});
     const key=()=>deps.stateChatKey();
     const catalogId=()=>ownerRef(key());
@@ -27,11 +28,11 @@ export function createSharedService(deps,router) {
             data.deferred=data.deferred.filter(ref=>ref!==chatRef(chatKey));await saveCatalog(data);
         });
     }
-    async function backup(operationId,signal) {
+    async function backup(operationId,signal,reason='before_story_link') {
         signal.throwIfAborted();
         const existing=await documents.read('backup_receipt',operationId,{signal});
         if(existing?.data.backupId)return existing.data.backupId;
-        const result=await rawPost('backup/create',{}, {signal});
+        const result=await rawPost('backup/create',{source:backupSource(deps.getContext()),reason}, {signal});
         if(!result.backup?.id)throw fail('MIGRATION_BACKUP_FAILED','백업을 확인하지 못해 이관을 중단했습니다.');
         await documents.write('backup_receipt',operationId,{backupId:result.backup.id},{operationId,signal});
         return result.backup.id;
@@ -75,7 +76,7 @@ export function createSharedService(deps,router) {
             const previous=(await documents.read('migration',journalId,{fresh:true,signal}))?.data;
             const baselineId=previous?.baselineId || digest(['baseline',operationId]);
             const storyId=previous?.storylineId || digest(['story',operationId]);
-            const backupId=previous?.backupId || await backup(operationId,signal);assert();
+            const backupId=previous?.backupId || await backup(operationId,signal,'before_room_migration');assert();
             const originalRef=previous?.originalRef || await original(chatKey,operationId,signal);assert();
             const journal={operationId,baselineId,storylineId:storyId,backupId,originalRef,status:'staging'};
             await documents.write('migration',journalId,journal,{operationId,signal});
@@ -162,7 +163,7 @@ export function createSharedService(deps,router) {
                 if((await documents.paged.capabilities())?.schemaVersion!==2)payload.characters=await expandCharacterStore(payload.characters,{signal});
             }
             if(!prepared.length)throw fail('ROLLBACK_SOURCE_MISSING','이 캐릭터에 복귀할 공유 연결 방이 없습니다.');
-            await protectRollback({entries:prepared,documents,signal,noteDiagnostic:deps.noteDiagnostic,backup:()=>backup(digest(['rollback',chatRef(chatKey),prepared]),signal)});assert();
+            await protectRollback({entries:prepared,documents,signal,noteDiagnostic:deps.noteDiagnostic,backup:()=>backup(digest(['rollback',chatRef(chatKey),prepared]),signal,'before_room_restore')});assert();
             try{for(const {target,payload}of prepared){
                 const compatibilityPost=(route,body,options)=>['bootstrap','settings'].includes(route)?router.post(route,body,options):rawPost(route,body,options);
                 assert();const {saved, payload:written}=await materializeLegacy(compatibilityPost,target,payload,signal);
@@ -186,7 +187,7 @@ export function createSharedService(deps,router) {
                 const previous=await required('baseline',view.baseline.id+':'+Number(restoreRevision),{signal});
                 const asset=await required('asset',previous.assetId,{signal});characters=asset.characters;preferences=previous.defaultPreferences;world=asset.world;
             }
-            await backup(digest(['baseline-update',chatRef(chatKey),characters,preferences,world]),signal);assert();
+            await backup(digest(['baseline-update',chatRef(chatKey),characters,preferences,world]),signal,'before_baseline_update');assert();
             await router.updateBaseline(chatKey,characters,{preferences,world});
         });
     }

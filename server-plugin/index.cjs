@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const storageV2=require('./storage/routes.cjs');
 const legacyV2=require('./storage/legacy.cjs');
 const backupsV2=require('./storage/backups.cjs');
+const backupLabel=require('./storage/backup-label.cjs');
 const transactionsV2=require('./storage/transactions.cjs');
 
 const UPSTREAM = 'https://api.typesafe.ai/v1/systemone';
@@ -66,11 +67,11 @@ async function walkFiles(root, current = root) {
 
 async function createSnapshot(request, reason = 'manual') {
     const { root, backups } = pathsFor(request);
-    if((await transactionsV2.snapshot(root)).revision)return backupsV2.capture(root,reason);
+    if((await transactionsV2.snapshot(root)).revision)return backupsV2.capture(root,reason,request.body?.source);
     await fs.mkdir(backups, { recursive: true });
     const createdAt = new Date().toISOString();
     const id = createdAt.replaceAll(':', '-').replace('.', '-').replace('Z', `-${crypto.randomInt(1_000_000_000)}Z`);
-    const snapshot = { schemaVersion: 1, id, createdAt, reason, files: await walkFiles(root) };
+    const snapshot = { schemaVersion: 1, id, createdAt, reason, source:backupLabel.source(request.body?.source), files: await walkFiles(root) };
     await writeJsonAtomic(path.join(backups, `${id}.json`), snapshot);
     if(reason==='before_restore') {
         const automatic=(await listBackups(request)).filter(item=>item.reason==='before_restore');
@@ -88,7 +89,7 @@ async function listBackups(request) {
         let snapshot;
         const metadata=path.join(backups,'.metadata',entry.name);
         try { snapshot=await readJson(metadata,null);if(snapshot?.id){rows.push(snapshot);continue;}snapshot = await readJson(path.join(backups, entry.name), null); } catch { continue; }
-        if (snapshot?.id && Array.isArray(snapshot.files)) rows.push({ id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason || 'manual', fileCount: snapshot.files.length });
+        if (snapshot?.id && Array.isArray(snapshot.files)) rows.push({ id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason || 'manual', source:backupLabel.source(snapshot.source), fileCount: snapshot.files.length });
         if(snapshot?.id&&Array.isArray(snapshot.files))await writeJsonAtomic(metadata,rows.at(-1));
     }
     return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -197,8 +198,8 @@ async function init(router) {
     }));
 
     router.post('/storage/backup/create', storageHandler(async (request, response) => {
-        const snapshot = await createSnapshot(request, 'manual');
-        response.json({ ok: true, backup: { id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason, schemaVersion:snapshot.schemaVersion, fileCount: snapshot.fileCount ?? snapshot.files.length }, backups: await listBackups(request) });
+        const snapshot = await createSnapshot(request, backupLabel.reason(request.body?.reason));
+        response.json({ ok: true, backup: { id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason, source:backupLabel.source(snapshot.source), schemaVersion:snapshot.schemaVersion, fileCount: snapshot.fileCount ?? snapshot.files.length }, backups: await listBackups(request) });
     }));
     router.post('/storage/backup/delete', storageHandler(async (request, response) => {
         const id = String(request.body?.id || '');
