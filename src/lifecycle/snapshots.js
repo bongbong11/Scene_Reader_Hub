@@ -30,6 +30,7 @@ function reversibleStateSnapshot(rec) {
         pendingContinuityCandidates: rec.pendingContinuityCandidates || [],
         lastReasonerSource: rec.lastReasonerSource || null,
         lastContinuityTrace: rec.lastContinuityTrace || null,
+        ...(rec.repetitionGuard ? {repetitionGuard:rec.repetitionGuard} : {}),
         lastOpportunityInput: rec.lastOpportunityInput || null,
         lastStateInput: rec.lastStateInput || null,
     }));
@@ -38,6 +39,8 @@ function reversibleStateSnapshot(rec) {
 function restoreReversibleState(rec, snapshot) {
     if (!snapshot) return;
     Object.assign(rec, JSON.parse(JSON.stringify(snapshot)));
+    if(snapshot.repetitionGuard)rec.repetitionGuard=structuredClone(snapshot.repetitionGuard);
+    else delete rec.repetitionGuard;
     if(!snapshot.generatedCast)delete rec.generatedCast;
     if(!snapshot.drawOpportunityKey)delete rec.drawOpportunityKey;
     rec.opportunities = snapshot.opportunities ? structuredClone(snapshot.opportunities) : null;

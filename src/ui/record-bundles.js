@@ -32,7 +32,8 @@ export function renderRecordBundles(document, store, esc) {
             }).join('');
             const nameAction = person.entry ? `data-character-view-kind="${esc(kind)}" data-character-view-id="${esc(person.id)}"` : `data-record-action="view" data-record-group="${esc(bundle.id)}" data-record-version="${esc(person.versions[0].id)}"`;
             const npcToggle = kind === 'npc' && person.entry ? `<label class="sr-npc-affect-toggle"><input type="checkbox" data-npc-affect-id="${esc(person.id)}" ${person.entry.trackArousal ? 'checked' : ''}><span>성적 충동·자제력 추가 판독</span></label>` : '';
-            return `<div class="sr-record-person"><button type="button" class="sr-record-person-name" ${nameAction}>${esc(person.name)}</button><small>${person.versions.length ? `${person.versions.length}개 저장본` : '저장된 판독시트 없음'}</small>${npcToggle}<div class="sr-record-person-versions">${versions}</div></div>`;
+            const deleteButton = `<button type="button" class="menu_button sr-record-person-delete" data-record-action="delete-person" data-person-kind="${esc(kind)}" data-person-id="${esc(person.id)}" aria-label="${esc(person.name)} 인물 삭제">인물 삭제</button>`;
+            return `<div class="sr-record-person"><div class="sr-record-person-heading"><button type="button" class="sr-record-person-name" ${nameAction}>${esc(person.name)}</button>${deleteButton}</div><small>${person.versions.length ? `${person.versions.length}개 저장본` : '저장된 판독시트 없음'}</small>${npcToggle}<div class="sr-record-person-versions">${versions}</div></div>`;
         }).join('');
         return `<details class="sr-record-bundle" data-record-bundle="${esc(bundle.id)}" ${previous.get(bundle.id) !== false ? 'open' : ''}><summary><span>${esc(bundle.name)}</span><small>${bundle.people.length}명</small></summary><div class="sr-record-bundle-people">${people}</div></details>`;
     }).join('') || '<p class="sr-help">저장된 인물이 없습니다.</p>';

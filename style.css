@@ -291,6 +291,9 @@
 #scene-reader-dialog .sr-character-kind-tabs button { min-height: 36px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 7px; background: transparent; color: inherit; cursor: pointer; }
 #scene-reader-dialog .sr-character-kind-tabs button.active { background: color-mix(in srgb,var(--SmartThemeQuoteColor) 25%,transparent); font-weight: 700; }
 #scene-reader-dialog .sr-record-person { padding: 10px 0; border-bottom: 1px solid var(--SmartThemeBorderColor); }
+#scene-reader-dialog .sr-record-person-heading { display: flex; align-items: center; gap: 8px; }
+#scene-reader-dialog .sr-record-person-heading .sr-record-person-name { min-width: 0; overflow-wrap: anywhere; }
+#scene-reader-dialog .sr-record-person-heading .sr-record-person-delete { flex: 0 0 auto; margin: 0 0 0 auto; padding: 3px 6px; min-height: 28px; font-size: .7rem; width: auto; }
 #scene-reader-dialog .sr-record-person-name { padding: 0; border: 0; background: transparent; color: inherit; font-size: 1rem; font-weight: 700; text-align: left; cursor: pointer; }
 #scene-reader-dialog .sr-record-person > small { display: block; opacity: .7; }
 #scene-reader-dialog .sr-npc-affect-toggle { display: inline-flex; align-items: center; gap: 5px; margin-top: 4px; font-size: .82rem; cursor: pointer; }

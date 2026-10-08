@@ -7,6 +7,7 @@ import { currentRecords, recordBankIsCurrent } from "../characters/records.js";
 import { stateForEntry } from "../characters/state-contract.js";
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
 import { prepareKnowledgeVault } from '../integration/knowledge-vault.js';
+import { repetitionWindow } from '../continuity/repetition.js';
 
 export function createDecisionPreparation(deps) {
 async function prepareQuestions(run,frame) {
@@ -37,11 +38,16 @@ if (frame.prefs.settingsContract >= 3) {
     if (frame.prefs.advancedEnabled) frame.questions.advanced_world_rules = {type:'choice',instructions:'From explicit current world rules, recent RP and supplied memory only: are supernatural mechanisms established? A horror label alone does not establish ghosts, curses or exorcism. This is world evidence, never an invitation to invent.',criteria:{mundane:'No supported supernatural mechanics.',supernatural:'Supernatural mechanics are established and compatible with this setting.',unclear:'Insufficient world evidence.'}};
     Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan));
     frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1);
+    if(deps.settings.continuityEnabled && frame.rec.pendingPlan?.outputText) {
+        const comparison=repetitionWindow(deps.getContext().chat,frame.rec.pendingPlan.outputIndex,deps.settings,frame.rec.nonRpOutputIndices || [],deps.stableFingerprint);
+        if(comparison.turns.length>=2)frame.repetitionComparison=comparison.turns;
+    }
     if (deps.settings.continuityEnabled && frame.rec.pendingPlan?.outputText) frame.questions.continuity_trigger = {
         type: 'choice',
-        instructions: 'Read only the just-completed USER RP and following CHARACTER output. Is there a newly established, durable promise, schedule, delegation, important information transfer, obligation, status change, or a direct causal pressure on one? A character merely planning or claiming to have acted is not completed action. Ignore OOC and routine conversation. This is only a high-value Reasoner trigger, not a fact commit.',
+        instructions: 'For continuity changes, read only the just-completed USER RP and following CHARACTER output. Is there a newly established durable promise, schedule, delegation, important information transfer, obligation, status change or direct causal pressure? A claim is not completed action. Separately compare recent CHARACTER replies: is one motif being forced into otherwise unrelated dialogue, thoughts and actions even with different wording? This is semantic fixation, not echo or word frequency; an ongoing central activity or renewed user focus is not fixation. Ignore OOC. This triggers analysis, never commits a fact.',
         criteria: {
-            none: 'No newly established high-value continuity change or direct pressure.',
+            none: 'No newly established continuity change, direct pressure or disproportionate topic fixation.',
+            topic_fixation: 'Across at least two replies, one motif repeatedly intrudes into unrelated reactions without new relevance or renewed user focus.',
             commitment: 'A durable promise, plan, schedule, or obligation was explicitly established or changed.',
             delegation: 'Responsibility or authority was explicitly accepted or delegated.',
             knowledge_transfer: 'Important information was actually conveyed to a specific person.',

@@ -6,6 +6,7 @@ import {digest} from '../storage/shared-document.js';
 import {downloadStoredFile} from '../storage/backup-stream.js';
 import {readCharacterFile} from '../storage/character-file.js';
 import { applyRecordVersion, deleteRecordVersion, bankOutput, allEntries } from "../character/versions.js";
+import { characterDeletionTarget, characterDeletionNotice, deleteCharacterRecords } from '../character/deletion.js';
 
 export { renderRecordBundles as renderRecordVersions } from "./record-bundles.js";
 
@@ -22,10 +23,10 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
         status('선택한 탭의 분석 명령문을 복사하고 완성된 파일을 올리세요.');
     }));
     let busy=false,uploadedOutputs=null,uploadedSourceSignature='';
-    const task=(fn,stage='parse')=>deps.runUiTask((async()=>{
+    const task=(fn,stage='parse',showEditor=true)=>deps.runUiTask((async()=>{
         if(busy) return;
         busy=true;
-        try {await fn();} catch(error){captureCharacterError(error,error.characterStage||stage,{inputLength:error.characterInputLength ?? (el('sr-character-import-json')?.value?.length||0),saved:Boolean(error.characterSaved),applied:Boolean(error.characterApplied)});status(`${error.characterSaved?'저장은 완료됐지만 화면 반영 실패':'저장되지 않음'} · ${error.message}`);throw error;} finally{busy=false;}
+        try {await fn();} catch(error){captureCharacterError(error,error.characterStage||stage,{showEditor,inputLength:error.characterInputLength ?? (el('sr-character-import-json')?.value?.length||0),saved:Boolean(error.characterSaved),applied:Boolean(error.characterApplied)});status(`${error.characterSaved?'저장은 완료됐지만 화면 반영 실패':'저장되지 않음'} · ${error.message}`);throw error;} finally{busy=false;}
     })(),'인물 기록 작업을 완료하지 못했습니다.');
     async function persist(next, entry) {
         const job=deps.jobs.begin('character-transfer'), chat=deps.stateChatKey();
@@ -114,6 +115,18 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
         const button=event.target.closest('[data-record-action]');if(!button)return;
         task(async()=>{
             const {recordGroup:groupId,recordVersion:versionId,recordAction:action}=button.dataset;
+            if(action==='delete-person') {
+                const {personKind:kind,personId:id}=button.dataset;
+                const target=characterDeletionTarget(deps.characterStore,kind,id);
+                if(!deps.window.confirm(characterDeletionNotice(target)))return;
+                if(!await persist(deleteCharacterRecords(deps.characterStore,kind,id)))return;
+                el('sr-character-preview').hidden=true;
+                if(el('sr-character-analysis-result'))el('sr-character-analysis-result').srPageToken=null;
+                deps.renderCharacterStore();
+                status('인물과 해당 인물의 저장본을 삭제했습니다.');
+                notifySceneReaderToast(deps.window,'success','인물과 해당 인물의 저장본을 삭제했습니다.','씬판독기');
+                return;
+            }
             const group=deps.characterStore.recordGroups.find(g=>g.id===groupId), version=group?.versions.find(v=>v.id===versionId);
             if(!version)throw new Error('저장한 버전을 찾지 못했습니다.');
             if(action==='download'&&version.bank.pagedRecords){const operationId=digest(['character-export',version.id,Date.now()]);await deps.storagePost('v2/character/export',{operationId,bank:version.bank});downloadStoredFile(deps.document,'character/download',{id:operationId},'characters.json');return;}
@@ -133,7 +146,7 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
                 el('sr-character-preview').hidden=true;status('해당 버전을 삭제했습니다.');
                 notifySceneReaderToast(deps.window, 'success', '해당 날짜의 판독시트를 삭제했습니다.','씬판독기');
             }
-        });
+        },'apply',button.dataset.recordAction!=='delete-person');
     });
     function entriesForVersion(store,version,kind){return allEntries(store).find(entry=>entry.id===version.entryId&&entry.kind===kind)||version.entrySnapshot||null;}
 }

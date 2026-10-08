@@ -4,6 +4,7 @@ import { notifySceneReaderToast } from "../toasts.js";
 import { characterErrorReport } from "../character-error.js";
 import { compilerRequest, createRecordBank } from "../../character/records.js";
 import { archiveRecordVersion } from "../../character/versions.js";
+import { characterDeletionTarget, characterDeletionNotice, deleteCharacterRecords } from '../../character/deletion.js';
 import { openPersonPreview } from "../person-preview.js";
 
 export function createCharacterForm(deps) {
@@ -12,7 +13,7 @@ function captureCharacterError(error,stage,meta={}) {
     const button=deps.document.getElementById('sr-character-error-copy');
     if(button)button.hidden=false;
     const modal=deps.document.getElementById('sr-character-modal');
-    if(modal)modal.hidden=false;
+    if(modal && meta.showEditor!==false)modal.hidden=false;
 }
 
 function characterFormSignature() {
@@ -328,15 +329,9 @@ async function analyzeAndSaveCharacter() {
 async function deleteCharacterEntry(kind=deps.characterEditorKind,id=deps.characterEditorId) {
     const chatKey=deps.stateChatKey();
     if (!kind || !id) return;
-    const entry=characterEntries(kind).find(item=>item.id===id);
-    if(!entry)return;
-    if(!deps.window.confirm(`“${entry.name}” 인물 등록을 삭제할까요? 날짜별 저장본은 남고, 다시 적용하면 인물이 복원될 수 있습니다.`))return;
-    const next = deps.normalizeCharacterStore(deps.characterStore);
-    if (kind === 'persona') next.persona = null;
-    else {
-        const key = kind === 'npc' ? 'npcs' : 'characters';
-        next[key] = next[key].filter((item) => item.id !== id);
-    }
+    const target=characterDeletionTarget(deps.characterStore,kind,id);
+    if(!deps.window.confirm(characterDeletionNotice(target)))return;
+    const next=deleteCharacterRecords(deps.characterStore,kind,id);
     await deps.saveCharacterStore(chatKey,next);
     if(chatKey!==deps.stateChatKey())return;
     deps.characterStore=next;
@@ -347,7 +342,7 @@ async function deleteCharacterEntry(kind=deps.characterEditorKind,id=deps.charac
     if(chatKey!==deps.stateChatKey())return;
     closeCharacterEditor();
     deps.renderCharacterStore();
-    notifySceneReaderToast(deps.window, 'success', '인물 시트를 삭제했습니다.', '씬판독기');
+    notifySceneReaderToast(deps.window, 'success', '인물과 해당 인물의 저장본을 삭제했습니다.', '씬판독기');
 }
 return {captureCharacterError,characterFormSignature,characterEntries,updateSheetButton,showCharacterEditor,showVersionEditor,closeCharacterEditor,showSavedPerson,showVersionPreview,loreKey,renderEditorLore,refreshEditorLore,beginLoreRefresh,ensureLoreLoaded,characterForm,taskStatus,saveCharacterEntry,analyzeAndSaveCharacter,deleteCharacterEntry};
 }

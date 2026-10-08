@@ -1,4 +1,5 @@
 // Extracted from Scene Reader 0.26.2; behavior preserved.
+import { recentTurnCount } from '../context/turn-settings.js';
 export function createGenerationLifecycle(deps) {
 async function generationBoundary(task) {
     const chatKey=deps.stateChatKey();
@@ -22,7 +23,7 @@ function cachedJudgmentMatches(rec, context, inputKey, allowOutputChange = false
     if (!allowOutputChange || !Number.isInteger(rec.pendingPlan?.chatCount)) return false;
     const ctx = deps.getContext();
     const chat = deps.filterNonRpHistory(ctx.chat.slice(0, rec.pendingPlan.chatCount), rec.nonRpOutputIndices || []);
-    const originalInput = deps.buildRecentContext({chat, turnCount:deps.settings.recentTurns,maxChars:deps.MAX_TRANSCRIPT_CHARS,userName:ctx.name1,characterName:ctx.name2});
+    const originalInput = deps.buildRecentContext({chat, turnCount:recentTurnCount(deps.settings),maxChars:deps.MAX_TRANSCRIPT_CHARS,userName:ctx.name1,characterName:ctx.name2});
     return saved.contextKey === originalInput.contextKey;
 }
 

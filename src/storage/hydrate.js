@@ -1,4 +1,5 @@
 import { migrateCommonPreferences } from './common-preferences.js';
+import { recentTurnCount } from '../context/turn-settings.js';
 export function createHydration(deps) {
 async function hydrateServerState({ migrate = true } = {}) {
     const chatKey = deps.stateChatKey();
@@ -38,7 +39,7 @@ async function hydrateServerState({ migrate = true } = {}) {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
         delete deps.settings.pauseOnOoc;
         for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
-        deps.settings.recentTurns = Math.max(1, Math.min(5, Number(deps.settings.recentTurns) || deps.DEFAULTS.recentTurns));
+        deps.settings.recentTurns = recentTurnCount(deps.settings);
         deps.extension_settings[deps.MODULE] = deps.settings;
     } else if (migrate) await deps.saveServerSettings();
     if (!current()) return false;

@@ -1,4 +1,5 @@
 import {additionBlocks,incorporateAdditions} from './opportunity.js';
+import {repetitionInjection} from '../continuity/repetition.js';
 import {storylineInjection} from '../context/storyline-reference.js';
 import { selectExecutionCorrectionKeys } from "../scene/correction-selection.js";
 import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
@@ -52,6 +53,14 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         (frame.continuityBlock = deps.settings.continuityEnabled
             ? deps.buildContinuityInjection(deps.selectContinuityContext(deps.continuityView(frame.rec), frame.transcript, { opportunity: frame.rec.sceneOpportunity }), frame.chosenContinuity)
             : '');
+        if(deps.settings.continuityEnabled && frame.rec.repetitionGuard) {
+            const review=repetitionInjection(frame.rec.repetitionGuard,{chat:deps.getContext().chat,chatKey:run.identity,excluded:frame.rec.nonRpOutputIndices || [],fingerprint:deps.stableFingerprint});
+            if(review.text) {
+                frame.continuityBlock=[frame.continuityBlock,review.text].filter(Boolean).join('\n');
+                frame.rec.repetitionGuard=review.guard;
+            } else frame.rec.repetitionGuard=null;
+            deps.noteDiagnostic?.('topic_fixation_injection',{module:'src/continuity/repetition.js',status:review.status,targetCount:review.text?1:0});
+        }
         (frame.sheetCastNames = [...deps.characterStore.characters, ...deps.characterStore.npcs, ...[deps.characterStore.persona].filter(Boolean)].flatMap(entry => [entry.name, ...(entry.aliases || [])]));
         (frame.selectedSheetNpc = frame.decisions.npc_route === 'reuse' && /^sheet_\d+$/.test(frame.decisions.npc_target || '')
             ? frame.npcTargets[Number(frame.decisions.npc_target.slice(6))] || null : null);
@@ -62,7 +71,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         const carried=storylineInjection(frame.rec);
         if(carried)frame.payload=carried+'\n\n'+frame.payload;
         (frame.finalContinuityCacheKey = deps.settings.continuityEnabled
-            ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id) })
+            ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id), ...(frame.rec.repetitionGuard?{repetition:frame.rec.repetitionGuard}:{}) })
             : '');
         (frame.rawChoices = Object.fromEntries(Object.entries(frame.data.answers || {}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));
         frame.rec.lastJudgment = { details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };

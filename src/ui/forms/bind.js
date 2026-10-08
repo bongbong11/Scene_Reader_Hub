@@ -193,14 +193,9 @@ function bindForm() {
     deps.document.getElementById('sr-confidence')?.addEventListener('change', (event) => { deps.runUiTask(deps.saveGlobal('showConfidence', event.target.checked).then(deps.renderJudgment)); });
     bindJevSettings(deps);
     deps.document.getElementById('sr-continuity-enabled')?.addEventListener('change', (event) => deps.runUiTask((async () => {
-        deps.invalidateReasonerJobs();
-        await deps.saveGlobal('continuityEnabled', event.target.checked);
-        if (event.target.checked && !deps.settings.reasonerProfileId) notifySceneReaderToast(deps.window, 'warning', '연속성 추론에 사용할 연결 프로필을 선택하세요.', '씬판독기');
-        const rec = deps.record(true);
-        if (!event.target.checked) rec.pendingContinuityCandidates = [];
-        rec.lastJudgment = null;
-        await deps.persistChat();
-        await deps.clearInjection();
+        const enabled=event.target.checked;
+        await deps.saveGlobal('continuityEnabled', enabled);
+        if (enabled && !deps.settings.reasonerProfileId) notifySceneReaderToast(deps.window, 'warning', '연속성 추론에 사용할 연결 프로필을 선택하세요.', '씬판독기');
         deps.renderAll();
     })(), '연속성 추론 설정을 바꾸지 못했습니다.'));
     deps.document.getElementById('sr-reasoner-profile')?.addEventListener('change', (event) => deps.runUiTask((async () => {
@@ -208,6 +203,7 @@ function bindForm() {
         await deps.saveGlobal('reasonerProfileId', event.target.value);
         const rec = deps.record(true);
         rec.pendingContinuityCandidates = [];
+        rec.repetitionGuard = null;
         rec.lastReasonerSource = null;
         rec.lastJudgment = null;
         await deps.persistChat();
@@ -372,6 +368,7 @@ function bindForm() {
         rec.pendingContinuityCandidates = [];
         rec.lastReasonerSource = null;
         rec.lastContinuityTrace = null;
+        rec.repetitionGuard = null;
         rec.pendingPlan = null;
         rec.lastJudgment = null;
         await deps.clearInjection({chatKey});

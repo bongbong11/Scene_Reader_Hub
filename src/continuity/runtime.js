@@ -1,6 +1,7 @@
 
 
 import { vaultAnalysisBridge } from '../integration/vault-output.js';
+import { REPETITION_SYSTEM, repetitionWindow, assessRepetition } from './repetition.js';
 export function createContinuityRuntime(deps) {
 function sourceIdentityForPending(pending) {
     return {
@@ -56,6 +57,7 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
         && rec.lastReasonerSource?.assistantIndex === identity.assistantIndex
         && (rec.lastReasonerSource.continuityRevision || rec.lastReasonerSource.sourceRevision) === continuityRevision) { usage('already_analyzed'); return; }
     const generationToken = deps.reasonerGeneration;
+    const repetition=continuity ? repetitionWindow(deps.getContext().chat,identity.assistantIndex,deps.settings,rec.nonRpOutputIndices || [],deps.stableFingerprint) : null;
     const previousSource=rec.lastReasonerSource;
     const profileId = deps.settings.reasonerProfileId;
     identity.continuityRevision = continuityRevision;
@@ -66,12 +68,13 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
     const controller=new AbortController();
     const job = (async () => {
         try {
-            const system = [continuity ? deps.REASONER_SYSTEM : '', vault?.system || '',
+            const system = [continuity ? deps.REASONER_SYSTEM : '', continuity && repetition.turns.length>=2 ? REPETITION_SYSTEM : '', vault?.system || '',
                 vault && continuity ? 'Return one JSON object containing both the continuity arrays and vault_results. Each section is independent; an empty continuity section does not omit the vault audit. Report vault-card knowledge only in vault_results, not duplicate knowledge_updates. Vault fact data is not RP evidence.' : ''].filter(Boolean).join('\n');
             const data = await deps.requestWithConnectionProfile(deps.connectionRequestService, profileId, system, {
                     ...(vault ? { vault_audit: vault.input } : {}),
                     ...(continuity ? {
                     memory_reference: pending.memoryReference || null,
+                    ...(repetition.turns.length>=2 ? {repetition_context:{turns:repetition.turns}} : {}),
                     trigger,
                     active_continuity: {
                         items: deps.normalizeContinuity(deps.continuityView(rec)).items.map(({ id, kind, label, lifecycle, pressure, owners }) => ({ id, kind, label, lifecycle, pressure, owners })),
@@ -91,16 +94,29 @@ async function postVerifiedCharacterOutput(rec, pending, verification, trigger) 
                 || !output || deps.stableFingerprint(String(output.mes || '')) !== identity.outputFingerprint) return;
             // A malformed section cannot discard a valid sibling section.
             if (continuity && deps.settings.continuityEnabled && deps.sourceRevisionKey(current, deps.selectedWorld(current), {includeVault:false}) === continuityRevision) {
+                const previous={guard:current.repetitionGuard,candidates:current.pendingContinuityCandidates};
+                const review=assessRepetition(data.result,repetition,identity);
+                current.repetitionGuard=review.guard;
                 try {
                     if (!['new_items','affected','knowledge_updates','possible_followups'].every(key=>Array.isArray(data.result?.[key]))) throw new Error('연속성 결과 항목 누락');
                     const candidates = deps.validateReasonerResult(data.result, { sourceText, continuity: deps.continuityView(current), sourceIdentity: identity });
                     current.pendingContinuityCandidates = candidates;
                     current.lastContinuityTrace = { status: candidates.length ? 'pending_jev' : 'empty', trigger, profileId, sourceIdentity: identity, candidates: candidates.map((item) => ({ type: item.type, label: item.label, evidence: item.evidence })) };
-                    await deps.persistChat();
                 } catch {
                     current.lastContinuityTrace = {status:'error',trigger,profileId,candidates:[],error:'연속성 결과 또는 저장을 확인하지 못했습니다.'};
                     deps.noteDiagnostic?.('auxiliary_result',{module:'src/continuity/runtime.js',status:'partial',reasonCode:'continuity_result_unconfirmed'});
                 }
+                current.lastContinuityTrace.repetitionStatus=review.status;
+                try { await deps.persistChat(); }
+                catch {
+                    current.repetitionGuard=previous.guard;
+                    current.pendingContinuityCandidates=previous.candidates;
+                    current.lastReasonerSource=previousSource;
+                    current.lastContinuityTrace.repetitionStatus='save_failed';
+                    current.lastContinuityTrace.status='error';
+                    deps.noteDiagnostic?.('auxiliary_result',{module:'src/continuity/runtime.js',status:'failed',reasonCode:'continuity_storage_failed'});
+                }
+                deps.noteDiagnostic?.('topic_fixation_review',{module:'src/continuity/repetition.js',status:current.lastContinuityTrace.repetitionStatus,comparedOutputs:repetition.turns.length,evidenceCount:review.guard?.evidenceCount || 0});
             }
             if (vault && bridge.analysisCurrent(vault.token)) {
                 try {

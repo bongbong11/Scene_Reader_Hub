@@ -1,4 +1,5 @@
 import {renderOpportunitySettings} from '../opportunity-settings.js';
+import { recentTurnCount, renderRecentTurns } from '../../context/turn-settings.js';
 import { renderRetrievalSettings, refreshRetrievalSecret } from '../retrieval-settings.js';
 import { normalizeRetrievalPatch } from '../../retrieval/connection-settings.js';
 import { renderPresetSlots } from '../preset-slots.js';
@@ -57,7 +58,7 @@ function setFormValues() {
     for (const [id,key] of [['sr-memory-charm','charmMemory'],['sr-memory-lorebook','lorebookMemory']]) { setChecked(id, MEMORY_REFERENCE_ENABLED && prefs[key]); const input = deps.document.getElementById(id); if (input) input.disabled = !MEMORY_REFERENCE_ENABLED; }
     setChecked('sr-continuity-enabled', deps.settings.continuityEnabled);
     deps.renderReasonerProfiles();
-    setValue('sr-recent-turns', deps.settings.recentTurns);
+    renderRecentTurns(deps.document, deps.settings);
     setChecked('sr-confidence', deps.settings.showConfidence);
     const debugStatus = deps.document.getElementById('sr-ooc-debug-status');
     if (debugStatus) debugStatus.textContent = deps.debugInjectionArmed
@@ -80,6 +81,25 @@ function setFormValues() {
 }
 
 async function saveGlobal(key, value) {
+    if (['recentTurns', 'continuityEnabled'].includes(key)) return deps.queueWrite('context-settings', async () => {
+        const target=deps.settings, chatKey=deps.stateChatKey();
+        const previous={recentTurns:target.recentTurns,continuityEnabled:target.continuityEnabled};
+        deps.invalidateReasonerJobs();
+        target[key]=value;
+        target.recentTurns=recentTurnCount(target);
+        try { await deps.saveServerSettings(); deps.saveSettingsDebounced(); }
+        catch(error) { if(deps.settings===target)Object.assign(target,previous); setFormValues(); throw error; }
+        if(deps.settings!==target || chatKey!==deps.stateChatKey())return;
+        const rec=deps.record(true);
+        rec.repetitionGuard=null;
+        rec.lastReasonerSource=null;
+        rec.lastJudgment=null;
+        if(!target.continuityEnabled)rec.pendingContinuityCandidates=[];
+        if(!rec.pendingPlan?.outputText)rec.pendingPlan=null;
+        await deps.clearInjection({chatKey});
+        await deps.persistChat(chatKey,rec);
+        if(chatKey===deps.stateChatKey())setFormValues();
+    });
     const target=deps.settings;
     const current=deps.nextMutation(target,key);
     const previous = target[key];
