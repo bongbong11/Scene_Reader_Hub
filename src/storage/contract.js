@@ -28,8 +28,6 @@ export const DEFAULTS = {
     showConfidence: true,
     ownerUnlocked: false,
     continuityEnabled: false,
-    continuityInterval: 3,
-    collectPersonaChanges: false,
     reasonerProfileId: '',
     jevProvider: 'typesafe',
     retrievalProvider: 'transformers',

@@ -1,4 +1,3 @@
-import {pausedCharacterReference} from '../injection/paused-character.js';
 import {sceneDisplayState} from './display-state.js';
 import {inheritedStates, CONTINUATION_POLICY, storylineInjection, storylineRetrievalCue} from '../context/storyline-reference.js';
 import {bankIdentity} from '../retrieval/bank-identity.js';
@@ -94,10 +93,10 @@ async function prepareGate(run,frame) {
     if (frame.world?.advanced && frame.worldSelectionFailed) notifySceneReaderToast(deps.window, 'warning', '세계관 판정 응답을 확인하지 못해 이번 턴은 고정 규칙만 적용합니다.', '씬판독기');
     (frame.worldGateFrame = { request: frame.gateRequest, answers: frame.worldRecordAnswers });
     if(frame.sceneGate.route==='paused') {
-        const referenceLines=[],changeBudget={remaining:1000};
+        const referenceLines=[];
         for(const entry of frame.gatePeople) {
             if(!frame.sceneGate.participantIds.includes(entry.id) || (entry.kind==='persona'&&!frame.prefs.allowUserImpersonation) || !recordBankIsCurrent(entry))continue;
-            const reference=deps.settings?.continuityEnabled?await pausedCharacterReference(entry,frame.rec,{chat:deps.getContext().chat,chatRef:run.identity,store:deps.characterStore,actorIds:frame.sceneGate.participantIds,fingerprint:deps.stableFingerprint,signal:run.controller.signal,budget:changeBudget,onFailure:()=>deps.noteDiagnostic?.('analysis_reference',{module:'src/injection/paused-character.js',status:'degraded',reasonCode:'CHANGE_REFERENCE_UNAVAILABLE'})}):String(entry.recordBank?.intimacy_reference?.text||'').trim();
+            const reference=String(entry.recordBank?.intimacy_reference?.text||'').trim();
             run.assert();
             if(reference)referenceLines.push(`<CHARACTER_REFERENCE name="${String(entry.name).replace(/["<>]/g,'')}">Use this person's stored information in the current interaction without inventing traits or forcing an action: ${reference}</CHARACTER_REFERENCE>`);
         }

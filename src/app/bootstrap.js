@@ -1,9 +1,6 @@
 import {createVisibilityLifecycle} from '../lifecycle/visibility.js';
 import {createVisibilityAdapter} from '../adapters/message-visibility.js';
-import {createHistoryAnalysis} from '../continuity/history-analysis.js';
-import {createChangeReview} from '../continuity/change-review.js';
-import {notifyAutomaticAnalysis} from '../ui/analysis-actions.js';
-import {createAnalysisRuntime} from '../continuity/analysis-runtime.js';
+import {createAuxiliaryRuntime} from '../continuity/auxiliary-runtime.js';
 import {createEmbeddingMaintenance} from '../retrieval/maintenance.js';
 import {executionReport} from '../debug/execution-report.js';
 import {registerSlashCommands} from '../adapters/slash-commands.js';
@@ -81,7 +78,7 @@ import {StaleRunError} from "../lifecycle/jobs.js";
 import {messageSnapshot, firstChangedMessage, attachSelectedOutput} from "../context/message-identity.js";
 
 const runtime = createRuntimeState(() => stateChatKey());
-let analysis,historyAnalysis,changes;
+let analysis;
 let visibility;
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
 let {noteDiagnostic, diagnosticSnapshot} = createDiagnostics({
@@ -507,7 +504,7 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
-let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,getAnalysis:()=>analysis,getChanges:()=>changes,window,
+let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,window,
     isRoomReady:()=>runtime.chatReadyKey===null||runtime.chatReadyKey===stateChatKey(),
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
@@ -806,8 +803,8 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
 
 
 
-analysis=createAnalysisRuntime({
-    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,selectActiveEntries,onOutcome:outcome=>notifyAutomaticAnalysis(window,outcome),
+analysis=createAuxiliaryRuntime({
+    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,sourceRevisionKey,selectedWorld,
     get queueWrite(){return runtime.queueWrite;},get clearInjection(){return clearInjection;},
     fingerprint:stableFingerprint,noteDiagnostic,
     get settings(){return runtime.settings;},get characterStore(){return runtime.characterStore;},
@@ -815,16 +812,6 @@ analysis=createAnalysisRuntime({
     get connectionRequestService(){return runtime.connectionRequestService;},
     get requestWithConnectionProfile(){return requestWithConnectionProfile;},
 });
-const changeServices={
-    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,selectActiveEntries,analysis,clearInjection,
-    get queueWrite(){return runtime.queueWrite;},fingerprint:stableFingerprint,noteDiagnostic,
-    get settings(){return runtime.settings;},get characterStore(){return runtime.characterStore;},
-    get chatRecords(){return runtime.chatRecords;},get stateHistoryCache(){return runtime.stateHistoryCache;},
-    get connectionRequestService(){return runtime.connectionRequestService;},requestWithConnectionProfile,
-    get worldInfoModule(){return runtime.worldInfoModule;},get historyAnalysis(){return historyAnalysis;}
-};
-historyAnalysis=createHistoryAnalysis(changeServices);
-changes=createChangeReview(changeServices);
 visibility=createVisibilityLifecycle({
     window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,
     get queueWrite(){return runtime.queueWrite;},clearInjection,invalidateReasonerJobs,
@@ -835,7 +822,7 @@ visibility=createVisibilityLifecycle({
 });
 const visibilityAdapter=createVisibilityAdapter({window,document,eventSource,event_types,check:()=>visibility.check()});
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
-    get analysis() { return analysis; },get historyAnalysis(){return historyAnalysis;},checkVisibility:()=>visibility.check(),
+    get analysis() { return analysis; },checkVisibility:()=>visibility.check(),
     noteDiagnostic,
     embeddingMaintenance,
     presetPrompts:presetRequest.prompts,
@@ -957,7 +944,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.7',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.8',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

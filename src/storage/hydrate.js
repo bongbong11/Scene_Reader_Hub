@@ -1,6 +1,6 @@
 import { migrateCommonPreferences } from './common-preferences.js';
 import { recentTurnCount } from '../context/turn-settings.js';
-import {normalizeStoredAnalysisSettings} from '../continuity/analysis-contract.js';
+import {retireCollection,retireHistory} from './retired-collection.js';
 export function createHydration(deps) {
 async function hydrateServerState({ migrate = true } = {}) {
     const chatKey = deps.stateChatKey();
@@ -38,7 +38,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     const saved = data.settings && typeof data.settings === 'object' ? data.settings : {};
     if (saved.global && typeof saved.global === 'object') {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
-        normalizeStoredAnalysisSettings(deps.settings);
+        delete deps.settings.continuityInterval;delete deps.settings.collectPersonaChanges;
         delete deps.settings.pauseOnOoc;
         for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
         deps.settings.recentTurns = recentTurnCount(deps.settings);
@@ -59,6 +59,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     delete deps.chat_metadata[deps.MODULE];
     if (!current()) return false;
     const loadedChat = deps.chatRecords.get(chatKey);
+    const retiredCollection = retireCollection(loadedChat);
     const migratedCommon = deps.getContext().chatId && migrateCommonPreferences(deps.settings, loadedChat?.preferences);
     if (migratedCommon) {
         const target=deps.settings, previous=target.commonPreferences;
@@ -74,7 +75,7 @@ async function hydrateServerState({ migrate = true } = {}) {
         const savedPreferences = loadedChat.preferences || {};
         const needsPreferenceMigration = savedPreferences.settingsContract !== 4 || !Object.hasOwn(savedPreferences, 'characterVolume');
         const normalizedChat = deps.record(true);
-        if (needsPreferenceMigration) {
+        if (needsPreferenceMigration || retiredCollection) {
             normalizedChat.preferences.settingsContract = 4;
             normalizedChat.lastJudgment = null;
             if (!normalizedChat.pendingPlan?.outputText) normalizedChat.pendingPlan = null;
@@ -83,8 +84,10 @@ async function hydrateServerState({ migrate = true } = {}) {
         }
     }
     const history = Array.isArray(data.history) ? data.history.slice(-deps.STATE_HISTORY_LIMIT) : [];
+    const retiredHistory = retireHistory(history);
     if (history.length || !migrate || data.migrated) {
         deps.stateHistoryCache.set(chatKey, history);
+        if (retiredHistory) { await deps.saveStateHistory(history,chatKey); if(!current())return false; }
         if (!migrate) { await deps.saveStateHistory(history, chatKey); await deps.saveServerChat(chatKey, data.chat || null); }
     }
     else if (migrate) {

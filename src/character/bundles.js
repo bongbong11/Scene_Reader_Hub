@@ -42,6 +42,7 @@ export function validateRecordBundle(input) {
     return { outputs, results, isBundle };
 }
 
+import {JSON_FILE_DELIVERY} from '../shared/json-file-delivery.js';
 export function castCompilerPrompt(form) {
     const names = form.kind === 'character' ? castNames(form.castNames) : [];
     if(form.importMode==='multi' && names.length===1)throw new Error('다인 캐릭터 탭에는 분리할 인물 이름을 2명 이상 입력하거나 모두 비워 기본 명령문을 복사하세요.');
@@ -59,6 +60,8 @@ export function castCompilerPrompt(form) {
 목적은 인물 시트를 예쁘게 정리하는 것이 아니라, 확장이 장면마다 인물별 정보를 선택해 읽을 수 있는 판독 JSON 파일을 만드는 것입니다. 문법이 맞는 JSON이라도 아래 저장 형식과 다르면 사용할 수 없습니다.
 최종 결과는 한 파일의 JSON 전체만 출력하세요. 파일 첨부 기능을 사용할 경우 파일 본문에 아래 JSON 전체를 넣으세요. 링크, 제작용 코드, 설명문을 JSON 내용 대신 넣지 마세요.
 ${compilerSourceGuide(draft.sources)}
+
+${JSON_FILE_DELIVERY}
 
 ${rules}
 ## MULTI-PERSON OWNERSHIP

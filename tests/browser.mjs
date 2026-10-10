@@ -1,3 +1,4 @@
+import {checkReplacementTool} from './browser-replacement-tool.mjs';
 import {checkRoomBackups} from './browser-room-backups.mjs';
 import {checkCharacterDeletion} from './browser-character-deletion.mjs';
 import {checkCommonPreferences} from './browser-common-preferences.mjs';
@@ -7,7 +8,6 @@ import { checkCompilerCopies } from './browser-compiler-copies.mjs';
 import { checkPresetSlots } from './browser-preset-slots.mjs';
 import { checkRecordProtection } from './browser-record-protection.mjs';
 import { checkRecoverySettings } from './browser-recovery-settings.mjs';
-import {checkAnalysisSettings} from './browser-analysis-settings.mjs';
 import {checkOpportunitySettings} from './browser-opportunity-settings.mjs';
 import { createRecordBank } from '../src/characters/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
@@ -72,7 +72,7 @@ window.eventSource={on(name,fn){if(!listeners.has(name))listeners.set(name,[]);l
 const server=http.createServer(async(req,res)=>{try{
     if(req.url==='/favicon.ico'){res.statusCode=204;res.end();return;}
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
-    if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(`export const eventSource=window.eventSource;export const event_types=new Proxy({},{get:(_,key)=>key});export const chat_metadata={};export function saveSettingsDebounced(){};export function setExtensionPrompt(key,value){window.mock.prompts[key]=value};export function getRequestHeaders(){return {}};export function isStreamingEnabled(){return Boolean(window.mock.streamingEnabled)}`);return;}
+    if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(`export const eventSource=window.eventSource;export const event_types=new Proxy({},{get:(_,key)=>key});export const chat_metadata={};export function saveSettingsDebounced(){};export function setExtensionPrompt(key,value){window.mock.prompts[key]=value};export function getRequestHeaders(){return {}};export function isStreamingEnabled(){return Boolean(window.mock.streamingEnabled)};export function isGenerating(){return Boolean(window.mock.mainBusy)};export async function generateQuietPrompt(options){(window.mock.quietRequests ||= []).push(options);await mock.emit('GENERATION_AFTER_COMMANDS','quiet',{quiet_prompt:options.quietPrompt},false);return '상대에게 예외가 생겼지만 경계심은 남아 있다.';}`);return;}
     if(req.url==='/scripts/openai.js'){res.setHeader('Content-Type','application/javascript');res.end('export const oai_settings=window.mock.presetSettings;export const promptManager=window.mock.promptManager;');return;}
     if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true}));return;}
     if(req.url==='/scripts/extensions.js'){res.setHeader('Content-Type','application/javascript');res.end('export const extension_settings={};');return;}
@@ -1037,7 +1037,8 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.deepEqual(errors,[]);
     await checkRoomBackups(page,setViewportSize);
     await checkCommonPreferences(page,store,requests);
-    await checkAnalysisSettings(page,store,requests,setViewportSize,root);
+    for(const id of ['sr-analysis-now','sr-evolution-results','sr-continuity-interval','sr-history-now','sr-change-dialog'])assert.equal(await page.locator('#'+id).count(),0,'removed collection UI');
+    await checkReplacementTool(page,store,requests,setViewportSize,root);
     await checkCharacterDeletion(page,store,requests,setViewportSize);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

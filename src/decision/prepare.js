@@ -1,5 +1,4 @@
 import {selectActiveContinuity, confirmedContinuity} from '../continuity/selection.js';
-import {confirmedEvolution} from '../character/evolution.js';
 import {makeOpportunities} from '../scene/opportunities.js';
 import {addOpportunityQuestions} from '../scene/opportunity-policy.js';
 import {searchCharacterRecords} from '../retrieval/character-search.js';
@@ -53,13 +52,12 @@ if (frame.prefs.settingsContract >= 3) {
     (frame.priorStates = new Map(frame.activeCharacters.map(entry => [entry.id, stateForEntry(frame.rawPriorStates.get(entry.id), entry)]).filter(([, state]) => state)));
     (frame.npcTargets = frame.activeCharacters.filter((entry) => entry.kind === 'npc').slice(0, 6));
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));
-    frame.effectiveEvolution=deps.settings.continuityEnabled?confirmedEvolution(frame.rec,{chat:deps.getContext().chat,chatRef:run.identity,fingerprint:deps.stableFingerprint,store:deps.characterStore}):null;
     frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? frame.activeCharacters : [],
-        shared:Boolean(frame.rec.sharedSource),recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.retrievalTranscript || frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal,evolution:frame.effectiveEvolution});
+        shared:Boolean(frame.rec.sharedSource),recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.retrievalTranscript || frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
     run.assert();
     (frame.liveCharacters = deps.characterStore.enabled ? deps.buildLiveCharacterPlan(frame.activeCharacters, {
         selected: frame.context.selected.map((message) => ({ ...message, _sceneReaderIndex: deps.getContext().chat?.indexOf(message) ?? -1 })),
-        transcript: frame.transcript, knowledge: frame.continuityContext.knowledge, memory: frame.memory, persona: deps.characterStore.persona, canonicalOnly: true, volume:frame.prefs.characterVolume, npcSlots:frame.prefs.npcRecordLimit, retrievalResults: frame.retrievalResults, categoryHints: frame.categoryHints, evolution:frame.effectiveEvolution,fingerprint:deps.stableFingerprint,
+        transcript: frame.transcript, knowledge: frame.continuityContext.knowledge, memory: frame.memory, persona: deps.characterStore.persona, canonicalOnly: true, volume:frame.prefs.characterVolume, npcSlots:frame.prefs.npcRecordLimit, retrievalResults: frame.retrievalResults, categoryHints: frame.categoryHints,
     }) : []);
     for (const person of frame.liveCharacters) person.priorState = frame.priorStates.get(person.id) || null;
     for (const person of frame.liveCharacters) person.sexualConductManaged = sexualEligible(person);

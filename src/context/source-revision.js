@@ -14,7 +14,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         reasoner: deps.settings.reasonerProfileId || '',
         retrieval: [deps.settings.retrievalProvider, deps.settings.retrievalModel, deps.settings.retrievalVertexAuth, deps.settings.retrievalVertexRegion, deps.settings.retrievalVertexProject],
         memoryReferenceEnabled: MEMORY_REFERENCE_ENABLED,
-        continuityContract: 1,continuityConfig:[deps.settings.continuityEnabled,deps.settings.continuityInterval,deps.settings.collectPersonaChanges],
+        continuityContract: 2,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 6,
         injectionAssemblyContract: 6,
         characterStateContract: 2,

@@ -14,10 +14,10 @@ import {memoryStatusText} from "../context/memory.js";
 
 
 
-export function createResults({readState:readRawState, document, getContext, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, isStateCapturePending = () => true, onBeforeRender = () => {},getAnalysis=()=>null,getChanges=()=>null,window}) {
+export function createResults({readState:readRawState, document, getContext, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, isStateCapturePending = () => true, onBeforeRender = () => {},window}) {
 const record=()=>isRoomReady()?readRecord():null;
 const readState=()=>{const state=readRawState();return isRoomReady()?state:{...state,characterStore:{enabled:false,characters:[],npcs:[],persona:null,recordGroups:[]},activeInjectionPayload:''};};
-const services={readState,document,getContext,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,onBeforeRender,getAnalysis,getChanges,window};
+const services={readState,document,getContext,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,onBeforeRender,window};
 Object.defineProperty(services,'decisionTitle',{configurable:true,get:()=>decisionTitle});
 Object.defineProperty(services,'resultLabel',{configurable:true,get:()=>resultLabel});
 Object.defineProperty(services,'characterTurnLabel',{configurable:true,get:()=>characterTurnLabel});
@@ -41,7 +41,7 @@ Object.defineProperty(services,'continuityLabel',{configurable:true,get:()=>cont
 const {decisionTitle,resultLabel,renderJudgment,renderProfiles} = createJudgmentView(selectCapabilities(services,["RESULT_GROUPS","document","escapeHtml","getContext","ownerPrompt","readState","record"]));
 const {characterTurnLabel,renderCharacterTurnResults,renderCharacterStore,renderCharacterAnalysisBrowser} = createCharacterView(selectCapabilities(services,["CHARACTER_TURN_LABELS","SEXUAL_TURN_LABELS","characterCardOpen","characterCardViews","document","escapeHtml","getContext","isStateCapturePending","readState","record","selectCharacter","stableFingerprint"]));
 const {renderStoredState,renderBackups} = createStorageView(selectCapabilities(services,["document","escapeHtml","getContext","readState","record"]));
-const {renderReasonerProfiles,renderContinuity} = createContinuityView(selectCapabilities(services,["getChanges","window","getAnalysis","continuityLabel","document","escapeHtml","readState","record","resultLabel"]));
+const {renderReasonerProfiles,renderContinuity} = createContinuityView(selectCapabilities(services,["window","continuityLabel","document","escapeHtml","readState","record","resultLabel"]));
 
 const characterCardViews = new Map();
 const characterCardOpen = new Map();

@@ -1,4 +1,5 @@
 // Extracted from Scene Reader 0.26.2; behavior preserved.
+import {retireCollection} from '../storage/retired-collection.js';
 export function createStateSnapshots(deps) {
 function reversibleStateSnapshot(rec) {
     return JSON.parse(JSON.stringify({
@@ -26,8 +27,6 @@ function reversibleStateSnapshot(rec) {
         progressionState: rec.progressionState || { turnsSinceMeaningfulProgress: 0, lastOutputFingerprint: '' },
         deferredRoutes: rec.deferredRoutes || {},
         observedOpportunityKeys: rec.observedOpportunityKeys || [],
-        ...(rec.characterEvolutionV1?{characterEvolutionV1:rec.characterEvolutionV1}:{}),
-        ...(rec.analysisJournalV1?{analysisJournalV1:rec.analysisJournalV1}:{}),
         continuity: rec.continuity || { items: [], knowledge: [], followups: [], revision: 0 },
         pendingContinuityCandidates: rec.pendingContinuityCandidates || [],
         lastReasonerSource: rec.lastReasonerSource || null,
@@ -41,7 +40,7 @@ function reversibleStateSnapshot(rec) {
 function restoreReversibleState(rec, snapshot) {
     if (!snapshot) return;
     Object.assign(rec, JSON.parse(JSON.stringify(snapshot)));
-    for(const key of ['characterEvolutionV1','analysisJournalV1'])if(!Object.hasOwn(snapshot,key))delete rec[key];
+    retireCollection(rec);
     if(snapshot.repetitionGuard)rec.repetitionGuard=structuredClone(snapshot.repetitionGuard);
     else delete rec.repetitionGuard;
     if(!snapshot.generatedCast)delete rec.generatedCast;

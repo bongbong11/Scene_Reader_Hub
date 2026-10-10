@@ -1,8 +1,0 @@
-export function renderEvolutionStatus({document,record,settings,analysis}) {
- const status=document.getElementById('sr-analysis-status');
- const runtime=record?.analysisRuntimeV1,savedRun=runtime?.lastRun,run=analysis?.busy?{...savedRun,status:savedRun?.status==='running'?'running':'queued'}:savedRun?.status==='running'?{...savedRun,status:'interrupted'}:savedRun;
- const reviewCount=(runtime?.pendingBatches||[]).flatMap(b=>b.candidates||[]).filter(c=>c.status==='needs_review').length;
- const label={cleared:'수집 내용 삭제 완료 · 새 답변부터 수집',interrupted:'분석 중단 · 다시 확인 가능',waiting:'다음 수집까지 대기',queued:'분석 준비 중',running:'별도 분석 중 · 롤플은 계속 진행',needs_review:'수집 완료 · 확인 대기 항목 있음',saved:'검증 완료 · 변경 항목 반영',reviewed:'검증 완료',empty:'확인 완료 · 새 변화 없음',already_analyzed:'새로 분석할 대화 없음 · 중복 호출하지 않음',source_unavailable:'읽을 수 없는 구간 있음 · 원문 상태 확인',partial:'일부 분석 대기 · 확인한 내용은 유지',failed:'분석 실패 · 기본 판독 유지'}[run?.status]||'새 답변부터 수집';
- if(status)status.textContent=!settings.continuityEnabled?'연속성 추론 꺼짐':!settings.reasonerProfileId?'설정에서 확장 연결 프로필을 선택하세요.':label+(run?.status==='waiting'?runtime?.openScene?' · 장면 종료 후 확인':` · ${run.turnCount||0}/${Number(settings.continuityInterval)===5?5:3}턴`:'')+(runtime?.baselineProgress?' · 원본 기록 일부 확인 · 계속 확인 필요':'')+(reviewCount?' · 확인 필요 '+reviewCount+'개 · 해당 원본 유지':'')+(runtime?.coverageGaps?.length?' · 수정으로 확인 못한 구간 있음':'');
- const button=document.getElementById('sr-analysis-now');if(button){button.disabled=!settings.enabled||!settings.continuityEnabled||Boolean(analysis?.busy);button.textContent=analysis?.busy?'확인 중…':'지금 확인';button.title='최근 3/5턴과 아직 확인하지 못한 구간을 확장 연결 모델로 확인합니다.';}
-}

@@ -14,6 +14,8 @@ function normalize(value){return JSON.parse(JSON.stringify(value));}
 function unchanged(value,parent='') {
  if(Array.isArray(value))return value.map(item=>unchanged(item,parent));
  if(!value||typeof value!=='object')return value==='macro'?'preset':value;
+ // The preserved grievance policy is independent of the removed collector.
+ if(parent==='accumulated_state'&&value.state_policy==='Preserve unresolved grievances and directed relationships unless supplied RP actually changes them. Calm, sex or cooperation alone is not forgiveness. These states do not authorize forced actions or tell another actor private information.')delete value.state_policy;
  // Creation is now a separate addition path; ordinary behavior and actual
  // injection text must still match. Creation modes have full pipeline tests.
  const excluded=new Set(['visibilityKeyV1','drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot',

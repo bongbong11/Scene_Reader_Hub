@@ -1,5 +1,6 @@
 
 
+import {retireHistory} from './retired-collection.js';
 export function createHistoryRepository(deps) {
 function openStateDb() {
     if (!deps.window.indexedDB) return Promise.resolve(null);
@@ -17,7 +18,7 @@ function openStateDb() {
 }
 
 async function loadStateHistory(chatKey = deps.stateChatKey()) {
-    if (deps.stateHistoryCache.has(chatKey)) return deps.stateHistoryCache.get(chatKey);
+    if (deps.stateHistoryCache.has(chatKey)) { const history=deps.stateHistoryCache.get(chatKey);retireHistory(history);return history; }
     const db = await openStateDb();
     if (!db) { deps.stateHistoryCache.set(chatKey, []); return []; }
     const history = await new Promise((resolve) => {
@@ -25,12 +26,14 @@ async function loadStateHistory(chatKey = deps.stateChatKey()) {
         request.onsuccess = () => resolve(Array.isArray(request.result?.history) ? request.result.history : []);
         request.onerror = () => resolve([]);
     });
+    retireHistory(history);
     deps.stateHistoryCache.set(chatKey, history);
     return history;
 }
 
 async function saveStateHistory(history, chatKey = deps.stateChatKey()) {
-    const limited = history.slice(-deps.STATE_HISTORY_LIMIT);
+    const limited = structuredClone(history.slice(-deps.STATE_HISTORY_LIMIT));
+    retireHistory(limited);
     await deps.queueWrite(`session:${chatKey}`, () => deps.storagePost('history', { chatKey, value: structuredClone(limited) }));
     deps.stateHistoryCache.set(chatKey, limited);
 

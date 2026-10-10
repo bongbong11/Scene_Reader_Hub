@@ -57,8 +57,6 @@ function setFormValues() {
     if(emotionNow) emotionNow.hidden=false;
     for (const [id,key] of [['sr-memory-charm','charmMemory'],['sr-memory-lorebook','lorebookMemory']]) { setChecked(id, MEMORY_REFERENCE_ENABLED && prefs[key]); const input = deps.document.getElementById(id); if (input) input.disabled = !MEMORY_REFERENCE_ENABLED; }
     setChecked('sr-continuity-enabled', deps.settings.continuityEnabled);
-    setValue('sr-continuity-interval',Number(deps.settings.continuityInterval)===5?5:3);
-    setChecked('sr-collect-persona-changes',deps.settings.collectPersonaChanges);
     deps.renderReasonerProfiles();
     renderRecentTurns(deps.document, deps.settings);
     setChecked('sr-confidence', deps.settings.showConfidence);
@@ -83,9 +81,9 @@ function setFormValues() {
 }
 
 async function saveGlobal(key, value) {
-    if (['recentTurns', 'continuityEnabled','continuityInterval','collectPersonaChanges'].includes(key)) return deps.queueWrite('context-settings', async () => {
+    if (['recentTurns', 'continuityEnabled'].includes(key)) return deps.queueWrite('context-settings', async () => {
         const target=deps.settings, chatKey=deps.stateChatKey();
-        const previous={recentTurns:target.recentTurns,continuityEnabled:target.continuityEnabled,continuityInterval:target.continuityInterval,collectPersonaChanges:target.collectPersonaChanges};
+        const previous={recentTurns:target.recentTurns,continuityEnabled:target.continuityEnabled};
         deps.invalidateReasonerJobs();
         target[key]=value;
         target.recentTurns=recentTurnCount(target);

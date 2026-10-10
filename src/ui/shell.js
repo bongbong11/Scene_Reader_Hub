@@ -15,8 +15,7 @@ function createDialog() {
     // render behind it regardless of z-index, so keep the shared toast container
     // inside the dialog only while the dialog is open.
     const syncToastLayer = () => {
-        const review=deps.document.getElementById('sr-change-dialog');
-        const target = review?.open ? review : deps.dialog.open ? deps.dialog : deps.document.body;
+        const target = deps.dialog.open ? deps.dialog : deps.document.body;
         for (const id of ['toast-container', 'scene-reader-toast-container']) {
             const container = deps.document.getElementById(id);
             if (container && container.parentElement !== target) target.append(container);

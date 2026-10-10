@@ -2,12 +2,14 @@ import {normalizeOpportunities} from '../scene/opportunities.js';
 import {restoreOpportunityPreferences} from '../scene/opportunity-settings.js';
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
 import { effectivePreferences } from './common-preferences.js';
+import {retireCollection} from './retired-collection.js';
 // Shared storage contract retained across extension replacement.
 export function createRecordRepository(deps) {
 function record(create = false) {
     const key = deps.stateChatKey();
     if (!deps.chatRecords.has(key) && create) deps.chatRecords.set(key, {lastJudgment:null,pendingPlan:null});
     const value = deps.chatRecords.get(key) || null;
+    retireCollection(value);
     if (value && create) {
         deps.migrateKnowledge(value);
         const saved = value.preferences || {};

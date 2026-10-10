@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {repetitionWindow,assessRepetition,repetitionInjection,REPETITION_SYSTEM} from '../src/continuity/repetition.js';
 import {recentTurnCount,renderRecentTurns} from '../src/context/turn-settings.js';
-import {analysisFixture,emptyResponse} from './fixtures/analysis-runtime.mjs';
+import {auxiliaryFixture,emptyResponse} from './fixtures/auxiliary-runtime.mjs';
 import {createStateSnapshots} from '../src/lifecycle/snapshots.js';
 import {fixture as makeHub} from './regression/audit-v012.mjs';
 
@@ -59,15 +59,15 @@ const snapshots=createStateSnapshots({});const rec={repetitionGuard:prepared.gua
 rec.repetitionGuard=null;snapshots.restoreReversibleState(rec,saved);assert.deepEqual(rec.repetitionGuard,prepared.guard);
 snapshots.restoreReversibleState(rec,{});assert.equal(rec.repetitionGuard,undefined,'old snapshots cannot retain a newer hint');
 
-const liveFixture=analysisFixture({chat:structuredClone(chat),settings,fingerprint:hash});
+const liveFixture=auxiliaryFixture({chat:[{is_user:true,mes:'Earlier question.'},{is_user:false,mes:'Earlier reply.'},...structuredClone(chat)],settings,fingerprint:hash});
 let calls=0;
 liveFixture.deps.requestWithConnectionProfile=async(_service,_profile,system,payload)=>{
  calls++;assert.match(system,/TOPIC_FIXATION_REVIEW/);assert.equal(payload.repetition_context.turns.length,2);
- return {result:{...emptyResponse().result,...fixture}};
+ return {result:{...emptyResponse().result,topic_fixation:{...fixture.topic_fixation,evidence:fixture.topic_fixation.evidence.map(e=>({...e,output_index:e.output_index+2}))}}};
 };
-await liveFixture.analysis.requestManual().completion;
+await liveFixture.analysis.queue(1);await liveFixture.analysis.queue(3);await liveFixture.analysis.queue(5);
 assert.equal(calls,1);assert.equal(liveFixture.records.get('room-A').repetitionGuard.topic,fixture.topic_fixation.topic);
-await liveFixture.analysis.requestManual().completion;assert.equal(calls,1,'same completed reply is not re-requested');
+await liveFixture.analysis.queue(5);assert.equal(calls,1,'same completed reply is not re-requested');
 assert.ok(!JSON.stringify(liveFixture.events).includes('envelope'));
 // Exercise the actual Hub assembly/cache path, not just the formatter.
 const hub=makeHub(),requests=[];

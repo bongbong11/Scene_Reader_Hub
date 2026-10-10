@@ -8,7 +8,7 @@ async function copyText(value) {
     textarea.style.left = '-10000px';
     textarea.style.top = '0';
     textarea.style.opacity = '0';
-    const host = deps.dialog?.open ? deps.dialog : deps.document.body;
+    const host = deps.dialog?.querySelector('dialog[open]') || (deps.dialog?.open ? deps.dialog : deps.document.body);
     host.append(textarea);
     textarea.focus();
     textarea.select();

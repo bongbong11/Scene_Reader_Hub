@@ -1,4 +1,4 @@
-import {sourceRp} from './analysis-window.js';
+import {sourceRp} from './source-refs.js';
 export function createContinuityRuntime(deps) {
 function pendingExternalCandidates(rec, sourceRevision) {
     return deps.activePendingCandidates(rec?.pendingContinuityCandidates, {

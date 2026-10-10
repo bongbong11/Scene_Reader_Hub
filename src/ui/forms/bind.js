@@ -1,4 +1,5 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
+import {bindReplacementTool} from '../replacement-tool.js';
 import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
 import {backupSource, backupFilename} from '../../storage/backup-label.js';
 import {openBackupCharacters} from '../backup-characters.js';
@@ -9,7 +10,6 @@ import {bindRetrievalSettings} from '../retrieval-settings.js';
 import {bindPresetSlots} from '../preset-slots.js';
 import {bindJevSettings} from '../jev-settings.js';
 import {notifySceneReaderToast} from "../toasts.js";
-import {bindAnalysisActions} from '../analysis-actions.js';
 import {MEMORY_REFERENCE_ENABLED} from "../../context/memory.js";
 import {bindCharacterTransfer} from "../character-transfer.js";
 import {openPersonPreview} from "../person-preview.js";
@@ -20,11 +20,9 @@ import {SEASONAL_OPTIONS} from "../../world/seasonal.js";
 
 export function createFormBindings(deps) {
 function bindForm() {
+    bindReplacementTool(deps);
     bindPresetSlots(deps);
     bindOpportunitySettings(deps);
-    deps.document.getElementById('sr-continuity-interval')?.addEventListener('change',event=>deps.runUiTask(deps.saveGlobal('continuityInterval',Number(event.target.value)===5?5:3),'수집 간격을 저장하지 못했습니다.'));
-    deps.document.getElementById('sr-collect-persona-changes')?.addEventListener('change',event=>deps.runUiTask(deps.saveGlobal('collectPersonaChanges',Boolean(event.target.checked)),'페르소나 수집 설정을 저장하지 못했습니다.'));
-    bindAnalysisActions(deps);
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());
     for(const id of ['sr-world-edit-name','sr-world-edit-prompt','sr-world-advanced-json'])deps.document.getElementById(id)?.addEventListener('input',updateWorldCopy);
     deps.document.getElementById('sr-world-profile')?.addEventListener('change',updateWorldCopy);

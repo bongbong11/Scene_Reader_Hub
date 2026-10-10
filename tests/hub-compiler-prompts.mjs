@@ -7,7 +7,7 @@ import { characterCopyNotice, worldCopyNotice } from '../src/ui/compiler-copy.js
 
 for(const kind of ['character','persona','npc']) {
     const basic=compilerRequest({kind,name:'',source:'',selectedLore:[]}).prompt;
-    assert.match(basic,/기본 명령문/);assert.match(basic,/원문도 없으면/);
+    assert.match(basic,/다운로드할 수 있는 UTF-8 인코딩의 .json 파일/);assert.match(basic,/기본 명령문/);assert.match(basic,/원문도 없으면/);
     assert.doesNotMatch(basic,/Copy entity_type and entity_name exactly as supplied/);
     assert.match(basic,/never copy ACTUAL_NAME_FROM_SOURCE/);
     const example=extractJsonObject(basic);
@@ -28,7 +28,7 @@ for(const withSource of [false,true]) {
     const section=multi.split('## ONE COMPLETE OUTPUT FILE')[1].split('## 저장할')[0];
     const example=JSON.parse(section.slice(section.indexOf('{')).trim());
     assert.equal(validateRecordBundle(example).outputs.length,2);
-    assert.match(multi,/appearance_details/);assert.match(multi,/nine required fields/);
+    assert.match(multi,/다운로드할 수 있는 UTF-8 인코딩의 .json 파일/);assert.match(multi,/appearance_details/);assert.match(multi,/nine required fields/);
     if(withSource)assert.equal(multi.split('SYNTHETIC_MULTI_MARKER.').length,2);
     else assert.match(multi,/원문 미첨부/);
 }
@@ -37,7 +37,7 @@ assert.throws(()=>validateRecordBundle({entities:[null]}),/인물 1.*객체/);
 assert.throws(()=>validateRecordBundle({entities:[{entity_type:'character',entity_name:'Aster'}]}),/인물 1.*records/);
 const sampleWorld=JSON.parse(worldCompilerPrompt().split('\n').find(line=>line.startsWith('{"format"')));
 assert.equal(parseAdvancedWorld(sampleWorld).version,1);
-assert.match(worldCompilerPrompt(),/30,000/);assert.match(worldCompilerPrompt(),/원문 미첨부/);
+assert.match(worldCompilerPrompt(),/다운로드할 수 있는 UTF-8 인코딩의 .json 파일/);assert.match(worldCompilerPrompt(),/30,000/);assert.match(worldCompilerPrompt(),/원문 미첨부/);
 assert.match(worldCompilerPrompt({name:'Synthetic',text:'SYNTHETIC_WORLD_MARKER'}),/WORLD SOURCE DATA/);
 
 const nodes={'sr-character-source':{value:''},'sr-character-copy-note':{},'sr-world-copy-note':{},'sr-world-profile':{value:'current'},'sr-world-editor':{hidden:true},'sr-world-advanced-edit-id':{value:''}};

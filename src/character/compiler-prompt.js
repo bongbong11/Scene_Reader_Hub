@@ -1,4 +1,5 @@
 import { promptText } from '../vendor/character-reasoner/index.js';
+import {JSON_FILE_DELIVERY} from '../shared/json-file-delivery.js';
 
 export function compilerSourceGuide(sources) {
     return sources.length
@@ -39,6 +40,8 @@ ${nameGuide}
 ${draft.entity_type==='npc' && !draft.sources.length?'Completed NPC sheet supplied alongside this instruction is also valid source material.':''}
 
 ${CHARACTER_FILE_GUIDE}
+
+${JSON_FILE_DELIVERY}
 
 ${instructions}`;
 }

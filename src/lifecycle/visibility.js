@@ -1,8 +1,7 @@
 import {visibilitySnapshot,visibilityChanges,visibilityKey} from '../context/visibility.js';
-import {refreshSourceEligibility} from '../continuity/source-eligibility.js';
-import {createDeltaCommit} from '../continuity/delta-commit.js';
+import {createSessionTransaction} from '../storage/session-transaction.js';
 export function createVisibilityLifecycle(deps) {
- const {commitDeltaTransaction}=createDeltaCommit(deps);
+ const {commitSession}=createSessionTransaction(deps);
  const snapshots=new Map();let pending=Promise.resolve();
  const report=(code,status,details={})=>deps.noteDiagnostic?.('visibility',{module:'src/lifecycle/visibility.js',code,status,...details});
  function check({notify=true}={}){
@@ -21,9 +20,8 @@ export function createVisibilityLifecycle(deps) {
    try{
     const cleanupError=await cleanup;if(cleanupError)throw cleanupError;if(key!==deps.stateChatKey())return;
     const current=()=>key===deps.stateChatKey()&&stamp===visibilityKey(deps.getContext().chat||[]);
-    const saved=await commitDeltaTransaction(key,({current:rec,history})=>{
+    const saved=await commitSession(key,({current:rec,history})=>{
      rec.lastJudgment=null;rec.pendingPlan=null;rec.sceneIntimacy=null;rec.lastVerification=null;
-     refreshSourceEligibility(rec,{chatRef:key,chat:deps.getContext().chat,fingerprint:deps.fingerprint});
      rec.visibilityStateV1={key:stamp,status:'applied'};
      return {chat:rec,history};
     },current);

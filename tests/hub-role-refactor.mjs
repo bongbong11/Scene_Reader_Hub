@@ -5,14 +5,8 @@ import {applyRecordRelevance,applyPolicy} from '../src/decision/answers.js';
 import {resolveCharacterPresence,participationBasis} from '../src/character/presence.js';
 import {buildCharacterTurnQuestions} from '../src/character/live.js';
 import {sceneGateRequest,resolveSceneGate} from '../src/scene/intimacy-gate.js';
-import {mergeDeltaResponses} from '../src/continuity/delta-conflicts.js';
-import {validatedDeltaResponse} from '../src/continuity/response-validation.js';
 import {analysisRequestBudget} from '../src/continuity/request-budget.js';
-import {clearCollectedTransaction} from '../src/continuity/collection-reset.js';
-import {updateReviewedSnapshots} from '../src/continuity/review-snapshots.js';
-import {analysisContext} from '../src/continuity/analysis-context.js';
 import {stableFingerprint as fingerprint} from '../src/decision/policy.js';
-import {messageRef} from '../src/continuity/analysis-window.js';
 import {analysisDiagnostic} from '../src/debug/analysis-events.js';
 import {wholeDiagnosticReport} from '../src/debug/whole-report.js';
 
@@ -44,45 +38,10 @@ assert.equal(applyPolicy('relationship_pacing',{choice:'closer_significant',conf
 assert.equal(applyPolicy('event_route',{choice:'retire',confidence:.7},'balanced',['none','retire']).effective,'none');
 assert.equal(applyPolicy('basic_move',{choice:'invented',confidence:1},'balanced',['continue','action']).effective,'continue');
 
-const base={actorId:'a',baseRef:{analysisId:'b',recordDigest:'d'},scope:{targetIds:['b']},compactRule:'Scoped trust.'};
-const proposal={id:'one',type:'character',section:'evolution',status:'pending',data:base};
-const packet={coverage:{continuity:'complete',evolution:'complete'},candidates:[proposal],invalid:{}};
-const conflict=mergeDeltaResponses(packet,{...packet,candidates:[{...proposal,id:'two',data:{...base,compactRule:'Scoped distrust.'}}]});
-assert.equal(conflict.candidates.length,2);assert.ok(conflict.candidates.every(c=>c.status==='needs_review'));
-assert.equal(mergeDeltaResponses(packet,{...packet,candidates:[{...proposal,id:'duplicate'}]}).candidates.length,1);
-
-const chat=[{is_user:true,mes:'A synthetic question.'},{is_user:false,mes:'A synthetic answer.'}];
-const proof=messageRef('room',chat,1,fingerprint),window={sourceRefs:[proof],persona:false,segments:[{ref:'r1',identity:proof,text:chat[1].mes}]};
-const response={result:{protocol:1,coverage:{memory:'complete',characters:'complete',persona:'not_requested'},memory_changes:[{op:'add',kind:'fact',owners:['a'],summary:'A remembered detail.',lifecycle:'active',source_type:'world_fact',epistemic:'established',evidence:[{ref:'r1',quote:'A synthetic answer.'}]}],knowledge_changes:[],character_changes:[]}};
-let repairs=0;
-const retained=await validatedDeltaResponse(response,{window,actors:[{id:'a'}],bases:[],state:{},evolution:{entries:[]},fingerprint},{valid:()=>true,request:async()=>{repairs++;throw Object.assign(new Error('Synthetic repair failure'),{code:'PROFILE_TIMEOUT'});}});
-assert.equal(repairs,1);assert.equal(retained.candidates.length,1);assert.equal(retained.coverage.evolution,'deferred');
-
 let clock=0,calls=0;const durations=[];const limited=analysisRequestBudget(async(...args)=>{calls++;durations.push(args[4].timeoutMs);},{maxRequests:2,totalMs:150,now:()=>clock});
 await limited(null,null,null,null,{timeoutMs:120});clock=100;await limited(null,null,null,null,{timeoutMs:120});assert.deepEqual(durations,[120,50]);assert.throws(()=>limited(),e=>e.code==='ANALYSIS_REQUEST_BUDGET');assert.equal(calls,2);
 
-const ordinary={id:'ordinary',label:'Normal state survives.',owners:['a'],sourceRefs:[proof]},before={id:'modified',label:'Original ordinary state.',owners:['a']};
-const record={continuity:{items:[ordinary,{id:'continuity:delta:new',label:'Collected new fact.',collectionOriginV1:{before:null}},{...before,label:'Collected update.',collectionOriginV1:{before}}],knowledge:[],dependencies:[{stateId:'continuity:delta:new'},{stateId:'ordinary'}],followups:[{relatedStateId:'continuity:delta:new'}]},characterEvolutionV1:{entries:[{id:'change'}]},analysisJournalV1:[]};
-const history=[{before:structuredClone(record),after:structuredClone(record)}];record.pendingPlan={stateSnapshot:structuredClone(record)};
-clearCollectedTransaction(record,history,{chatRef:'room',startIndex:2,interval:3});
-for(const current of [record,history[0].before,history[0].after,record.pendingPlan.stateSnapshot]){
- assert.deepEqual(current.continuity.items.map(i=>i.label),['Normal state survives.','Original ordinary state.']);assert.equal(current.continuity.dependencies.length,1);assert.equal(current.continuity.followups.length,0);assert.equal(current.characterEvolutionV1.entries.length,0);
-}
-const legacyBefore={id:'legacy',label:'Ordinary prior'},legacyAfter={...legacyBefore,label:'Collected update'};
-const legacy={continuity:{items:[legacyAfter,{id:'continuity:delta:journal',label:'Journal-created'}],knowledge:[],dependencies:[{stateId:'continuity:delta:journal'}]},analysisJournalV1:[{type:'memory',key:'legacy',before:legacyBefore,after:legacyAfter},{type:'memory',key:'continuity:delta:journal',before:null,after:{id:'continuity:delta:journal',label:'Journal-created'}}]};
-clearCollectedTransaction(legacy,[],{chatRef:'room',startIndex:2,interval:3});
-assert.deepEqual(legacy.continuity.items,[legacyBefore]);assert.equal(legacy.continuity.dependencies.length,0);
-const newer={continuity:{items:[{...legacyBefore,label:'Newer ordinary update'}],knowledge:[]},analysisJournalV1:[{type:'memory',key:'legacy',before:legacyBefore,after:legacyAfter}]};
-clearCollectedTransaction(newer,[],{chatRef:'room',startIndex:2,interval:3});assert.equal(newer.continuity.items[0].label,'Newer ordinary update');
-const edit={continuity:{items:[ordinary]},pendingPlan:{stateSnapshot:{continuity:{items:[structuredClone(ordinary)]}}}},edits=[{before:{continuity:{items:[structuredClone(ordinary)]}},after:{continuity:{items:[structuredClone(ordinary)]}}}];
-updateReviewedSnapshots(edit,edits,{id:'ordinary',type:'memory',data:ordinary},{label:'Edited once.',userExcluded:true});
-assert.ok(edits.every(e=>e.before.continuity.items[0].userExcluded&&e.after.continuity.items[0].label==='Edited once.'));assert.equal(edit.pendingPlan.stateSnapshot.continuity.items[0].userExcluded,true);
-
-const hiddenChat=structuredClone(chat);hiddenChat[1].is_hidden=true;
-const hiddenRecord={continuity:{items:[{...ordinary,label:'HIDDEN_SOURCE_SENTINEL'}]}};
-const context=await analysisContext(hiddenRecord,{...window,segments:[{...window.segments[0],text:'New source.'}]},{store:{enabled:true,characters:[{id:'a'}]},selectActiveEntries:()=>[{id:'a'}],chat:hiddenChat,fingerprint});
-assert.ok(!JSON.stringify(context.input).includes('HIDDEN_SOURCE_SENTINEL'));
 const diagnostic=[];analysisDiagnostic((_code,detail)=>diagnostic.push(detail),'analysis_result',{status:'succeeded',baselineCount:12,baselineTotal:42,repairCount:1,invalidCount:2,original:'PRIVATE_SENTINEL'});assert.equal(diagnostic[0].baselineTotal,42);assert.equal(diagnostic[0].repairCount,1);assert.ok(!JSON.stringify(diagnostic).includes('SENTINEL'));
-const report=wholeDiagnosticReport({execution:{},record:{...hiddenRecord,analysisJournalV1:[{raw:'PRIVATE_SENTINEL'}]},chat,fingerprint});
+const report=wholeDiagnosticReport({execution:{},record:{analysisJournalV1:[{raw:'PRIVATE_SENTINEL'}]},chat:[],fingerprint});
 assert.ok(!JSON.stringify(report).includes('SENTINEL'));
-console.log('Role refactor passed: malformed answers, authoritative participation, bounded routing, conflicting repairs, retained partial results, finite request budget, scoped reset, snapshot edits and source privacy.');
+console.log('Role refactor passed: malformed answers, authoritative participation, bounded routing, finite request budget and source privacy.');

@@ -1,7 +1,8 @@
 import {clone, digest, object} from '../storage/shared-document.js';
 import {latestStateForChat} from '../character/state-contract.js';
 import {roomPreferences} from '../storage/common-preferences.js';
-export const STORY_FIELDS=['pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','eventProfile','npcProfile','villainProfile','generatedCast','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','continuity','opportunities','lastOpportunityVerification','characterEvolutionV1','analysisJournalV1','approvedHistorySourcesV1'];
+import {retireCollection} from '../storage/retired-collection.js';
+export const STORY_FIELDS=['pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','eventProfile','npcProfile','villainProfile','generatedCast','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','continuity','opportunities','lastOpportunityVerification'];
 const TRANSIENT=new Set(['sharedSource','sharedWorld','sharedReference','sharedLinkV1']);
 function portableCompanions(value,sourceChatRef) {
     const stores=value?.knowledgeVaultV1?{knowledgeVaultV1:clone(value.knowledgeVaultV1)}:{};
@@ -12,7 +13,9 @@ function portableCompanions(value,sourceChatRef) {
 }
 export const localCompanions=record=>Object.fromEntries(Object.entries(record?.companionStores || {}).filter(([namespace])=>namespace!=='knowledgeVaultV1').map(([namespace,value])=>[namespace,clone(value)]));
 export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef=''}={}) {
+    record=clone(record);
     const before=record.pendingPlan?.stateSnapshot;
+    retireCollection(record);retireCollection(before);
     const result={};
     for(const key of STORY_FIELDS) {
         const source=object(before)?before:record;
@@ -42,6 +45,7 @@ export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef=''}
     return result;
 }
 export function splitRuntime(record,confirmed) {
+    record=clone(record);retireCollection(record);
     const runtime={},overlay={};
     for(const [key,value]of Object.entries(record || {})) {
         if(TRANSIENT.has(key))continue;
@@ -63,10 +67,11 @@ export function resetRuntime(record={}) {
 export function resolveRecord(link,baseline,asset,checkpoint,stored={}) {
     const state=clone(checkpoint.state || {}),characters=state.inheritedCharacterStates || [];
     delete state.inheritedCharacterStates;delete state.continuationContext;delete state.continuationPreferences;
-    return {...state,...clone(stored.overlay || {}),...clone(stored.runtime || {}),
+    const resolved={...state,...clone(stored.overlay || {}),...clone(stored.runtime || {}),
         companionStores:{...clone(state.companionStores || {}),...clone(stored.overlay?.companionStores || {}),...clone(stored.runtime?.companionStores || {})},
         preferences:{...clone(baseline.defaultPreferences),...clone(stored.runtime?.preferences || {})},
         sharedSource:{storylineId:link.storylineId,baselineId:link.baselineId,baselineRevision:link.baselineRevision,assetId:baseline.assetId,checkpointId:checkpoint.id,epoch:link.epoch,active:link.active},
         sharedReference:{scene:clone(checkpoint.state?.continuationContext || {}),characterStates:clone(characters),summary:String(link.summary || ''),sourceCheckpoint:checkpoint.id},
     };
+    retireCollection(resolved);return resolved;
 }

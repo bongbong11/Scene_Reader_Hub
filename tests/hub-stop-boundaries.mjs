@@ -3,7 +3,7 @@ import {fixture} from './regression/audit-v012.mjs';
 import {createJobControl} from '../src/lifecycle/job-control.js';
 import {createHub} from '../src/hub/orchestrator.js';
 import {createJobScope,StaleRunError} from '../src/lifecycle/jobs.js';
-import {analysisFixture} from './fixtures/analysis-runtime.mjs';
+import {auxiliaryFixture} from './fixtures/auxiliary-runtime.mjs';
 import {createGenerationLifecycle} from '../src/lifecycle/generation.js';
 
 // Stop while generation is waiting for the previous emotion request, before Jev starts.
@@ -75,13 +75,14 @@ for(const autoJudge of [false,true]) {
     assert.equal(calls,0,'cancelled cached reroll must not fall through into a new judgment');
 }
 
-// Cancellation releases the actual current collector; intentional retry remains possible.
-const stopped=analysisFixture();let requests=0;
-stopped.deps.requestWithConnectionProfile=(_s,_p,_system,_data,{signal})=>{requests++;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));};
+// Cancellation releases the actual ordinary auxiliary job; intentional retry remains possible.
+let requests=0;
 for(let i=0;i<2;i++){
- const pending=stopped.analysis.requestManual();while(requests<=i)await new Promise(r=>setImmediate(r));
- stopped.analysis.cancel('generation_stopped');assert.equal((await pending.completion).status,'cancelled');assert.equal(stopped.analysis.busy,false);
+ const stopped=auxiliaryFixture();await stopped.turn();await stopped.turn();
+ stopped.deps.requestWithConnectionProfile=(_s,_p,_system,_data,{signal})=>{requests++;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));};
+ const pending=stopped.turn();while(requests<=i)await new Promise(r=>setImmediate(r));
+ stopped.analysis.cancel('generation_stopped');assert.equal((await pending).status,'cancelled');assert.equal(stopped.analysis.busy,false);
  assert.equal(stopped.records.get('room-A').characterEvolutionV1,undefined);
 }
 assert.equal(requests,2);
-console.log('Stop boundaries passed: generation preparation and current collector cancellation/retry.');
+console.log('Stop boundaries passed: generation preparation and ordinary auxiliary job cancellation/retry.');

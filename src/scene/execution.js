@@ -46,7 +46,7 @@ async function runJudge(options={}) {
   deps.noteDiagnostic?.('judge_started',{runKey:key,inputKey,force:Boolean(options.force)});
   try {const result=await executeJudge(run,{...options,recoveryAttempt:Boolean(stopped && options.force)});if(run.timeout)throw run.timeout;if(result)failureStop.recovered();deps.noteDiagnostic?.(result?'judge_finished':'judge_skipped',{runKey:key,inputKey});return result;}
   catch(error){if(!run.owns()||(!run.timeout&&(error instanceof deps.StaleRunError||!run.valid()))){deps.noteDiagnostic?.('judge_cancelled',{runKey:key,inputKey});return null;}deps.noteDiagnostic?.('judge_failed',{runKey:key,inputKey,error:String(error.message||error)});if(!error.activityReported){await deps.clearInjection({chatKey:run.identity,owns:run.owns});if(!run.owns())return null;deps.updateActivity('판독 실패 · '+error.message,{error:true});error.activityReported=true;}throw run.timeout||error;}
- }).then(result=>{if(result)deps.analysis?.observeBoundary();return result;});
+ });
 }
 const executeJudge=createPipeline({stages:[{stage:'context',module:'src/context/prepare.js',timeoutMs:90000,execute:prepareContext},
 {stage:'scene',module:'src/scene/gate-stage.js',timeoutMs:180000,execute:prepareGate},
