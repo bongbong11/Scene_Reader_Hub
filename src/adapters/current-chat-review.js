@@ -2,14 +2,16 @@
 export function createCurrentChatReview({loadHost=()=>import('/script.js'),timeoutMs=120000}={}){
  let pending=false;
  const failure=(message,code)=>Object.assign(new Error(message),{code});
- async function request(prompt,{signal}={}){
+ async function request(prompt,{signal,raw=false}={}){
   if(pending)throw failure('이전 요청이 아직 끝나지 않았습니다. 잠시 후 다시 눌러 주세요.','REVIEW_BUSY');
   pending=true;let started=false;
   try{
    signal?.throwIfAborted();const host=await loadHost();signal?.throwIfAborted();
-   if(typeof host.generateQuietPrompt!=='function'||typeof host.isGenerating!=='function')throw failure('현재 SillyTavern에서 비공개 답변 요청을 지원하지 않습니다.','REVIEW_UNSUPPORTED');
+   if(typeof host[raw?'generateRaw':'generateQuietPrompt']!=='function'||typeof host.isGenerating!=='function')throw failure('현재 SillyTavern에서 비공개 답변 요청을 지원하지 않습니다.','REVIEW_UNSUPPORTED');
    if(host.isGenerating())throw failure('현재 답변 생성이 끝난 뒤 눌러 주세요.','REVIEW_HOST_BUSY');
-   const task=Promise.resolve().then(()=>{signal?.throwIfAborted();return host.generateQuietPrompt({quietPrompt:prompt,quietToLoud:false,skipWIAN:false,removeReasoning:true});});
+   // Omit responseLength: use the current model's budget, including its reasoning allowance.
+   // Keep the full returned answer; brevity is requested in the prompt, never by slicing text.
+   const task=Promise.resolve().then(()=>{signal?.throwIfAborted();return raw?host.generateRaw({prompt,quietToLoud:false,trimNames:false}):host.generateQuietPrompt({quietPrompt:prompt,quietToLoud:false,skipWIAN:false,removeReasoning:true});});
    started=true;
    // A timed-out host may still be working. Keep the single-flight lock until it
    // settles; never abort shared RP generation or start duplicate paid requests.

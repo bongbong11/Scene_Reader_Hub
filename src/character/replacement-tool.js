@@ -1,4 +1,4 @@
-import {currentCharacterReview,replacementFilePrompt} from './replacement-prompts.js';
+import {currentCharacterReview,replacementFilePrompt,reviewTranslationPrompt} from './replacement-prompts.js';
 import {bankOutput} from './versions.js';
 import {expandBank} from '../storage/character-pages.js';
 import {createCurrentChatReview} from '../adapters/current-chat-review.js';
@@ -19,11 +19,20 @@ export function createReplacementTool(deps,{client=createCurrentChatReview(),exp
   catch(error){report(/^REVIEW_[A-Z_]+$/.test(error.code)?error.code:'REVIEW_FAILED','failed',{durationMs:Date.now()-started});throw error;}
   finally{if(controller===abort)controller=null;}
  }
+ async function translate(id,text){
+  if(controller||client.busy)throw new Error('이전 확인 요청이 끝난 뒤 다시 눌러 주세요.');
+  const source=capture(id),value=String(text||'').trim();
+  if(!value)throw new Error('번역할 답변이 없습니다.');
+  const abort=new AbortController();controller=abort;const started=Date.now();report('REVIEW_TRANSLATION_STARTED','running');
+  try{const translated=await client.request(reviewTranslationPrompt(value),{signal:abort.signal,raw:true});if(!source.valid())throw Object.assign(new Error('대화나 선택 파일이 바뀌었습니다. 다시 확인하세요.'),{code:'REVIEW_STALE'});report('REVIEW_TRANSLATION_SUCCEEDED','succeeded',{durationMs:Date.now()-started});return translated;}
+  catch(error){report('REVIEW_TRANSLATION_FAILED','failed',{durationMs:Date.now()-started});throw error;}
+  finally{if(controller===abort)controller=null;}
+ }
  async function prompt(id,text){
   const source=capture(id),bank=await expand(source.entry.recordBank);
   if(!source.valid())throw new Error('대화나 원본 파일이 바뀌었습니다. 다시 확인하세요.');
   if(bank.records?.length!==(source.entry.recordBank.pagedRecords?.count||source.entry.recordBank.records.length))throw new Error('원본 파일을 전부 읽지 못했습니다. 다시 시도하세요.');
   return replacementFilePrompt(bankOutput(bank),text);
  }
- return {entries,review,prompt,cancel,get busy(){return Boolean(controller||client.busy);}};
+ return {entries,review,translate,prompt,cancel,get busy(){return Boolean(controller||client.busy);}};
 }

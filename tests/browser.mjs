@@ -72,7 +72,7 @@ window.eventSource={on(name,fn){if(!listeners.has(name))listeners.set(name,[]);l
 const server=http.createServer(async(req,res)=>{try{
     if(req.url==='/favicon.ico'){res.statusCode=204;res.end();return;}
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
-    if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(`export const eventSource=window.eventSource;export const event_types=new Proxy({},{get:(_,key)=>key});export const chat_metadata={};export function saveSettingsDebounced(){};export function setExtensionPrompt(key,value){window.mock.prompts[key]=value};export function getRequestHeaders(){return {}};export function isStreamingEnabled(){return Boolean(window.mock.streamingEnabled)};export function isGenerating(){return Boolean(window.mock.mainBusy)};export async function generateQuietPrompt(options){(window.mock.quietRequests ||= []).push(options);await mock.emit('GENERATION_AFTER_COMMANDS','quiet',{quiet_prompt:options.quietPrompt},false);return '상대에게 예외가 생겼지만 경계심은 남아 있다.';}`);return;}
+    if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(`export const eventSource=window.eventSource;export const event_types=new Proxy({},{get:(_,key)=>key});export const chat_metadata={};export function saveSettingsDebounced(){};export function setExtensionPrompt(key,value){window.mock.prompts[key]=value};export function getRequestHeaders(){return {}};export function isStreamingEnabled(){return Boolean(window.mock.streamingEnabled)};export function isGenerating(){return Boolean(window.mock.mainBusy)};export async function generateQuietPrompt(options){(window.mock.quietRequests ||= []).push(options);await mock.emit('GENERATION_AFTER_COMMANDS','quiet',{quiet_prompt:options.quietPrompt},false);return '- Trust: Before: guarded -> Now: guarded, but accepts help from one person.';}export async function generateRaw(options){(window.mock.translationRequests ||= []).push(options);return '- 신뢰: 이전: 경계함 -> 현재: 경계심은 남지만 한 사람의 도움은 받아들임.';}`);return;}
     if(req.url==='/scripts/openai.js'){res.setHeader('Content-Type','application/javascript');res.end('export const oai_settings=window.mock.presetSettings;export const promptManager=window.mock.promptManager;');return;}
     if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true}));return;}
     if(req.url==='/scripts/extensions.js'){res.setHeader('Content-Type','application/javascript');res.end('export const extension_settings={};');return;}
@@ -130,6 +130,7 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#scene-reader-quick-button').waitFor();
     await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
+    if(process.env.SR_BROWSER_CASE==='replacement'){await checkReplacementTool(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Replacement-only browser checks passed.');}else{
     const inferenceRequests=()=>requests.filter(item=>/systemone|\/api\/vector\/|chat-completions\/generate/.test(item.url)).length;
     assert.equal(inferenceRequests(),0,'startup performs no inference or embedding');
     assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
@@ -1041,4 +1042,5 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await checkReplacementTool(page,store,requests,setViewportSize,root);
     await checkCharacterDeletion(page,store,requests,setViewportSize);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
+    }
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

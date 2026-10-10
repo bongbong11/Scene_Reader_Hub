@@ -641,3 +641,7 @@
 #scene-reader-dialog .sr-replacement-actions { display:flex;flex-wrap:wrap;gap:6px;margin:8px 0; }
 #scene-reader-dialog .sr-replacement-actions .menu_button { width:auto;min-height:28px;font-size:11px;padding:4px 7px; }
 #scene-reader-dialog .sr-replacement-dialog :is(button,select,textarea,summary):focus-visible { outline:2px solid var(--SmartThemeQuoteColor,currentColor);outline-offset:2px; }
+
+#scene-reader-dialog .sr-replacement-translation-tools { display:flex;justify-content:flex-end;margin:4px 0; }
+#scene-reader-dialog .sr-replacement-translation-tools .menu_button { display:inline-flex;align-items:center;gap:4px;width:auto;min-height:24px;padding:3px 6px;font-size:10px; }
+#scene-reader-dialog .sr-replacement-translation { white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;font-size:12px;margin:6px 0 10px;padding:8px;border-left:2px solid var(--SmartThemeQuoteColor,currentColor); }
