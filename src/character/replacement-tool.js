@@ -12,10 +12,10 @@ export function createReplacementTool(deps,{client=createCurrentChatReview(),exp
   return {entry,key,valid:()=>revision===epoch&&deps.ownerUnlocked()&&key===deps.stateChatKey()&&chat===signature()&&bank===deps.stableFingerprint(entries().find(e=>e.id===id)?.recordBank)};
  }
  const report=(code,status,extra={})=>deps.noteDiagnostic?.('replacement_review',{module:'src/character/replacement-tool.js',code,status,...extra});
- async function review(id){
+ async function review(id,template){
   if(controller||client.busy)throw new Error('이전 확인 요청이 끝난 뒤 다시 눌러 주세요.');
   const source=capture(id),abort=new AbortController();controller=abort;const started=Date.now();report('REVIEW_STARTED','running');
-  try{const text=await client.request(currentCharacterReview(source.entry.name),{signal:abort.signal});if(!source.valid())throw Object.assign(new Error('대화나 선택 파일이 바뀌었습니다. 현재 방에서 다시 확인하세요.'),{code:'REVIEW_STALE'});report('REVIEW_SUCCEEDED','succeeded',{durationMs:Date.now()-started});return {text,valid:source.valid};}
+  try{const text=await client.request(currentCharacterReview(source.entry.name,template),{signal:abort.signal,onPlacement:({code,status,...details})=>report(code,status,{...details,module:'src/adapters/review-message.js'})});if(!source.valid())throw Object.assign(new Error('대화나 선택 파일이 바뀌었습니다. 현재 방에서 다시 확인하세요.'),{code:'REVIEW_STALE'});report('REVIEW_SUCCEEDED','succeeded',{durationMs:Date.now()-started});return {text,valid:source.valid};}
   catch(error){report(/^REVIEW_[A-Z_]+$/.test(error.code)?error.code:'REVIEW_FAILED','failed',{durationMs:Date.now()-started});throw error;}
   finally{if(controller===abort)controller=null;}
  }
