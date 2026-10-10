@@ -1,3 +1,4 @@
+import {applyEvolutionCandidates} from './evolution.js';
 import { selectRecordCandidates, scopedRecordLine } from "./record-selection.js";
 import { currentRecords, recordBankIsCurrent } from "./records.js";
 import { splitOocText } from "../context/messages.js";
@@ -80,7 +81,7 @@ function contextItems(entry, selected, knowledge, memory, transcript) {
     }
     return items.filter(item => item.text.length <= 1800).sort((a,b) => b.score - a.score).slice(0, 4).map(({score,...item}) => item);
 }
-export function buildLiveCharacterPlan(entries = [], { selected = [], transcript = '', knowledge = [], memory = null, persona = null, canonicalOnly = false, volume = 'generous', npcSlots = 3, retrievalResults = new Map(), categoryHints = [], protection = true } = {}) {
+export function buildLiveCharacterPlan(entries = [], { selected = [], transcript = '', knowledge = [], memory = null, persona = null, canonicalOnly = false, volume = 'generous', npcSlots = 3, retrievalResults = new Map(), categoryHints = [], protection = true, evolution = null, fingerprint = null, actorIds = entries.map(e=>e.id) } = {}) {
     const bounds=characterVolume(volume);
     return entries.map((entry, index) => {
         const slots = entry.kind === 'npc' ? npcRecordLimit(npcSlots) : bounds.slots;
@@ -99,6 +100,10 @@ export function buildLiveCharacterPlan(entries = [], { selected = [], transcript
                 protectedCandidateIds = extras.map(item => item.id);
                 profileCandidates.push(...extras);
             } catch { prefilterStats.protectionFallback = 'candidate'; }
+        }
+        if(evolution&&fingerprint){
+            const effective=applyEvolutionCandidates(entry,profileCandidates,evolution,fingerprint,actorIds);
+            profileCandidates.splice(0,profileCandidates.length,...effective);
         }
         prefilterStats.retrievalStatus = retrieved.status;
         if (retrieved.error) prefilterStats.retrievalError = retrieved.error;
@@ -189,8 +194,8 @@ function contextLine(person, item) {
     const source = ACCESS_LABELS[item.access] || 'Has bounded access to';
     return `${person.name} · ${source} this reference${item.occurredAt ? ` (${item.occurredAt})` : ''}; its truth and present validity are not established by access alone: ${item.text}`;
 }
-export function buildCharacterInjection(plan = [], { conflictActive = false, volume = plan[0]?.volume || 'generous' } = {}) {
-    const maxChars=characterVolume(volume).chars;
+export function buildCharacterInjection(plan = [], { conflictActive = false, volume = plan[0]?.volume || 'generous', maxChars:charBudget = null } = {}) {
+    const maxChars=Math.min(characterVolume(volume).chars,charBudget??Infinity);
     const selections = [], traces = [];
     for (const person of plan) {
         traces.push({ index: person.index, id: person.id, name: person.name, kind: person.kind, presence: person.presence,
@@ -264,6 +269,8 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         trace.injectedRuleIds = trace.profileIds.filter(id => includedRules.has(id));
         trace.omittedRuleIds = trace.profileIds.filter(id => !includedRules.has(id));
         const person = plan.find(item => item.index === trace.index);
+        trace.evolutionSelectedCount=person.profileItems.filter(item=>item.evolutionChangeId).length;
+        trace.evolutionInjectedCount=person.profileItems.filter(item=>item.evolutionChangeId&&includedRules.has(item.id)).length;
         trace.jevSelectedRuleIds = person.jevSelectedRuleIds || trace.profileIds;
         trace.omittedBySlotRuleIds = trace.presence === 'active' ? trace.jevSelectedRuleIds.filter(id => !trace.profileIds.includes(id)) : [];
         trace.excludedByPresenceRuleIds = trace.presence === 'active' ? [] : trace.jevSelectedRuleIds;

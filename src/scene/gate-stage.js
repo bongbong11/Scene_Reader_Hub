@@ -1,3 +1,5 @@
+import {pendingDeltas,buildDeltaQuestions,commitFrameDeltas} from '../continuity/delta-verification.js';
+import {pausedCharacterReference} from '../injection/paused-character.js';
 import {sceneDisplayState} from './display-state.js';
 import {inheritedStates,CONTINUATION_POLICY,storylineInjection,storylineRetrievalCue} from '../context/storyline-reference.js';
 import {bankIdentity} from '../retrieval/bank-identity.js';
@@ -38,6 +40,8 @@ async function prepareGate(run,frame) {
     run.assert();
     (frame.worldRecordCandidates = addWorldQuestions(frame.gateRequest, frame.world, frame.transcript, frame.worldRetrieval.indices));
     if (deps.characterStore.enabled) deps.addCharacterNeedsQuestions(frame.gateRequest, frame.gatePeople);
+    frame.deltaCandidates=pendingDeltas(frame.rec,{chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,store:deps.characterStore,enabled:deps.settings?.continuityEnabled});
+    Object.assign(frame.gateRequest.questions,buildDeltaQuestions(frame.deltaCandidates));
     (frame.sceneGate = undefined);
     (frame.sceneGateError = '');
     (frame.worldRecordAnswers = {});
@@ -48,10 +52,11 @@ async function prepareGate(run,frame) {
     deps.setBusy(true);
     try {
         deps.updateStatus('현재 장면 확인 중…');
-        const gateData=await deps.callJev(frame.gateRequest,frame.worldRecordCandidates.length ? 30000 : 15000,run.controller.signal);
+        const gateData=await deps.callJev(frame.gateRequest,frame.worldRecordCandidates.length||frame.deltaCandidates.length ? 30000 : 15000,run.controller.signal);
         run.assert();
         if(deps.currentInputKey(frame.pendingUserText,frame.cycleSalt)!==frame.inputKey || deps.recentContext(frame.pendingUserText).contextKey!==frame.context.contextKey || deps.sourceRevisionKey(deps.record(),deps.selectedWorld())!==frame.sourceKey)throw new deps.StaleRunError();
         frame.worldRecordAnswers = gateData.answers || {};
+        commitFrameDeltas(frame,run,frame.deltaCandidates,gateData.answers||{},{onFailure:error=>deps.noteDiagnostic?.('analysis_failed',{module:'src/continuity/delta-verification.js',status:'failed',reasonCode:error.code||'DELTA_COMMIT_FAILED'})});
         frame.worldInvalidCount = frame.worldRecordCandidates.filter((_, index) => !['yes', 'no'].includes(frame.worldRecordAnswers[`world_record_${index}`]?.choice)).length;
         frame.worldSelectionFailed = frame.worldRecordCandidates.length > 0 && frame.worldInvalidCount === frame.worldRecordCandidates.length;
         frame.sceneGate=resolveSceneGate(gateData.answers,frame.gateRequest,frame.previousSceneRoute);
@@ -92,10 +97,11 @@ async function prepareGate(run,frame) {
     if (frame.world?.advanced && frame.worldSelectionFailed) notifySceneReaderToast(deps.window, 'warning', '세계관 판정 응답을 확인하지 못해 이번 턴은 고정 규칙만 적용합니다.', '씬판독기');
     (frame.worldGateFrame = { request: frame.gateRequest, answers: frame.worldRecordAnswers });
     if(frame.sceneGate.route==='paused') {
-        const referenceLines=[];
+        const referenceLines=[],changeBudget={remaining:1000};
         for(const entry of frame.gatePeople) {
             if(!frame.sceneGate.participantIds.includes(entry.id) || (entry.kind==='persona'&&!frame.prefs.allowUserImpersonation) || !recordBankIsCurrent(entry))continue;
-            const reference=String(entry.recordBank?.intimacy_reference?.text||'').trim();
+            const reference=deps.settings?.continuityEnabled?await pausedCharacterReference(entry,frame.rec,{chat:deps.getContext().chat,chatRef:run.identity,store:deps.characterStore,actorIds:frame.sceneGate.participantIds,fingerprint:deps.stableFingerprint,signal:run.controller.signal,budget:changeBudget,onFailure:()=>deps.noteDiagnostic?.('analysis_reference',{module:'src/injection/paused-character.js',status:'degraded',reasonCode:'CHANGE_REFERENCE_UNAVAILABLE'})}):String(entry.recordBank?.intimacy_reference?.text||'').trim();
+            run.assert();
             if(reference)referenceLines.push(`<CHARACTER_REFERENCE name="${String(entry.name).replace(/["<>]/g,'')}">Use this person's stored information in the current interaction without inventing traits or forcing an action: ${reference}</CHARACTER_REFERENCE>`);
         }
         (frame.payload = deps.buildPausedInjection({settings:frame.prefs,privatePrompt:frame.prefs.privatePromptEnabled?deps.ownerPrompt():'',referenceLines,activeWorldName:frame.world?.name||''}));

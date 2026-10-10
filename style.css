@@ -624,3 +624,9 @@
 .sr-story-alert:empty { display: none; }
 
 .sr-backup-character-picker{display:grid;gap:7px;max-height:50vh;overflow:auto}.sr-story-dialog .sr-backup-character-picker label{display:flex;align-items:center;gap:7px;font-size:11px}.sr-backup-character-picker input{width:auto;flex:none}.sr-preview-pages{display:flex;align-items:center;gap:6px;margin:6px 0}.sr-preview-pages small{font-size:10px}
+
+/* Compact collection controls follow the existing mobile form scale. */
+#scene-reader-dialog .sr-tab-panel .sr-analysis-controls { display:grid;grid-template-columns:minmax(0,1fr) 64px auto;align-items:center;gap:6px;font-size:.75rem;width:100%; }
+#scene-reader-dialog .sr-tab-panel .sr-analysis-controls .text_pole { width:100%;min-width:0;margin:0;height:28px;font-size:.75rem; }
+#scene-reader-dialog .sr-tab-panel .sr-analysis-controls .menu_button { width:auto;min-height:28px;height:28px;margin:0;padding:3px 7px;font-size:.75rem; }
+#scene-reader-dialog #sr-evolution-results summary { overflow-wrap:anywhere; }

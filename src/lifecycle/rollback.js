@@ -1,3 +1,4 @@
+import {invalidateDeltasFrom} from '../continuity/delta-commit.js';
 import { notifySceneReaderToast } from "../ui/toasts.js";
 import { selectedStateSwipe } from "../character/state-contract.js";
 
@@ -19,6 +20,7 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
     const index = deletion ? (changedIndex < 0 ? Math.min(Number(messageId) || 0, currentMessages.length) : changedIndex) : Number(messageId);
     deps.messageSnapshots.set(chatKey, currentMessages);
     if (!Number.isInteger(index)) return;
+    if(rec.analysisRuntimeV1||rec.characterEvolutionV1)invalidateDeltasFrom(rec,index,{chatRef:chatKey});
     const previousStateCount = rec.characterStateEvents?.length || 0;
     if (!['swiped', 'regenerated'].includes(kind)) deps.dropStateEventsFrom(rec, index, kind === 'edited' ? selectedStateSwipe(deps.getContext().chat?.[index]) : null);
     const preservedSwipeStates = ['swiped', 'regenerated', 'edited'].includes(kind) ? (rec.characterStateEvents || []).filter(item => item.outputIndex === index) : [];
@@ -94,7 +96,9 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
     }
     const entry = history[affected];
     const canReuseSwipe = !sceneGateAffected && ['swiped', 'regenerated'].includes(kind) && entry.plan && entry.judgment;
+    const analysisState={characterEvolutionV1:rec.characterEvolutionV1,analysisJournalV1:rec.analysisJournalV1};
     deps.restoreReversibleState(rec, entry.before);
+    for(const [key,value]of Object.entries(analysisState))if(value)rec[key]=value;
     for (const stateEvent of preservedSwipeStates) deps.storeStateEvent(rec, stateEvent);
     if(sceneGateAffected)rec.sceneIntimacy=null;
     history = history.slice(0, affected);

@@ -73,3 +73,5 @@ for (const [status, expected] of [['succeeded','success'],['cancelled','cancelle
     assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,expected,'terminal request clears duplicate-running notice');
 }
 console.log('Current status: embedding/search separation, retained failures, request receipt, cancellation, repair, privacy and reset passed.');
+
+for(const code of ['ANALYSIS_CAPACITY','ANALYSIS_INPUT_CAPACITY','ANALYSIS_BUSY_TIMEOUT','PROFILE_TIMEOUT']){const analysisStatus=createCurrentStatusModel();analysisStatus.accept({stage:'analysis_failed',status:'failed',reasonCode:code});const text=analysisStatus.snapshot().rows.find(r=>r.id==='profile').message;assert.match(text,code.includes('CAPACITY')?/한도/:code==='ANALYSIS_BUSY_TIMEOUT'?/대기를 종료/:/응답 시간이 초과/);}

@@ -1,5 +1,6 @@
 import { migrateCommonPreferences } from './common-preferences.js';
 import { recentTurnCount } from '../context/turn-settings.js';
+import {normalizeStoredAnalysisSettings} from '../continuity/analysis-contract.js';
 export function createHydration(deps) {
 async function hydrateServerState({ migrate = true } = {}) {
     const chatKey = deps.stateChatKey();
@@ -37,6 +38,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     const saved = data.settings && typeof data.settings === 'object' ? data.settings : {};
     if (saved.global && typeof saved.global === 'object') {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
+        normalizeStoredAnalysisSettings(deps.settings);
         delete deps.settings.pauseOnOoc;
         for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
         deps.settings.recentTurns = recentTurnCount(deps.settings);

@@ -6,7 +6,7 @@ export function migrateKnowledge(record) {
     if (old.length) {
         const keyed = new Map(record.characterState.knowledge.map(item => [`${item.character}:${item.factId}`,item]));
         for (const item of old) keyed.set(`${item.character}:${item.factId}`, item);
-        record.characterState.knowledge = [...keyed.values()].slice(-60);
+        record.characterState.knowledge = [...keyed.values()];
         record.continuity.knowledge = [];
     }
     return record;

@@ -1,9 +1,11 @@
 import { registerEmptyLegacyMacros } from '../injection/legacy-cleanup.js';
 import { recentTurnCount } from '../context/turn-settings.js';
+import {normalizeStoredAnalysisSettings} from '../continuity/analysis-contract.js';
 // Lifecycle coordination only; feature implementation lives in its module.
 export function createStartup(deps) {
 async function init() {
     deps.settings = { ...deps.DEFAULTS, ...(deps.extension_settings[deps.MODULE] || {}) };
+    normalizeStoredAnalysisSettings(deps.settings);
     delete deps.settings.pauseOnOoc;
     for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
     deps.settings.recentTurns = recentTurnCount(deps.settings);

@@ -16,8 +16,8 @@ export function emptyContinuity() { return { items: [], knowledge: [], dependenc
 export function normalizeContinuity(value) {
     const base = value && typeof value === 'object' ? value : {};
     return {
-        items: Array.isArray(base.items) ? base.items.slice(0, 40) : [],
-        knowledge: Array.isArray(base.knowledge) ? base.knowledge.slice(0, 60) : [],
+        items: Array.isArray(base.items) ? base.items : [],
+        knowledge: Array.isArray(base.knowledge) ? base.knowledge : [],
         dependencies: Array.isArray(base.dependencies) ? base.dependencies.slice(0, 30) : [],
         followups: Array.isArray(base.followups) ? base.followups.slice(0, 20) : [],
         revision: Math.max(0, Number(base.revision) || 0),
@@ -136,8 +136,8 @@ export function applyContinuityVerdicts(continuity, candidates, decisions, { opp
         }
     });
     if (accepted.length) next.revision += 1;
-    next.items = next.items.slice(-40);
-    next.knowledge = next.knowledge.slice(-60);
+    // The session storage budget rejects oversized additions. Do not silently
+    // discard an earlier unresolved state to make room for a newer one.
     next.dependencies = next.dependencies.slice(-30);
     next.followups = next.followups.slice(-20);
     return { continuity: next, accepted };

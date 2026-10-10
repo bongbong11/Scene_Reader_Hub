@@ -1,3 +1,6 @@
+import {buildMemoryStateBlock} from './memory-state.js';
+import {selectActiveContinuity} from '../continuity/selection.js';
+import {characterVolume} from '../character/volume.js';
 import {additionBlocks,incorporateAdditions} from './opportunity.js';
 import {repetitionInjection} from '../continuity/repetition.js';
 import {storylineInjection} from '../context/storyline-reference.js';
@@ -18,7 +21,8 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             frame.decisions.npc_autonomy = frame.details.npc_autonomy.effective;
         }
         (frame.resolvedCharacters = deps.characterStore.enabled ? deps.resolveLiveCharacterPlan(frame.liveCharacters, frame.decisions, frame.details) : []);
-        (frame.characterExecution = deps.buildCharacterInjection(frame.resolvedCharacters, { conflictActive: ['tension', 'active'].includes(frame.decisions.conflict_state) || frame.decisions.fight_sustain === 'yes', volume:frame.prefs.characterVolume }));
+        frame.memoryExecution=deps.settings.continuityEnabled&&frame.rec.analysisRuntimeV1?buildMemoryStateBlock({...frame.rec,characterEvolutionV1:frame.effectiveEvolution},{actors:frame.activeCharacters.filter(a=>frame.resolvedCharacters.some(p=>p.id===a.id&&p.presence==='active')),store:deps.characterStore,chosenContinuity:frame.chosenContinuity,limit:Math.min(1000,Math.floor(characterVolume(frame.prefs.characterVolume).chars*0.2)),selectedContinuity:selectActiveContinuity(frame.confirmedContinuity,frame.transcript,{actorIds:frame.resolvedCharacters.filter(p=>p.presence==='active').map(p=>p.id)})}):{text:''};
+        (frame.characterExecution = deps.buildCharacterInjection(frame.resolvedCharacters, { conflictActive: ['tension', 'active'].includes(frame.decisions.conflict_state) || frame.decisions.fight_sustain === 'yes', volume:frame.prefs.characterVolume,maxChars:characterVolume(frame.prefs.characterVolume).chars-frame.memoryExecution.text.length }));
         (frame.characterTrace = frame.characterExecution.traces);
         (frame.sexualPlan = resolveSexualConduct(frame.resolvedCharacters, frame.decisions, frame.prefs.physicalIntimacyPace));
         (frame.sexualExecution = buildSexualInjection(frame.sexualPlan, frame.prefs.physicalIntimacyPace));
@@ -49,9 +53,9 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             slotOmissions:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.omittedBySlots || 0),0),
             lengthOmissions:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.omittedByInjectionChars || 0),0),
             invalidAnswers:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.invalidAnswers || 0),0) });
-        (frame.characterBlock = frame.characterExecution.text);
+        (frame.characterBlock = [frame.characterExecution.text,frame.memoryExecution.text].filter(Boolean).join('\n'));
         (frame.continuityBlock = deps.settings.continuityEnabled
-            ? deps.buildContinuityInjection(deps.selectContinuityContext(deps.continuityView(frame.rec), frame.transcript, { opportunity: frame.rec.sceneOpportunity }), frame.chosenContinuity)
+            ? (frame.rec.analysisRuntimeV1 ? '' : deps.buildContinuityInjection(deps.selectContinuityContext(deps.continuityView(frame.rec), frame.transcript, { opportunity: frame.rec.sceneOpportunity }), frame.chosenContinuity))
             : '');
         if(deps.settings.continuityEnabled && frame.rec.repetitionGuard) {
             const review=repetitionInjection(frame.rec.repetitionGuard,{chat:deps.getContext().chat,chatKey:run.identity,excluded:frame.rec.nonRpOutputIndices || [],fingerprint:deps.stableFingerprint});
@@ -71,7 +75,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         const carried=storylineInjection(frame.rec);
         if(carried)frame.payload=carried+'\n\n'+frame.payload;
         (frame.finalContinuityCacheKey = deps.settings.continuityEnabled
-            ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id), ...(frame.rec.repetitionGuard?{repetition:frame.rec.repetitionGuard}:{}) })
+            ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, evolutionRevision:frame.rec.characterEvolutionV1?.revision||0, deltaCandidates:(frame.rec.analysisRuntimeV1?.pendingBatches||[]).flatMap(b=>b.candidates||[]).filter(c=>c.status==='pending').map(c=>c.id), candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id), ...(frame.rec.repetitionGuard?{repetition:frame.rec.repetitionGuard}:{}) })
             : '');
         (frame.rawChoices = Object.fromEntries(Object.entries(frame.data.answers || {}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));
         frame.rec.lastJudgment = { details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
@@ -101,7 +105,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
                 status: 'awaiting_output',
             };
         }
-        
+
 }
 return {prepareInjection};
 }

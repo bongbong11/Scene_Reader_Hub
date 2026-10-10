@@ -31,6 +31,10 @@ function sourceUserRpForOutput(outputIndex) {
 }
 
 async function postVerifiedCharacterOutput(rec, pending, verification, trigger) {
+    if(deps.analysis){
+        if(trigger==='topic_fixation')deps.analysis.observe(Number(pending.outputIndex),{trigger});
+        return;
+    }
     const identity = sourceIdentityForPending(pending);
     const usage = (reasonCode, status = 'not_needed') => deps.noteDiagnostic?.('auxiliary_usage', { module: 'src/continuity/runtime.js', status, reasonCode });
     if (!pending.outputText) { usage('no_completed_output'); return; }

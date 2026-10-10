@@ -3,7 +3,7 @@ import { captureDiagnostic } from '../character/state-coverage.js';
 import { notifyVaultOutput } from '../integration/vault-output.js';
 
 export function createOutputEvents(deps) {
-async function onCharacterMessageReceived(messageId) {
+async function processCharacterMessageReceived(messageId) {
     const chatKey=deps.stateChatKey();
     const rec = deps.record();
     const cycleMode = deps.activeGenerationCycle?.mode || deps.generationMode || 'rp';
@@ -93,6 +93,14 @@ async function onCharacterMessageReceived(messageId) {
     notifyVaultOutput(deps, rec, outputIndex);
 }
 
+async function onCharacterMessageReceived(messageId) {
+    const cycle=deps.activeGenerationCycle,chatKey=deps.stateChatKey(),type=deps.pendingGenerationType,analysis=deps.analysis,cancellationToken=analysis?.cancellationToken;
+    const mode=cycle?.mode||deps.generationMode||'rp';
+    const index=Number.isInteger(Number(messageId))?Number(messageId):(deps.getContext().chat||[]).length-1;
+    await processCharacterMessageReceived(messageId);
+    if(chatKey===deps.stateChatKey()&&mode==='rp'&&deps.settings.enabled&&cycle?.startedAt&&analysis?.cancellationToken===cancellationToken)
+        analysis?.observe(index,{generationType:type||'normal'});
+}
 async function onUserMessageSent(messageId) {
     deps.messageSnapshots.set(deps.stateChatKey(), deps.messageSnapshot(deps.getContext().chat));
     if (!deps.settings?.enabled) return;

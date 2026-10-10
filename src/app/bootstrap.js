@@ -1,3 +1,4 @@
+import {createAnalysisRuntime} from '../continuity/analysis-runtime.js';
 import { createEmbeddingMaintenance } from '../retrieval/maintenance.js';
 import { executionReport } from '../debug/execution-report.js';
 import { registerSlashCommands } from '../adapters/slash-commands.js';
@@ -75,6 +76,7 @@ import { createJobScope, createWriteQueue, StaleRunError } from "../lifecycle/jo
 import { messageSnapshot, firstChangedMessage, attachSelectedOutput } from "../context/message-identity.js";
 
 const runtime = createRuntimeState(() => stateChatKey());
+let analysis;
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
 let {noteDiagnostic, diagnosticSnapshot} = createDiagnostics({
     get hub() { return hub; },
@@ -128,6 +130,7 @@ let {waitForProfileState, notifyEmotionCapture, scheduleProfileStateCollection, 
 let requestWithConnectionProfile=createConnectionProfileClient({onDiagnostic:detail=>noteDiagnostic('profile_request',detail)});
 
 let {invalidateReasonerJobs} = createJobControl({
+    get analysis() { return analysis; },
     get hub() { return hub; },
     get jobs() { return runtime.jobs; }, set jobs(value) { runtime.jobs = value; },
     get pendingProfileStateRequests() { return runtime.pendingProfileStateRequests; }, set pendingProfileStateRequests(value) { runtime.pendingProfileStateRequests = value; },
@@ -498,7 +501,7 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
-let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,
+let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,getAnalysis:()=>analysis,
     isRoomReady:()=>runtime.chatReadyKey===null||runtime.chatReadyKey===stateChatKey(),
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
@@ -624,6 +627,7 @@ let {sharedStorage, companionStorage, storagePost, loadReasonerProfiles, setting
 
 
 let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAssistantOutputChanged, applyStoredInjection, clearInjection, waitForOutputChanges} = createOutputLifecycle({
+    get analysis() { return analysis; },
     get postVerifiedCharacterOutput() { return postVerifiedCharacterOutput; },
     hub,
     get STATE_CAPTURE_KEY() { return STATE_CAPTURE_KEY; },
@@ -679,6 +683,7 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
 });
 
 let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalCandidates, sourceUserRpForOutput, postVerifiedCharacterOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+    get analysis() { return analysis; },
     isStorageBusy:()=>sharedStorage.isBusy(),
     isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
     get pendingGenerationType() { return runtime.pendingGenerationType; },
@@ -800,7 +805,17 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
 
 
 
+analysis=createAnalysisRuntime({
+    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,selectActiveEntries,
+    get queueWrite(){return runtime.queueWrite;},get clearInjection(){return clearInjection;},
+    fingerprint:stableFingerprint,noteDiagnostic,
+    get settings(){return runtime.settings;},get characterStore(){return runtime.characterStore;},
+    get chatRecords(){return runtime.chatRecords;},get stateHistoryCache(){return runtime.stateHistoryCache;},
+    get connectionRequestService(){return runtime.connectionRequestService;},
+    get requestWithConnectionProfile(){return requestWithConnectionProfile;},
+});
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
+    get analysis() { return analysis; },
     noteDiagnostic,
     embeddingMaintenance,
     presetPrompts:presetRequest.prompts,
@@ -922,7 +937,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.4',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.5',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

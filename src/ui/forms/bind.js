@@ -21,6 +21,10 @@ export function createFormBindings(deps) {
 function bindForm() {
     bindPresetSlots(deps);
     bindOpportunitySettings(deps);
+    deps.document.getElementById('sr-continuity-interval')?.addEventListener('change',event=>deps.runUiTask(deps.saveGlobal('continuityInterval',Number(event.target.value)===5?5:3),'수집 간격을 저장하지 못했습니다.'));
+    deps.document.getElementById('sr-collect-persona-changes')?.addEventListener('change',event=>deps.runUiTask(deps.saveGlobal('collectPersonaChanges',Boolean(event.target.checked)),'페르소나 수집 설정을 저장하지 못했습니다.'));
+    deps.document.getElementById('sr-analysis-now')?.addEventListener('click',()=>deps.analysis?.requestManual());
+    deps.document.getElementById('sr-evolution-results')?.addEventListener('click',event=>{const button=event.target.closest?.('[data-sr-exclude-change]');if(button)deps.runUiTask(deps.analysis?.exclude(button.dataset.srExcludeChange),'변화 제외를 저장하지 못했습니다.');});
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());
     for(const id of ['sr-world-edit-name','sr-world-edit-prompt','sr-world-advanced-json'])deps.document.getElementById(id)?.addEventListener('input',updateWorldCopy);
     deps.document.getElementById('sr-world-profile')?.addEventListener('change',updateWorldCopy);

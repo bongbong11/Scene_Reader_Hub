@@ -1,3 +1,4 @@
+import {continuityCacheMatches} from '../continuity/cache.js';
 // Extracted from Scene Reader 0.26.2; behavior preserved.
 import { recentTurnCount } from '../context/turn-settings.js';
 export function createGenerationLifecycle(deps) {
@@ -18,6 +19,7 @@ async function generationBoundary(task) {
 }
 function cachedJudgmentMatches(rec, context, inputKey, allowOutputChange = false) {
     const saved = rec?.lastJudgment;
+    if (saved && !continuityCacheMatches(rec,deps.settings,deps.stableFingerprint))return false;
     if (!saved || saved.inputKey !== inputKey || saved.sourceKey !== deps.sourceRevisionKey(rec, deps.selectedWorld(rec))) return false;
     if (saved.contextKey === context?.contextKey) return true;
     if (!allowOutputChange || !Number.isInteger(rec.pendingPlan?.chatCount)) return false;

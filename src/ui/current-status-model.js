@@ -12,6 +12,9 @@ function advice(id,event) {
     const code=errorCode(event);
     if (/CREDENTIAL|AUTH|FORBIDDEN/.test(code) || [401,403].includes(event.httpStatus)) return '설정에서 발급처와 저장된 키를 확인해 주세요.';
     if (/RATE|QUOTA/.test(code) || event.httpStatus===429) return '사용 한도와 요금을 확인한 뒤 잠시 후 다시 시도해 주세요.';
+    if (/^ANALYSIS_(?:INPUT_)?CAPACITY$/.test(code)) return '추가 분석 자료 한도에 도달했습니다. 기존 자료와 기본 판독은 유지합니다. 전체 로그로 입력·누적 한도를 확인하세요.';
+    if (code==='ANALYSIS_BUSY_TIMEOUT') return '앞선 판독이 길어 추가 분석 대기를 종료했습니다. 기본 RP는 계속 진행하며, 다음 답변이나 지금 확인으로 다시 시도합니다.';
+    if (id==='profile'&&/TIMEOUT/.test(code)) return '확장 연결모델 응답 시간이 초과됐습니다. 기본 RP는 유지합니다. 잠시 후 지금 확인으로 다시 시도하거나 프로필 연결을 확인하세요.';
     if(id==='embedding')return '상단 임베딩 재시도로 누락된 기록을 다시 처리하세요. 정상 완료된 기록은 재사용합니다.';
     if(id==='search')return '검색 실패 시 단어 매칭으로 진행합니다. 연결을 확인한 뒤 판독을 다시 시도하세요. 전체 재생성은 필요하지 않을 수 있습니다.';
     if(id==='scene'||id==='decision')return /TIMEOUT/.test(code)?'제브 응답 시간이 초과됐습니다. 잠시 후 판독을 다시 시도해 주세요.':'제브 판정 응답을 확인하지 못했습니다. 연결 확인 또는 전체 로그 복사를 이용하세요.';
@@ -68,6 +71,8 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
             set(event.requestKind==='scene'?'scene':'decision',event,{message:event.status==='degraded'?'일부 판정 응답이 누락되거나 형식이 맞지 않습니다. 전체 로그를 확인해 주세요.':''});return;
         }
         if(event.stage==='profile_request') {if(!event.testing)set('profile',event);return;}
+        if(event.stage==='analysis_failed') {set('profile',{...event,errorKind:event.reasonCode,status:'failed'},{sticky:false});return;}
+        if(event.stage==='analysis_result'&&event.status==='succeeded') {pendingFailures.delete('profile');set('profile',event,{sticky:false});return;}
         if(event.stage==='auxiliary_usage') {
             const messages = {
                 no_completed_output:'분석할 완성된 응답이 없습니다.', no_rp_output:'이번 출력은 RP 분석 대상이 아닙니다.',

@@ -1,3 +1,4 @@
+import {renderEvolutionStatus} from '../evolution-status.js';
 import { continuityView } from "../../continuity/state-adapter.js";
 import { normalizeContinuity } from "../../continuity/engine.js";
 
@@ -17,6 +18,7 @@ function renderReasonerProfiles() {
 
 function renderContinuity() {
     const {settings, characterStore, backupList, reasonerProfiles, reasonerProfileError, characterAnalysisSelection, activeInjectionPayload} = deps.readState();
+    renderEvolutionStatus({analysis:deps.getAnalysis?.(),document:deps.document,record:deps.record(),settings,store:characterStore,escapeHtml:deps.escapeHtml});
     const root = deps.document.getElementById('sr-continuity-results');
     if (!root) return;
     if (!settings.continuityEnabled) { root.innerHTML = '<p class="sr-help">연속성 추론이 꺼져 있습니다.</p>'; return; }

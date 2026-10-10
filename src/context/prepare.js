@@ -53,7 +53,7 @@ await deps.waitForOutputChanges?.();
             || deps.sourceRevisionKey(deps.record(),deps.selectedWorld())!==frame.sourceKey) throw new deps.StaleRunError();
     });
     (frame.continuityCacheKey = deps.settings.continuityEnabled
-        ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id), ...(frame.rec.repetitionGuard?{repetition:frame.rec.repetitionGuard}:{}) })
+        ? deps.stableFingerprint({ revision: frame.rec.continuity?.revision || 0, evolutionRevision:frame.rec.characterEvolutionV1?.revision||0, deltaCandidates:(frame.rec.analysisRuntimeV1?.pendingBatches||[]).flatMap(b=>b.candidates||[]).filter(c=>c.status==='pending').map(c=>c.id), candidates: (frame.rec.pendingContinuityCandidates || []).map((item) => item.id), ...(frame.rec.repetitionGuard?{repetition:frame.rec.repetitionGuard}:{}) })
         : '');
     if (frame.rec.pendingPlan && frame.rec.pendingPlan.inputKey !== frame.inputKey && !frame.rec.pendingPlan.outputText) frame.rec.pendingPlan = null;
     (frame.transcript = frame.context.recentRoleplay);
