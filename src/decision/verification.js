@@ -62,8 +62,6 @@ async function commitPriorVerification(rec, decisions, run = null) {
     });
     if (run) run.history = history; else await deps.saveStateHistory(history, chatKey);
     run?.assert();
-    if (run) run.postOutput = {pending,verification,trigger:decisions.continuity_trigger};
-    else await deps.postVerifiedCharacterOutput(rec, pending, verification, decisions.continuity_trigger);
     rec.lastVerification = { inputKey: pending.inputKey, outputIndex: pending.outputIndex, verification, committed: result.committed, committedEffects: result.committedEffects, at: new Date().toISOString() };
     rec.pendingPlan = null;
     return rec.lastVerification;

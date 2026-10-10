@@ -1,4 +1,4 @@
-import { notifySceneReaderToast } from "../ui/toasts.js";
+import {notifySceneReaderToast} from "../ui/toasts.js";
 import {opportunityFailureMessage} from '../ui/opportunity-copy.js';
 
 export function createJudgmentCommit(deps) {
@@ -9,7 +9,6 @@ run.assert();
         run.assert();
         deps.chatRecords.set(run.identity,frame.rec);
         deps.stateHistoryCache.set(run.identity,run.history.slice(-deps.STATE_HISTORY_LIMIT));
-        if (run.postOutput) await deps.postVerifiedCharacterOutput(frame.rec,run.postOutput.pending,run.postOutput.verification,run.postOutput.trigger);
         (frame.receipt = await deps.applyStoredInjection({validate:frame.assertCurrentSnapshot}));
         frame.assertCurrentSnapshot();
         if(!frame.receipt?.applied || frame.receipt.inputKey!==frame.inputKey || frame.receipt.sourceKey!==frame.sourceKey)throw new deps.StaleRunError();

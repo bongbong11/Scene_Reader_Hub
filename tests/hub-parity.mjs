@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {minorRoutingChoice} from '../src/decision/routing-policy.js';
 import {readFile} from 'node:fs/promises';
 const baseline=JSON.parse(await readFile(new URL('./fixtures/upstream-parity.json',import.meta.url),'utf8'));
 import {fixture as hubFixture} from './regression/audit-v012.mjs';
@@ -15,9 +16,11 @@ function unchanged(value,parent='') {
  if(!value||typeof value!=='object')return value==='macro'?'preset':value;
  // Creation is now a separate addition path; ordinary behavior and actual
  // injection text must still match. Creation modes have full pipeline tests.
- const excluded=new Set(['drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot',
+ const excluded=new Set(['visibilityKeyV1','drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot',
  'newGenerationEnabled','spontaneousMode','opportunityPreferences','opportunities','opportunityPlan','opportunityKey','new_opportunities','lastOpportunityVerification','additionBlocks','additions',
  'arrival_mode','advanced_entry','advanced_route','advanced_cause','advanced_element','advanced_move']);
+ // Only low-risk expression choices intentionally stop using the old certainty threshold.
+ if(minorRoutingChoice(parent,value.selected,[value.selected]))value.threshold=0;
  if(parent==='criteria')for(const key of ['create','replace'])delete value[key];
  if(typeof value.instructions==='string')value.instructions=value.instructions.replace(' This question manages existing people only. A separately offered new person uses arrival_mode; do not require existing-person routing to approve that arrival.','');
  if(typeof value.instructions==='string')value.instructions=value.instructions.replace(' For the offered new candidate, only its bounded general role competence and what it could perceive on arrival are available. A proposed entrance cannot establish prior observation, acquaintance, or hidden scene-specific access.','');

@@ -1,82 +1,88 @@
+import {createVisibilityLifecycle} from '../lifecycle/visibility.js';
+import {createVisibilityAdapter} from '../adapters/message-visibility.js';
+import {createHistoryAnalysis} from '../continuity/history-analysis.js';
+import {createChangeReview} from '../continuity/change-review.js';
+import {notifyAutomaticAnalysis} from '../ui/analysis-actions.js';
 import {createAnalysisRuntime} from '../continuity/analysis-runtime.js';
-import { createEmbeddingMaintenance } from '../retrieval/maintenance.js';
-import { executionReport } from '../debug/execution-report.js';
-import { registerSlashCommands } from '../adapters/slash-commands.js';
-import { createDiagnostics } from '../debug/diagnostics.js';
-import { createEmotionRuntime } from '../character/emotion-runtime.js';
-import { createJobControl } from '../lifecycle/job-control.js';
-import { createStorageIdentity } from '../storage/identity.js';
-import { createOwnerStorage } from '../storage/owner.js';
-import { createActivity } from '../ui/activity.js';
-import { createOwnerUi } from '../ui/owner.js';
-import { createVaultLauncher } from '../ui/vault-launcher.js';
-import { createSharedStorageUi } from '../ui/shared-storage.js';
-import { createClipboard } from '../ui/clipboard.js';
-import { createHtml } from '../shared/html.js';
-import { createRecordRepository } from '../storage/record.js';
-import { createWorldSelection } from '../world/selection.js';
-import { createContextRuntime } from '../context/runtime.js';
-import { createOocLifecycle } from '../lifecycle/ooc.js';
-import { createJevClient } from '../adapters/jev-client.js';
-import { createStateSnapshots } from '../lifecycle/snapshots.js';
-import { createStatusUi } from '../ui/status.js';
-import { createShell } from '../ui/shell.js';
-import { createGenerationLifecycle } from '../lifecycle/generation.js';
-import { createStartup } from '../lifecycle/startup.js';
-import { createInjectionReconcile } from '../injection/reconcile.js';
-import { MODULE, INJECT_KEY, WORLD_INJECT_KEY, STATE_CAPTURE_KEY, IN_CHAT, SYSTEM_ROLE, JEV_KEY_STORAGE, JEV_API_URL, STORAGE_API_URL, JEV_MODEL, PROMPT_MACRO, WORLD_PROMPT_MACRO, MAX_TRANSCRIPT_CHARS, STATE_DB_NAME, STATE_DB_STORE, STATE_HISTORY_LIMIT, OWNER_UNLOCK_STORAGE, OWNER_PROMPT_STORAGE, OWNER_PASSWORD_HASH, DEFAULTS, CHAT_DEFAULTS } from '../storage/contract.js';
-import { createRuntimeState } from '../hub/state.js';
-import { createHub } from '../hub/orchestrator.js';
-import { installGenerationInterceptor } from '../adapters/generation-interceptor.js';
-import { createPromptObserver } from '../injection/receipt.js';
-import { createPresetRequest } from '../injection/preset-request.js';
-import { createTraceView } from '../ui/trace.js';
-import { createCurrentStatusView } from '../ui/current-status.js';
-import { notifySceneReaderToast, updateSceneReaderToast } from '../ui/toasts.js';
-import { MASCOT_ICON_URL } from '../ui/mascot.js';
-import { MEMORY_REFERENCE_ENABLED } from "../context/memory.js";
-import { createRepository } from '../storage/repository.js';
-import { createOutputLifecycle } from '../app/output-lifecycle.js';
-import { createSceneExecution } from '../scene/execution.js';
-import { createUiController } from '../ui/controller.js';
-import { migrateKnowledge, continuityView, assignContinuity } from "../continuity/state-adapter.js";
-import { readCharm, readCharacterLorebooks, mergeMemory, linkedCharacterBooks, memoryStatusText } from "../context/memory.js";
-import { FALLBACKS, applyPolicy, fixedDecision, applyCharacterPolicy, applyRecordRelevance } from "../decision/answers.js";
-import { createVectorRetrieval, RETRIEVAL_PROVIDERS } from '../retrieval/vectors.js';
-import { renderRetrievalProgress } from '../ui/embedding-maintenance.js';
-import { effectiveMap, overrideDecision, deriveDependentDecisions, coordinateDecisions, coordinateActionBudget, coordinateCharacterDecisions } from '../scene/coordinator.js';
-import { createDraws } from '../scene/draws.js';
-import { createResults } from '../ui/results.js';
-import { dialogTemplate } from '../ui/dialog-template.js';
+import {createEmbeddingMaintenance} from '../retrieval/maintenance.js';
+import {executionReport} from '../debug/execution-report.js';
+import {registerSlashCommands} from '../adapters/slash-commands.js';
+import {createDiagnostics} from '../debug/diagnostics.js';
+import {createEmotionRuntime} from '../character/emotion-runtime.js';
+import {createJobControl} from '../lifecycle/job-control.js';
+import {createStorageIdentity} from '../storage/identity.js';
+import {createOwnerStorage} from '../storage/owner.js';
+import {createActivity} from '../ui/activity.js';
+import {createOwnerUi} from '../ui/owner.js';
+import {createVaultLauncher} from '../ui/vault-launcher.js';
+import {createSharedStorageUi} from '../ui/shared-storage.js';
+import {createClipboard} from '../ui/clipboard.js';
+import {createHtml} from '../shared/html.js';
+import {createRecordRepository} from '../storage/record.js';
+import {createWorldSelection} from '../world/selection.js';
+import {createContextRuntime} from '../context/runtime.js';
+import {createOocLifecycle} from '../lifecycle/ooc.js';
+import {createJevClient} from '../adapters/jev-client.js';
+import {createStateSnapshots} from '../lifecycle/snapshots.js';
+import {createStatusUi} from '../ui/status.js';
+import {createShell} from '../ui/shell.js';
+import {createGenerationLifecycle} from '../lifecycle/generation.js';
+import {createStartup} from '../lifecycle/startup.js';
+import {createInjectionReconcile} from '../injection/reconcile.js';
+import {MODULE, INJECT_KEY, WORLD_INJECT_KEY, STATE_CAPTURE_KEY, IN_CHAT, SYSTEM_ROLE, JEV_KEY_STORAGE, JEV_API_URL, STORAGE_API_URL, JEV_MODEL, PROMPT_MACRO, WORLD_PROMPT_MACRO, MAX_TRANSCRIPT_CHARS, STATE_DB_NAME, STATE_DB_STORE, STATE_HISTORY_LIMIT, OWNER_UNLOCK_STORAGE, OWNER_PROMPT_STORAGE, OWNER_PASSWORD_HASH, DEFAULTS, CHAT_DEFAULTS} from '../storage/contract.js';
+import {createRuntimeState} from '../hub/state.js';
+import {createHub} from '../hub/orchestrator.js';
+import {installGenerationInterceptor} from '../adapters/generation-interceptor.js';
+import {createPromptObserver} from '../injection/receipt.js';
+import {createPresetRequest} from '../injection/preset-request.js';
+import {createTraceView} from '../ui/trace.js';
+import {createCurrentStatusView} from '../ui/current-status.js';
+import {notifySceneReaderToast, updateSceneReaderToast} from '../ui/toasts.js';
+import {MASCOT_ICON_URL} from '../ui/mascot.js';
+import {MEMORY_REFERENCE_ENABLED} from "../context/memory.js";
+import {createRepository} from '../storage/repository.js';
+import {createOutputLifecycle} from '../app/output-lifecycle.js';
+import {createSceneExecution} from '../scene/execution.js';
+import {createUiController} from '../ui/controller.js';
+import {migrateKnowledge, continuityView, assignContinuity} from "../continuity/state-adapter.js";
+import {readCharm, readCharacterLorebooks, mergeMemory, linkedCharacterBooks, memoryStatusText} from "../context/memory.js";
+import {FALLBACKS, applyPolicy, fixedDecision, applyCharacterPolicy, applyRecordRelevance} from "../decision/answers.js";
+import {createVectorRetrieval, RETRIEVAL_PROVIDERS} from '../retrieval/vectors.js';
+import {renderRetrievalProgress} from '../ui/embedding-maintenance.js';
+import {effectiveMap, overrideDecision, deriveDependentDecisions, coordinateDecisions, coordinateActionBudget} from '../scene/coordinator.js';
+import {createDraws} from '../scene/draws.js';
+import {createResults} from '../ui/results.js';
+import {dialogTemplate} from '../ui/dialog-template.js';
 
-import { CHARACTER_LIVE_SYSTEM } from "../character/prompts.js";
-import { NPC_CORE_SYSTEM, parseNpcCore, deriveEnglishCore, suggestNpcAliases } from "../character/npc-sheet.js";
-import { stateCollectorMode, stateRoster } from "../character/state-collector.js";
-import { mainOutputStatePrompt, collectMainOutputState } from "../character/state-main-output.js";
-import { collectProfileOutputState } from "../character/state-profile-output.js";
-import { latestStateForChat, latestStateEventForChat, selectedStateSwipe, storeStateEvent, dropStateEventsFrom } from "../character/state-contract.js";
-import { eventSource, event_types, saveSettingsDebounced, setExtensionPrompt, chat_metadata, getRequestHeaders, isStreamingEnabled } from '../../st-adapter.js';
-import { extension_settings } from '../../st-adapter.js';
-import { WORLD_DIRECTIONS, RELATIONSHIP_DIRECTIONS, PROGRESSION_MODES, JUDGMENT_STYLES, DEVELOPMENT_STYLES, normalizeDevelopmentPreferences, PACE_OPTIONS, buildQuestions, buildInjection, buildPausedInjection } from '../../prompt-library.js';
-import { SEASONAL_OPTIONS } from '../world/seasonal.js';
-import { ADVANCED_STYLES, ADVANCED_ELEMENTS, ADVANCED_DEFAULT_ELEMENTS, BUILTIN_WORLDS } from "../world/advanced-library.js";
-import { allWorlds, isFranchiseWorld, loadCustomWorlds, saveCustomWorlds } from "../world/catalog.js";
-import { buildInputKey, buildRecentContext, filterNonRpHistory, generationCycleSalt, isVisibleRoleplayMessage, pendingComposerText, splitOocText } from "../context/messages.js";
-import { buildVerificationQuestions, pendingPlanEffects, stableFingerprint, verificationSummary } from "../decision/policy.js";
-import { archiveCurrentEvent, commitObservedState, commitVerifiedPlan, updateProgressionPressure } from "../scene/state-effects.js";
-import { actionPlanSummary, selectActionPlan, nextDeferredRoutes } from "../decision/action-budget.js";
-import { activePendingCandidates, buildPendingCandidateQuestions, verifiedSecondaryCandidates } from "../continuity/candidates.js";
-import { REASONER_SYSTEM, applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity, selectContinuityContext, validateReasonerResult } from "../continuity/engine.js";
-import { listConnectionProfiles, createConnectionProfileClient } from "../adapters/connection-profile.js";
-import { sha256Hex } from "../shared/security.js";
-import { profileStatus, normalizeCharacterStore, selectActiveEntries, addCharacterNeedsQuestions, characterCategoryHints, buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from "../character/index.js";
-import { PHYSICAL_PACES, normalizePhysicalPace } from "../character/sexual-conduct.js";
+import {CHARACTER_LIVE_SYSTEM} from "../character/prompts.js";
+import {NPC_CORE_SYSTEM, parseNpcCore, deriveEnglishCore, suggestNpcAliases} from "../character/npc-sheet.js";
+import {stateCollectorMode, stateRoster} from "../character/state-collector.js";
+import {mainOutputStatePrompt, collectMainOutputState} from "../character/state-main-output.js";
+import {collectProfileOutputState} from "../character/state-profile-output.js";
+import {latestStateForChat, latestStateEventForChat, selectedStateSwipe, storeStateEvent, dropStateEventsFrom} from "../character/state-contract.js";
+import {eventSource, event_types, saveSettingsDebounced, setExtensionPrompt, chat_metadata, getRequestHeaders, isStreamingEnabled} from '../../st-adapter.js';
+import {extension_settings} from '../../st-adapter.js';
+import {WORLD_DIRECTIONS, RELATIONSHIP_DIRECTIONS, PROGRESSION_MODES, JUDGMENT_STYLES, DEVELOPMENT_STYLES, normalizeDevelopmentPreferences, PACE_OPTIONS, buildQuestions, buildInjection, buildPausedInjection} from '../../prompt-library.js';
+import {SEASONAL_OPTIONS} from '../world/seasonal.js';
+import {ADVANCED_STYLES, ADVANCED_ELEMENTS, ADVANCED_DEFAULT_ELEMENTS, BUILTIN_WORLDS} from "../world/advanced-library.js";
+import {allWorlds, isFranchiseWorld, loadCustomWorlds, saveCustomWorlds} from "../world/catalog.js";
+import {buildInputKey, buildRecentContext, filterNonRpHistory, generationCycleSalt, isVisibleRoleplayMessage, pendingComposerText, splitOocText} from "../context/messages.js";
+import {buildVerificationQuestions, pendingPlanEffects, stableFingerprint, verificationSummary} from "../decision/policy.js";
+import {archiveCurrentEvent, commitObservedState, commitVerifiedPlan, updateProgressionPressure} from "../scene/state-effects.js";
+import {actionPlanSummary, selectActionPlan, nextDeferredRoutes} from "../decision/action-budget.js";
+import {activePendingCandidates, buildPendingCandidateQuestions, verifiedSecondaryCandidates} from "../continuity/candidates.js";
+import {applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity, selectContinuityContext} from "../continuity/engine.js";
+import {listConnectionProfiles, createConnectionProfileClient} from "../adapters/connection-profile.js";
+import {sha256Hex} from "../shared/security.js";
+import {profileStatus, normalizeCharacterStore, selectActiveEntries, addCharacterNeedsQuestions, characterCategoryHints, buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection} from "../character/index.js";
+import {PHYSICAL_PACES, normalizePhysicalPace} from "../character/sexual-conduct.js";
 
-import { createJobScope, createWriteQueue, StaleRunError } from "../lifecycle/jobs.js";
-import { messageSnapshot, firstChangedMessage, attachSelectedOutput } from "../context/message-identity.js";
+import {StaleRunError} from "../lifecycle/jobs.js";
+import {messageSnapshot, firstChangedMessage, attachSelectedOutput} from "../context/message-identity.js";
 
 const runtime = createRuntimeState(() => stateChatKey());
-let analysis;
+let analysis,historyAnalysis,changes;
+let visibility;
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
 let {noteDiagnostic, diagnosticSnapshot} = createDiagnostics({
     get hub() { return hub; },
@@ -134,8 +140,6 @@ let {invalidateReasonerJobs} = createJobControl({
     get hub() { return hub; },
     get jobs() { return runtime.jobs; }, set jobs(value) { runtime.jobs = value; },
     get pendingProfileStateRequests() { return runtime.pendingProfileStateRequests; }, set pendingProfileStateRequests(value) { runtime.pendingProfileStateRequests = value; },
-    get reasonerGeneration() { return runtime.reasonerGeneration; }, set reasonerGeneration(value) { runtime.reasonerGeneration = value; },
-    get reasonerJobs() { return runtime.reasonerJobs; }, set reasonerJobs(value) { runtime.reasonerJobs = value; },
     get stateChatKey() { return stateChatKey; },
 });
 
@@ -284,6 +288,7 @@ let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSc
 });
 
 let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged,prepareFallback} = createGenerationLifecycle({
+    checkVisibility:()=>visibility?.check(),
     isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
     isStorageBusy:()=>sharedStorage.isBusy(),
     get judgmentFailureState() { return judgmentFailureState; },
@@ -339,7 +344,7 @@ let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged
     get worldInfoModule() { return runtime.worldInfoModule; }, set worldInfoModule(value) { runtime.worldInfoModule = value; },
 });
 
-const promptObserver=createPromptObserver({
+const promptObserver=createPromptObserver({getContext,getChatKey:stateChatKey,
     getExpected:()=>runtime.activeGenerationCycle?.injection,
     getRecord:()=>record(),
     getNames:()=>({userName:getContext().name1,characterName:getContext().name2}),
@@ -352,6 +357,7 @@ const presetRequest=createPresetRequest({
     report:(...args)=>hub.report(...args),verifyRequest:promptObserver.verifyRequest,
 });
 let {init} = createStartup({
+    initVisibility:()=>{void visibility.check({notify:false});visibilityAdapter.init();},
     get hub() { return hub; },
     initPresetRequest:presetRequest.init,
     resetPresetRequest:presetRequest.reset,
@@ -501,7 +507,7 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
-let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,getAnalysis:()=>analysis,
+let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, record, ownerPrompt, escapeHtml,getAnalysis:()=>analysis,getChanges:()=>changes,window,
     isRoomReady:()=>runtime.chatReadyKey===null||runtime.chatReadyKey===stateChatKey(),
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
@@ -628,7 +634,6 @@ let {sharedStorage, companionStorage, storagePost, loadReasonerProfiles, setting
 
 let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAssistantOutputChanged, applyStoredInjection, clearInjection, waitForOutputChanges} = createOutputLifecycle({
     get analysis() { return analysis; },
-    get postVerifiedCharacterOutput() { return postVerifiedCharacterOutput; },
     hub,
     get STATE_CAPTURE_KEY() { return STATE_CAPTURE_KEY; },
     get STATE_COLLECTOR_MODE() { return stateCollectorMode(record()?.preferences); },
@@ -682,7 +687,8 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
     get window() { return window; },
 });
 
-let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPending, pendingExternalCandidates, sourceUserRpForOutput, postVerifiedCharacterOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandidates, sourceUserRpForOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+    checkVisibility:()=>visibility?.check(),
     get analysis() { return analysis; },
     isStorageBusy:()=>sharedStorage.isBusy(),
     isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
@@ -699,7 +705,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
     get CHARACTER_LIVE_SYSTEM() { return CHARACTER_LIVE_SYSTEM; },
     get FALLBACKS() { return FALLBACKS; },
     get JEV_MODEL() { return JEV_MODEL; },
-    get REASONER_SYSTEM() { return REASONER_SYSTEM; },
     get STATE_HISTORY_LIMIT() { return STATE_HISTORY_LIMIT; },
     get StaleRunError() { return StaleRunError; },
     get actionPlanSummary() { return actionPlanSummary; },
@@ -729,7 +734,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
     get connectionRequestService() { return runtime.connectionRequestService; }, set connectionRequestService(value) { runtime.connectionRequestService = value; },
     get continuityView() { return continuityView; },
     get coordinateActionBudget() { return coordinateActionBudget; },
-    get coordinateCharacterDecisions() { return coordinateCharacterDecisions; },
     get coordinateDecisions() { return coordinateDecisions; },
     get currentInputKey() { return currentInputKey; },
     get deriveDependentDecisions() { return deriveDependentDecisions; },
@@ -759,8 +763,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
     get readCharm() { return readCharm; },
     get readCharacterLorebooks() { return readCharacterLorebooks; },
     get worldInfoModule() { return runtime.worldInfoModule; },
-    get reasonerGeneration() { return runtime.reasonerGeneration; }, set reasonerGeneration(value) { runtime.reasonerGeneration = value; },
-    get reasonerJobs() { return runtime.reasonerJobs; },
     get recentContext() { return recentContext; },
     get record() { return record; },
     get renderAll() { return renderAll; },
@@ -786,7 +788,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
     get updateProgressionPressure() { return updateProgressionPressure; },
     get updateStatus() { return updateStatus; },
     get validateBackstage() { return validateBackstage; },
-    get validateReasonerResult() { return validateReasonerResult; },
     get verificationSummary() { return verificationSummary; },
     get verifiedSecondaryCandidates() { return verifiedSecondaryCandidates; },
     get verifyBackstageDelivery() { return verifyBackstageDelivery; },
@@ -806,7 +807,7 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceIdentityForPen
 
 
 analysis=createAnalysisRuntime({
-    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,selectActiveEntries,
+    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,selectActiveEntries,onOutcome:outcome=>notifyAutomaticAnalysis(window,outcome),
     get queueWrite(){return runtime.queueWrite;},get clearInjection(){return clearInjection;},
     fingerprint:stableFingerprint,noteDiagnostic,
     get settings(){return runtime.settings;},get characterStore(){return runtime.characterStore;},
@@ -814,8 +815,27 @@ analysis=createAnalysisRuntime({
     get connectionRequestService(){return runtime.connectionRequestService;},
     get requestWithConnectionProfile(){return requestWithConnectionProfile;},
 });
+const changeServices={
+    hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,selectActiveEntries,analysis,clearInjection,
+    get queueWrite(){return runtime.queueWrite;},fingerprint:stableFingerprint,noteDiagnostic,
+    get settings(){return runtime.settings;},get characterStore(){return runtime.characterStore;},
+    get chatRecords(){return runtime.chatRecords;},get stateHistoryCache(){return runtime.stateHistoryCache;},
+    get connectionRequestService(){return runtime.connectionRequestService;},requestWithConnectionProfile,
+    get worldInfoModule(){return runtime.worldInfoModule;},get historyAnalysis(){return historyAnalysis;}
+};
+historyAnalysis=createHistoryAnalysis(changeServices);
+changes=createChangeReview(changeServices);
+visibility=createVisibilityLifecycle({
+    window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,
+    get queueWrite(){return runtime.queueWrite;},clearInjection,invalidateReasonerJobs,
+    fingerprint:stableFingerprint,noteDiagnostic,
+    get chatRecords(){return runtime.chatRecords;},get stateHistoryCache(){return runtime.stateHistoryCache;},
+    getInjection:()=>runtime.activeGenerationCycle?.injection,invalidateTransport:value=>presetRequest.invalidate(value),
+    notify:(message,level='info')=>notifySceneReaderToast(window,level,message,'씬판독기',{timeOut:1800}),
+});
+const visibilityAdapter=createVisibilityAdapter({window,document,eventSource,event_types,check:()=>visibility.check()});
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
-    get analysis() { return analysis; },
+    get analysis() { return analysis; },get historyAnalysis(){return historyAnalysis;},checkVisibility:()=>visibility.check(),
     noteDiagnostic,
     embeddingMaintenance,
     presetPrompts:presetRequest.prompts,
@@ -937,7 +957,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.5',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.6',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

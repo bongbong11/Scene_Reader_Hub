@@ -27,7 +27,7 @@ for(const style of ['static','dynamic']) for(const focus of ['event','npc','conf
         const selected={scene_level:'0',scene_phase:'normal',primary_focus:focus,event_state:'active',progression_move:'advance',event_route:'continue',npc_route:'reuse',npc_presence:'present',npc_target:'sheet_0',npc_role:'witness',npc_weight:'supporting',npc_knowledge:'reported',npc_disclosure:'selective',relationship_pacing:'closer_incremental',relationship_motion:'closer',relationship_beat:'vulnerability',counterevidence:'none',conflict_state:focus==='conflict'?'active':'none',advanced_route:advanced?'continue':'none',advanced_entry:'open',advanced_cause:'existing',advanced_element:'objective',advanced_move:'advance',basic_move:'dialogue',progress_need:'flowing'};
         return {answers:Object.fromEntries(Object.entries(request.questions).map(([key,q])=>{
             if(q.type==='noul')return [key,{type:'noul',noul:0.9}];
-            let choice=key.startsWith('world_record_')?(worldChoice==='partial'?(key==='world_record_0'?'yes':'invalid'):worldChoice):key.startsWith('scene_participant_')?'yes':/^character_\d+_presence$/.test(key)?'active':/_profile_slot_/.test(key)?Object.keys(q.criteria).find(id=>id!=='none'):selected[key]??FALLBACKS[key];
+            let choice=key.startsWith('world_record_')?(worldChoice==='partial'?(key==='world_record_0'?'yes':'invalid'):worldChoice):key.startsWith('scene_participant_')?'direct':/^character_\d+_presence$/.test(key)?'active':/_profile_slot_/.test(key)?Object.keys(q.criteria).find(id=>id!=='none'):selected[key]??FALLBACKS[key];
             if(!key.startsWith('world_record_')&&!Object.hasOwn(q.criteria,choice))choice=Object.keys(q.criteria)[0];
             return [key,{choice,confidence:1}];
         }))};

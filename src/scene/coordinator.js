@@ -1,6 +1,6 @@
-import { ADVANCED_ELEMENTS } from "../world/advanced-library.js";
-import { selectActionPlan, actionPlanSummary } from "../decision/action-budget.js";
-import { fixedDecision } from "../decision/answers.js";
+import {ADVANCED_ELEMENTS} from "../world/advanced-library.js";
+import {selectActionPlan, actionPlanSummary} from "../decision/action-budget.js";
+import {fixedDecision} from "../decision/answers.js";
 export function effectiveMap(decisionDetails) {
     return Object.fromEntries(Object.entries(decisionDetails).map(([key, value]) => [key, value.effective]));
 }
@@ -190,14 +190,4 @@ export function coordinateActionBudget(rec, details, decisions, stagedRec = rec,
 
     overrideDecision(details, decisions, 'direct_execution', 'yes', plan.primary?.kind === 'direct' ? '현재 입력에 직접 반응' : '현재 입력에 대한 반응을 선택된 장면 진행 안에서 실행');
     return plan;
-}
-
-export function coordinateCharacterDecisions(entries, details, decisions) {
-    const active = entries.map((entry, index) => ({ entry, index, detail: details[`character_${index}_presence`] }))
-        .filter((item) => decisions[`character_${item.index}_presence`] === 'active')
-        .sort((a, b) => Number(b.detail?.certainty || 0) - Number(a.detail?.certainty || 0) || Number(b.entry.kind === 'character') - Number(a.entry.kind === 'character'));
-    for (const item of active.slice(2)) {
-        overrideDecision(details, decisions, `character_${item.index}_presence`, 'background', '한 응답의 주요 인물 실행을 최대 두 명으로 제한');
-        overrideDecision(details, decisions, `character_${item.index}_response_direction`, 'none', '이번 응답의 초점 인물 아님');
-    }
 }

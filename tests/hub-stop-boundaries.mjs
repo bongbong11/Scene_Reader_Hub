@@ -3,7 +3,7 @@ import {fixture} from './regression/audit-v012.mjs';
 import {createJobControl} from '../src/lifecycle/job-control.js';
 import {createHub} from '../src/hub/orchestrator.js';
 import {createJobScope,StaleRunError} from '../src/lifecycle/jobs.js';
-import {createContinuityRuntime} from '../src/continuity/runtime.js';
+import {analysisFixture} from './fixtures/analysis-runtime.mjs';
 import {createGenerationLifecycle} from '../src/lifecycle/generation.js';
 
 // Stop while generation is waiting for the previous emotion request, before Jev starts.
@@ -29,11 +29,11 @@ for(const waitAt of ['reconcileInjection','waitForOutputChanges','waitForProfile
 // A chat switch changes the current identity before cancellation is delivered.
 const cancelled=[];
 const deps={pendingProfileStateRequests:new Map([['emotion',{cancel:()=>cancelled.push('emotion')}]]),
-    reasonerJobs:new Map([['old-chat',{cancel:()=>cancelled.push('old')}],['new-chat',{cancel:()=>cancelled.push('new')}]]),
+    analysis:{cancel:()=>cancelled.push('analysis')},
     reasonerGeneration:0,stateChatKey:()=> 'new-chat',hub:{invalidate:()=>cancelled.push('hub')}};
 createJobControl(deps).invalidateReasonerJobs();
-assert.deepEqual(new Set(cancelled),new Set(['emotion','old','new','hub']));
-assert.equal(deps.reasonerJobs.size,0);
+assert.deepEqual(new Set(cancelled),new Set(['emotion','analysis','hub']));
+
 assert.equal(deps.pendingProfileStateRequests.size,0);
 
 // Rapid stop/restart must clear local stage waits without waiting for a hung host.
@@ -75,24 +75,13 @@ for(const autoJudge of [false,true]) {
     assert.equal(calls,0,'cancelled cached reroll must not fall through into a new judgment');
 }
 
-// Cancellation must not leave the same output permanently marked as collected.
-let requests=0;
-const rec={};
-const continuityDeps={settings:{continuityEnabled:true,reasonerProfileId:'synthetic'},connectionRequestService:{},
-    splitOocText:text=>({rpText:text}),sourceRevisionKey:()=> 'source',selectedWorld:()=>null,
-    stateChatKey:()=> 'synthetic',getContext:()=>({chat:[]}),reasonerJobs:new Map(),reasonerGeneration:0,
-    normalizeContinuity:()=>({items:[],knowledge:[],dependencies:[]}),continuityView:()=>({}),
-    requestWithConnectionProfile:(_service,_profile,_system,_data,{signal})=>{
-        requests++;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));
-    }};
-const continuity=createContinuityRuntime(continuityDeps);
-const pending={outputText:'Synthetic output.',outputFingerprint:'synthetic-output',outputIndex:0,sourceKey:'source'};
-for(let i=0;i<2;i++) {
-    await continuity.postVerifiedCharacterOutput(rec,pending,null,'changed');
-    const task=continuityDeps.reasonerJobs.get('synthetic');
-    continuityDeps.reasonerGeneration++;task.cancel();await task;
-    assert.equal(rec.lastReasonerSource,undefined);
-    assert.equal(rec.lastContinuityTrace.status,'cancelled');
+// Cancellation releases the actual current collector; intentional retry remains possible.
+const stopped=analysisFixture();let requests=0;
+stopped.deps.requestWithConnectionProfile=(_s,_p,_system,_data,{signal})=>{requests++;return new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));};
+for(let i=0;i<2;i++){
+ const pending=stopped.analysis.requestManual();while(requests<=i)await new Promise(r=>setImmediate(r));
+ stopped.analysis.cancel('generation_stopped');assert.equal((await pending.completion).status,'cancelled');assert.equal(stopped.analysis.busy,false);
+ assert.equal(stopped.records.get('room-A').characterEvolutionV1,undefined);
 }
-assert.equal(requests,2,'a cancelled output can be intentionally collected again');
-console.log('Stop boundaries passed: waiting preparation, paired interceptor, next intentional run and old-chat auxiliary cancellation.');
+assert.equal(requests,2);
+console.log('Stop boundaries passed: generation preparation and current collector cancellation/retry.');

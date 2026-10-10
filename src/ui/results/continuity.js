@@ -1,6 +1,7 @@
+import {renderChangeReview} from '../change-review.js';
 import {renderEvolutionStatus} from '../evolution-status.js';
-import { continuityView } from "../../continuity/state-adapter.js";
-import { normalizeContinuity } from "../../continuity/engine.js";
+import {continuityView} from "../../continuity/state-adapter.js";
+import {normalizeContinuity} from "../../continuity/engine.js";
 
 export function createContinuityView(deps) {
 function renderReasonerProfiles() {
@@ -19,13 +20,14 @@ function renderReasonerProfiles() {
 function renderContinuity() {
     const {settings, characterStore, backupList, reasonerProfiles, reasonerProfileError, characterAnalysisSelection, activeInjectionPayload} = deps.readState();
     renderEvolutionStatus({analysis:deps.getAnalysis?.(),document:deps.document,record:deps.record(),settings,store:characterStore,escapeHtml:deps.escapeHtml});
+    renderChangeReview({document:deps.document,window:deps.window,record:deps.record(),changes:deps.getChanges?.(),analysis:deps.getAnalysis?.(),escapeHtml:deps.escapeHtml});
     const root = deps.document.getElementById('sr-continuity-results');
     if (!root) return;
     if (!settings.continuityEnabled) { root.innerHTML = '<p class="sr-help">연속성 추론이 꺼져 있습니다.</p>'; return; }
     const rec = deps.record();
     const trace = rec?.lastContinuityTrace || {};
     const state = normalizeContinuity(rec ? continuityView(rec) : null);
-    const status = { analyzing: '보조 모델 분석 중', pending_jev: 'Jev 검증 대기', empty: '연결할 후속 상태 없음', verified: 'Jev 검증 완료', error: '보조 모델 실패 · 기본 판독은 계속 실행' }[trace.status] || '새 변화 대기';
+    const status = { saved: '수집 완료 · 저장된 내용 반영', needs_review: '수집 내용 확인 필요', partial: '일부 분석 대기', analyzing: '보조 모델 분석 중', pending_jev: 'Jev 검증 대기', empty: '연결할 후속 상태 없음', verified: 'Jev 검증 완료', error: '보조 모델 실패 · 기본 판독은 계속 실행' }[trace.status] || '새 변화 대기';
     const profile = reasonerProfiles.find((item) => item.id === settings.reasonerProfileId);
     const profileStatus = profile?.name || (settings.reasonerProfileId ? '선택한 프로필을 찾지 못함' : '미선택');
     const rows = [`<div class="sr-decision-row"><span>상태</span><strong>${deps.escapeHtml(status)}</strong></div>`,

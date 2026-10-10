@@ -1,5 +1,5 @@
-import {recordText,hash53} from '../retrieval/identity.js';
-import {validateSourceRefs} from '../continuity/analysis-window.js';
+import {recordText, hash53} from '../retrieval/identity.js';
+import {eligibleSource} from '../continuity/source-eligibility.js';
 const chars=t=>Array.from(String(t)).length,bytes=t=>new TextEncoder().encode(String(t)).length;
 export function normalizeEvolution(value) {return {schemaVersion:1,revision:Math.max(0,Number(value?.revision)||0),entries:structuredClone(Array.isArray(value?.entries)?value.entries:[]),excludedProposals:structuredClone(value?.excludedProposals||[])};}
 export function baseRecordRef(bank,record,index,fingerprint) {
@@ -37,6 +37,6 @@ export function evolutionMatchesBase(item,store) {
 }
 export function confirmedEvolution(record,{chat,chatRef,fingerprint,store}) {
  const inherited=Boolean(record.sharedReference||record.legacyCarryReferenceV1),cache=new Map();
- const valid=ref=>{const key=JSON.stringify(ref);if(!cache.has(key))cache.set(key,ref.originChatRef===chatRef?validateSourceRefs([ref],{chatRef,chat,fingerprint,allowHidden:true}):inherited);return cache.get(key);};
+ const valid=ref=>{const key=JSON.stringify(ref);if(!cache.has(key))cache.set(key,eligibleSource([ref],{record,chatRef,chat,fingerprint,inherited}));return cache.get(key);};
  return {...record.characterEvolutionV1,entries:(record.characterEvolutionV1?.entries||[]).filter(e=>evolutionMatchesBase(e,store)&&e.evidenceRefs?.length&&e.evidenceRefs.every(valid))};
 }

@@ -1,11 +1,13 @@
-import { MEMORY_REFERENCE_ENABLED } from "../memory/context.js";
-import { CORE_SHA256 } from "../vendor/character-reasoner/version.js";
-import { knowledgeVaultRevision } from '../integration/knowledge-vault.js';
+import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
+import {CORE_SHA256} from "../vendor/character-reasoner/version.js";
+import {knowledgeVaultRevision} from '../integration/knowledge-vault.js';
+import {visibilityKey} from './visibility.js';
 
 export function createSourceRevision(deps) {
 function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
     const vaultRevision=includeVault ? knowledgeVaultRevision(deps.window?.KnowledgeVaultV1,deps.stableFingerprint) : '';
     return deps.stableFingerprint({
+        visibility:visibilityKey(deps.getContext?.()?.chat||[]),
         ...(rec?.sharedSource?{sharedReference:[rec.sharedSource.baselineId,rec.sharedSource.baselineRevision,rec.sharedSource.assetId,rec.sharedSource.epoch,rec.sharedReference?.sourceCheckpoint]}:{}),
         ...(vaultRevision ? {vaultRevision} : {}),
         world: { id: world?.id || '', name: world?.name || '', hint: world?.hint || '', prompt: world?.prompt || '', franchise: Boolean(world?.franchise), calendarTopics: world?.calendarTopics || [], advanced: world?.advanced || null },
@@ -21,7 +23,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         drawContract: 2,
         characterCore: CORE_SHA256,
         characterEnabled: Boolean(deps.characterStore.enabled),
-        preferences: rec?.preferences, recentTurns: deps.settings.recentTurns,
+        preferences: Object.fromEntries(Object.entries(rec?.preferences||{}).filter(([key])=>!['injectionMode','worldInjectionMode','scenePresetSlot','worldPresetSlot'].includes(key))), recentTurns: deps.settings.recentTurns,
         lorebooks: MEMORY_REFERENCE_ENABLED && rec?.preferences?.lorebookMemory ? {
             books: deps.linkedCharacterBooks(deps.getContext(), deps.worldInfoModule?.world_info).map(name => [name, deps.lorebookRevisions.get(name) || '']),
             caseSensitive: deps.worldInfoModule?.world_info_case_sensitive,

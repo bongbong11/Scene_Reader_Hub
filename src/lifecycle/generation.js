@@ -1,6 +1,6 @@
 import {continuityCacheMatches} from '../continuity/cache.js';
 // Extracted from Scene Reader 0.26.2; behavior preserved.
-import { recentTurnCount } from '../context/turn-settings.js';
+import {recentTurnCount} from '../context/turn-settings.js';
 export function createGenerationLifecycle(deps) {
 async function generationBoundary(task) {
     const chatKey=deps.stateChatKey();
@@ -44,6 +44,8 @@ async function onLorebookUpdated(name, data) {
 async function prepareGeneration(type, data, dryRun, preparation) {
     preparation?.assert();
     if (dryRun || data?.quiet_prompt || type === 'quiet') return;
+    await deps.checkVisibility?.();
+    preparation?.assert();
     const startedChatKey = deps.stateChatKey();
     if(deps.isStorageBusy?.()) {
         await deps.clearInjection({chatKey:startedChatKey});
@@ -212,6 +214,7 @@ async function onChatChanged() {
         return;
     }
     deps.chatReadyKey = deps.stateChatKey();
+    await deps.checkVisibility?.();
     await deps.loadStateHistory();
     if(chatKey!==deps.stateChatKey())return;
     deps.setFormValues();
@@ -224,6 +227,7 @@ async function prepareBeforeGeneration(type,data={},dryRun=false,trigger='after_
         deps.hub.report('trigger','GENERATION_SKIPPED',{trigger,type:String(type||'normal'),dryRun:Boolean(dryRun)});
         return prepareGeneration(type,data,dryRun);
     }
+    await deps.checkVisibility?.();
     const pendingUserText=deps.pendingComposerText(type,data,deps.document.getElementById('send_textarea')?.value);
     const cycleSalt=deps.generationCycleSalt(deps.getContext().chat,type,data);
     const request={type,data,dryRun,pendingUserText,cycleSalt,inputKey:deps.currentInputKey(pendingUserText,cycleSalt),contextKey:deps.recentContext(pendingUserText).contextKey,sourceKey:deps.sourceRevisionKey(deps.record(),deps.selectedWorld())};

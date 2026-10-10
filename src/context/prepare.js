@@ -1,4 +1,4 @@
-import { MEMORY_REFERENCE_ENABLED } from "../memory/context.js";
+import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
 import {storylineReference} from './storyline-reference.js';
 import {ensureSharedWorld} from '../world/shared-library.js';
 
@@ -34,8 +34,6 @@ await deps.waitForOutputChanges?.();
     await deps.waitForProfileState?.();
     run.assert();
 
-    (frame.waitingReasoner = deps.settings.continuityEnabled ? deps.reasonerJobs.get(deps.stateChatKey()) : null);
-    if (frame.waitingReasoner) await Promise.race([frame.waitingReasoner, new Promise((resolve) => setTimeout(resolve, 180))]).catch((error) => console.warn('[씬판독기] Reasoner 결과 대기 실패', error));
     run.assert();
     (frame.rec = deps.stagedRecord(deps.record(true)));
     frame.storylineReference=storylineReference(frame.rec);

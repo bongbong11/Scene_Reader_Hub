@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.5');
+assert.equal(manifest.version, '0.2.6');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -744,7 +744,7 @@ for (const id of ['sr-settings-button', 'sr-character-enabled', 'sr-character-ed
 }
 assert.match(source, /\[\['sr-character-new', 'character'\], \['sr-persona-new', 'persona'\], \['sr-npc-sheet-new', 'npc'\]\].*addEventListener/);
 assert.match(source, /resolveLiveCharacterPlan/);
-assert.match(source, /buildCharacterTurnQuestions\(liveCharacters\)/);
+assert.match(source, /buildCharacterTurnQuestions\(liveCharacters,sceneGate\.participationObservations\|\|\{\}\)/);
 assert.match(source, /selectActiveEntries\(characterStore, transcript/);
 assert.match(source, /carriedCharacterIds/);
 assert.match(source, /characterTrace/);

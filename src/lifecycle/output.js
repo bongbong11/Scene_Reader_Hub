@@ -1,6 +1,6 @@
-import { selectedStateSwipe } from "../character/state-contract.js";
-import { captureDiagnostic } from '../character/state-coverage.js';
-import { notifyVaultOutput } from '../integration/vault-output.js';
+import {isMessageHidden} from '../context/visibility.js';
+import {selectedStateSwipe} from "../character/state-contract.js";
+import {captureDiagnostic} from '../character/state-coverage.js';
 
 export function createOutputEvents(deps) {
 async function processCharacterMessageReceived(messageId) {
@@ -14,7 +14,7 @@ async function processCharacterMessageReceived(messageId) {
     const stateCollectionPaused = deps.activeGenerationCycle?.stateCollectionPaused === true;
     // Remove recognizable metadata even if a generation was stopped or its roster
     // was cleared while the completed response was arriving.
-    const collected = output && !output.is_user && !output.is_system ? deps.collectMainOutputState(output.mes, roster) : null;
+    const collected = output && !output.is_user && !isMessageHidden(output) ? deps.collectMainOutputState(output.mes, roster) : null;
     if (collected?.found) {
         const raw = output.mes;
         output.mes = collected.text;
@@ -22,10 +22,10 @@ async function processCharacterMessageReceived(messageId) {
         if (output.swipes?.[swipeId] === raw) output.swipes[swipeId] = collected.text;
     }
     let captureChanged = false;
-    if (rec && cycleMode === 'rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey === deps.stateChatKey()) && output && !output.is_user && !output.is_system && stateCollectionPaused) {
+    if (rec && cycleMode === 'rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey === deps.stateChatKey()) && output && !output.is_user && !isMessageHidden(output) && stateCollectionPaused) {
         rec.characterStateCapture = { outputIndex, status:'paused', count:0, source:collectorMode };
         captureChanged = true;
-    } else if (rec && cycleMode === 'rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey === deps.stateChatKey()) && output && !output.is_user && !output.is_system && roster.length) {
+    } else if (rec && cycleMode === 'rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey === deps.stateChatKey()) && output && !output.is_user && !isMessageHidden(output) && roster.length) {
         if (collectorMode === 'main-output' && deps.activeGenerationCycle?.stateCaptureEnabled) {
             const result = collected;
             if (!String(output.mes || '').trim()) { result.states = []; result.error = 'empty_output'; }
@@ -37,7 +37,7 @@ async function processCharacterMessageReceived(messageId) {
             rec.characterStateCapture={outputIndex,status:'skipped',skipReason:'main_capture_unavailable',count:0,source:collectorMode};
             captureChanged=true;
         }
-    } else if(rec && cycleMode==='rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey===chatKey) && output && !output.is_user && !output.is_system) {
+    } else if(rec && cycleMode==='rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey===chatKey) && output && !output.is_user && !isMessageHidden(output)) {
         rec.characterStateCapture={outputIndex,status:'skipped',skipReason:'no_capture_targets',count:0,source:collectorMode};
         captureChanged=true;
     }
@@ -71,7 +71,7 @@ async function processCharacterMessageReceived(messageId) {
         }
         return;
     }
-    if (!rec?.pendingPlan) { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); notifyVaultOutput(deps, rec, outputIndex); return; }
+    if (!rec?.pendingPlan) { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); return; }
     if (deps.activeGenerationCycle?.inputKey && deps.activeGenerationCycle.inputKey !== rec.pendingPlan.inputKey) {
         deps.pendingGenerationType = '';
         deps.activeGenerationCycle = { mode: 'rp', inputKey: '', startedAt: '' };
@@ -80,7 +80,7 @@ async function processCharacterMessageReceived(messageId) {
     }
     const index = outputIndex;
     const message = (deps.getContext().chat || [])[index];
-    if (!message || message.is_user || message.is_system) { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); return; }
+    if (!message || message.is_user || isMessageHidden(message)) { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); return; }
     rec.pendingPlan.outputIndex = index;
     rec.pendingPlan.outputText = String(message.mes || '');
     rec.pendingPlan.outputFingerprint = deps.stableFingerprint(rec.pendingPlan.outputText);
@@ -90,7 +90,7 @@ async function processCharacterMessageReceived(messageId) {
     await deps.persistChat();
     if(chatKey!==deps.stateChatKey())return;
     deps.renderAll();
-    notifyVaultOutput(deps, rec, outputIndex);
+
 }
 
 async function onCharacterMessageReceived(messageId) {

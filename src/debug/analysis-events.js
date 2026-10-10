@@ -1,4 +1,4 @@
-const numeric=new Set(['turnCount','messageCount','candidateCount','acceptedCount','pendingCount','inputChars','outputChars','durationMs']);
+const numeric=new Set(['turnCount','messageCount','candidateCount','acceptedCount','pendingCount','inputChars','outputChars','durationMs','baselineCount','baselineTotal','repairCount','invalidCount']);
 export function analysisFailureCode(error){return typeof error?.code==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:error?.name==='AbortError'?'ANALYSIS_CANCELLED':'ANALYSIS_FAILED';}
 export function analysisDiagnostic(note,code,details={}) {
  const safe={module:'src/continuity/analysis-runtime.js',status:details.status||'info'};

@@ -1,12 +1,14 @@
-import { stableFingerprint } from "../decision/policy.js";
+import {stableFingerprint} from "../decision/policy.js";
+import {isMessageHidden} from './visibility.js';
 
 export function messageSnapshot(chat) {
     return (Array.isArray(chat) ? chat : []).map((message) => ({
-        role: message?.is_user ? 'user' : message?.is_system ? 'system' : 'character',
+        role: message?.is_user ? 'user' : 'character',
         fingerprint: stableFingerprint(String(message?.mes || '')),
         swipe: message?.swipe_id ?? null,
         explicitId: message?.extra?.sceneReaderMessageId || message?.send_date || null,
         ooc: message?.extra?.ooc_chat === true,
+        hidden: isMessageHidden(message),
     }));
 }
 
@@ -14,7 +16,8 @@ export function firstChangedMessage(before, after) {
     if (!Array.isArray(before)) return 0;
     const count = Math.min(before.length, after.length);
     for (let index = 0; index < count; index += 1) {
-        if (JSON.stringify(before[index]) !== JSON.stringify(after[index])) return index;
+        const {hidden:_beforeHidden,...prior}=before[index],{hidden:_afterHidden,...current}=after[index];
+        if (JSON.stringify(prior) !== JSON.stringify(current)) return index;
     }
     return before.length === after.length ? -1 : count;
 }

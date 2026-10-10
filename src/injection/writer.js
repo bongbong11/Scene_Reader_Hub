@@ -1,6 +1,8 @@
-import { StaleRunError } from "../lifecycle/jobs.js";
-import { normalizePresetSlot } from './preset-catalog.js';
-import { clearLegacyPrompts } from './legacy-cleanup.js';
+import {StaleRunError} from "../lifecycle/jobs.js";
+import {normalizePresetSlot} from './preset-catalog.js';
+import {clearLegacyPrompts} from './legacy-cleanup.js';
+import {judgmentVisibilityCurrent} from './source-validity.js';
+import {visibilityKey} from '../context/visibility.js';
 
 export function createInjectionWriter(deps) {
 function queueInjectionWrite(task) {
@@ -18,10 +20,11 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     const judgment = rec?.lastJudgment;
     const chatKey=deps.stateChatKey();
     const world = deps.selectedWorld(rec);
-    const sourceCurrent=!judgment?.sourceKey || judgment.sourceKey===deps.sourceRevisionKey(rec,world);
+    const visibility=visibilityKey(deps.getContext().chat||[]);
+    const sourceCurrent=judgmentVisibilityCurrent(judgment,deps.getContext().chat||[])&&(!judgment?.sourceKey || judgment.sourceKey===deps.sourceRevisionKey(rec,world));
     const payload = deps.settings.enabled && sourceCurrent && judgment?.payload ? judgment.payload : '';
     const judgmentPayload = judgment?.payload;
-    const assertOwner=()=>{validate?.();if(chatKey!==deps.stateChatKey() || rec!==deps.record() || judgment!==deps.record()?.lastJudgment || judgment?.payload!==judgmentPayload)throw new StaleRunError();};
+    const assertOwner=()=>{validate?.();if(visibility!==visibilityKey(deps.getContext().chat||[]) || chatKey!==deps.stateChatKey() || rec!==deps.record() || judgment!==deps.record()?.lastJudgment || judgment?.payload!==judgmentPayload)throw new StaleRunError();};
     const worldPayload = deps.settings.enabled
         ? String(exactSnapshot ? rec?.lastJudgment?.worldPayload || '' : sourceCurrent && rec?.lastJudgment?.worldId === world?.id ? rec.lastJudgment.worldPayload || '' : world?.prompt || '')
         : '';
@@ -32,7 +35,7 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     assertOwner();
     await deps.setExtensionPrompt(deps.WORLD_INJECT_KEY, worldPreset ? '' : worldPayload, deps.IN_CHAT, 0, false, deps.SYSTEM_ROLE);
     assertOwner();
-    const roster = deps.settings.enabled ? deps.stateRoster(deps.characterStore, rec?.preferences, rec?.lastJudgment,{recheckOutput:deps.STATE_COLLECTOR_MODE==='profile-output'}) : [];
+    const roster = deps.settings.enabled && sourceCurrent ? deps.stateRoster(deps.characterStore, rec?.preferences, rec?.lastJudgment,{recheckOutput:deps.STATE_COLLECTOR_MODE==='profile-output'}) : [];
     const stateCollectionPaused = rec?.lastJudgment?.sceneIntimacy?.route === 'paused';
     const context = deps.getContext();
     const multipleOutputs = context.mainApi === 'openai' && Number(context.chatCompletionSettings?.n) > 1;
@@ -49,7 +52,7 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     deps.activeInjectionPayload = payload;
     deps.activeMacroPayload = '';
     deps.activeWorldMacroPayload = '';
-    deps.activeGenerationCycle = { ...deps.activeGenerationCycle, injection:{chatKey,payload,worldPayload,capturePayload,additionBlocks:payload?judgment?.additionBlocks||[]:[],scenePreset,worldPreset,sceneSlot:normalizePresetSlot(rec?.preferences?.scenePresetSlot),worldSlot:normalizePresetSlot(rec?.preferences?.worldPresetSlot),registrationVerified:Boolean(slots),judgmentWarning:Boolean(judgment?.sceneIntimacy?.error||[judgment?.opportunityPlan?.event,judgment?.opportunityPlan?.person].some(item=>item?.reasonCode==='invalid_selection')||(judgment?.jevDiagnostics?.valid<judgment?.jevDiagnostics?.requested))}, stateRoster: roster, stateCollectorMode: deps.STATE_COLLECTOR_MODE, stateCollectionPaused, stateCaptureEnabled: !scenePreset && mainCapture && roster.length > 0 };
+    deps.activeGenerationCycle = { ...deps.activeGenerationCycle, injection:{chatKey,visibilityKeyV1:visibility,payload,worldPayload,capturePayload,additionBlocks:payload?judgment?.additionBlocks||[]:[],scenePreset,worldPreset,sceneSlot:normalizePresetSlot(rec?.preferences?.scenePresetSlot),worldSlot:normalizePresetSlot(rec?.preferences?.worldPresetSlot),registrationVerified:Boolean(slots),judgmentWarning:Boolean(judgment?.sceneIntimacy?.error||[judgment?.opportunityPlan?.event,judgment?.opportunityPlan?.person].some(item=>item?.reasonCode==='invalid_selection')||(judgment?.jevDiagnostics?.valid<judgment?.jevDiagnostics?.requested))}, stateRoster: roster, stateCollectorMode: deps.STATE_COLLECTOR_MODE, stateCollectionPaused, stateCaptureEnabled: !scenePreset && mainCapture && roster.length > 0 };
     const preview = deps.document.getElementById('sr-prompt-preview');
     if (preview) preview.textContent = payload || '현재 주입문 없음';
     deps.hub?.report('injection.register','PROMPT_REGISTERED',{payloadChars:payload.length,worldChars:worldPayload.length,scenePreset,worldPreset,inputKey:rec?.lastJudgment?.inputKey||''});

@@ -8,7 +8,7 @@ const judge=(level,phase,evidence,previous='normal')=>resolveSceneGate({scene_le
 assert.equal(judge('2','normal','1').route,'normal','kissing does not pause the route');
 assert.equal(judge('3','active','none').route,'normal','an active answer needs cited RP evidence');
 assert.equal(judge('3','active','99').route,'normal','fabricated evidence is rejected');
-assert.deepEqual(judge('3','active','2'),{route:'paused',transition:'entered',level:3,phase:'active',evidence:'2',participantIds:['wade']});
+assert.deepEqual(judge('3','active','2'),{route:'paused',transition:'entered',level:3,phase:'active',evidence:'2',participantIds:['wade'],participationObservations:{wade:{choice:'direct',confidence:1}}});
 assert.equal(judge('0','unclear','none','paused').route,'paused','unclear does not silently resume');
 assert.equal(judge('2','paused','2','paused').route,'paused','temporary interruption stays in scene');
 assert.equal(judge('0','ended','2','paused').transition,'exited','confirmed scene end resumes ordinary flow');

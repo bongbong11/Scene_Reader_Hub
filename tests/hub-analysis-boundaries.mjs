@@ -36,7 +36,7 @@ assert.equal(rapid.map.get('test').analysisRuntimeV1.turnRefs.length,2);
 rapid.deps.requestWithConnectionProfile=async(...args)=>{rapid.requests.push(args);return reply(false);};await rapid.turn(6);assert.equal(rapid.requests.length,2);
 // Hidden unprocessed evidence is visibly missing; unhide restores the same range.
 const hiddenChat=[{is_user:true,mes:'Question'},{is_user:false,mes:'Hidden unread answer'}];const cfg={chatRef:'test',chat:hiddenChat,outputIndex:1,generationType:'normal',fingerprint:hash};
-let hidden=observeCompletedTurn(null,cfg);hiddenChat[1].is_hidden=true;hidden=pruneAnalysisRuntime(hidden,cfg);assert.equal(hidden.turnRefs.length,1);assert.equal(hidden.coverageGaps.length,1);
+let hidden=observeCompletedTurn(null,cfg);hiddenChat[1].is_hidden=true;hidden=pruneAnalysisRuntime(hidden,cfg);assert.equal(hidden.turnRefs.length,1);assert.equal(hidden.coverageGaps.length,0);assert.equal(hidden.excludedHidden.length,1);
 hiddenChat[1].is_hidden=false;assert.equal(buildAnalysisWindow(hidden,cfg).segments.at(-1).text,'Hidden unread answer');hidden=pruneAnalysisRuntime(hidden,cfg);assert.equal(hidden.coverageGaps.length,0);
 // One old hidden gap does not retain every later completed turn and ledger.
 let gapRuntime=observeCompletedTurn(null,cfg);hiddenChat[1].is_hidden=true;
@@ -89,7 +89,7 @@ assert.equal(validate(basePacket).candidates.length,0);basePacket.character_chan
 const partial=environment();partial.deps.characterStore={enabled:true,characters:[person],npcs:[]};partial.deps.selectActiveEntries=()=>[person];let batchCall=0;
 partial.deps.requestWithConnectionProfile=async(_c,_p,_s,input)=>{batchCall++;return {result:{...reply(false).result,coverage:{memory:batchCall===1?'deferred':'complete',characters:'complete',persona:'not_requested'},memory_changes:[{op:'add',kind:'fact',owners:['a'],target_ids:[],summary:'Actor remembers fact '+batchCall,lifecycle:'active',source_type:'world_fact',epistemic:'established',evidence:[{ref:batchCall===1?'r1':'r3',quote:'Answer '+batchCall}]}]}};};
 for(let i=1;i<=3;i++)await partial.turn(i);assert.equal(partial.map.get('test').analysisRuntimeV1.pendingBatches[0].candidates.length,1);
-await partial.analysis.queue(5,{manual:true});assert.equal(partial.map.get('test').analysisRuntimeV1.pendingBatches.length,1);assert.equal(partial.map.get('test').analysisRuntimeV1.pendingBatches[0].candidates.length,2);assert.equal(partial.map.get('test').analysisRuntimeV1.turnRefs.length,0);
+await partial.analysis.queue(5,{manual:true});assert.equal(partial.map.get('test').analysisRuntimeV1.pendingBatches.length,1);assert.equal(partial.map.get('test').continuity.items.filter(i=>i.id.startsWith('continuity:delta:')).length,2,'both partial responses persist without a Jev vote');assert.deepEqual(partial.map.get('test').continuity.items.map(i=>i.label).sort(),['Actor remembers fact 1','Actor remembers fact 2']);assert.equal(partial.map.get('test').analysisRuntimeV1.turnRefs.length,0);
 // Full final wire input, including a large vault card and topic comparison,
 // remains bounded and does not read a full source bank.
 const combined=vaultEnvironment();combined.env.deps.window.KnowledgeVaultV1.beginAnalysis=()=>({token:'t',input:{card:'v'.repeat(10000)},system:'Vault',count:1});

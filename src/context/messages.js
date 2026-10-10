@@ -1,6 +1,7 @@
+import {isMessageHidden} from './visibility.js';
 export function isVisibleRoleplayMessage(message) {
     if (!message || message.is_system) return false;
-    if (message.is_hidden || message.hidden || message.extra?.hidden || message.extra?.exclude_from_prompt) return false;
+    if (isMessageHidden(message)) return false;
     return Boolean(String(message.mes ?? '').trim());
 }
 

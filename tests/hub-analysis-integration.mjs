@@ -18,27 +18,37 @@ for(const route of ['normal','paused']){
  const candidate={id:'proposal',type:'character',section:'evolution',status:'pending',attempts:0,sourceIndex:1,evidence:[{identity:proof,quote:'I trust Blake with this task.'}],baseline:rule,prior:null,
   data:{actorId:'a',baseRef:baseRecordRef(actor.recordBank,rule,0,hash),existingId:null,operation:'exception',category:'relationship',compactRule:'Arden trusts Blake with this task.',stateSummary:null,compactStatus:'fits',exportEligible:true,scope:{actorId:'a',targetIds:['b']},sourceType:'world_fact',epistemic:'established'}};
  f.sandbox.batch={id:'batch',refs:[proof],coverage:{continuity:'complete',evolution:'complete',persona:'not_requested'},candidates:[candidate],status:'pending'};
- f.run('record().analysisRuntimeV1={pendingBatches:[batch]};');
+ let profileCalls=0;
+ f.sandbox.mockProfile=async(_service,_profile,_system,input)=>{
+  profileCalls++;const base=input.baseline_records.find(b=>b.actorId==='a'),segment=input.source_segments.find(s=>s.role==='assistant');
+  return {result:{protocol:1,coverage:{memory:'complete',characters:'complete',persona:'not_requested'},memory_changes:[],knowledge_changes:[],deferred_changes:[],character_changes:[{actor_id:'a',base_ref:base.ref,record_type:rule.type,target_ids:['b'],op:'exception',compact_rule:candidate.data.compactRule,source_type:'world_fact',epistemic:'established',evidence:[{ref:segment.ref,quote:'I trust Blake with this task.'}]}]}};
+ };
+ f.run('connectionRequestService={};requestWithConnectionProfile=mockProfile;');
+ const collected=await f.run('analysis.requestManual().completion');
+ assert.equal(collected.status,'saved');assert.equal(profileCalls,1);
+
  f.sandbox.mockJev=async body=>{
   requests.push(body);const answers={};
   for(const [key,q]of Object.entries(body.questions)){
    if(q.type==='noul'){answers[key]={type:'noul',noul:0.85};continue;}
    let choice=Object.hasOwn(q.criteria,FALLBACKS[key])?FALLBACKS[key]:Object.keys(q.criteria)[0];
-   if(key==='continuity_delta_0')choice='supported';
+   assert.ok(!key.startsWith('continuity_delta_'),'collection is not rejudged by Jev');
+   if(key.startsWith('scene_participant_'))choice='direct';
    if(key==='scene_phase')choice=route==='paused'?'active':'normal';
    if(key==='scene_level')choice=route==='paused'?'4':'0';
    if(key==='scene_evidence')choice=Object.keys(q.criteria).filter(k=>k!=='none').at(-1);
    if(/^character_\d+_presence$/.test(key))choice='active';
    if(/^character_\d+_participation$/.test(key))choice='direct';
    answers[key]={choice,confidence:0.95};
+   if(key==='scene_participant_0')answers[key]={choice:'direct',confidence:.53,probabilities:{unknown:0,direct:.61,remote:.03,continuing:.35,departed:0,reference:.01}};
   }
   return {answers};
  };
  f.run('callJev=mockJev;');
  await f.run('runJudge({force:true})');
  const saved=JSON.parse(f.run('JSON.stringify(record())'));
- assert.equal(saved.characterEvolutionV1.entries[0].compactRule,candidate.data.compactRule,'gate commits a periodic proposal through the actual storage pipeline');
- assert.equal(requests[0].questions.continuity_delta_0.type,'choice');
+ assert.equal(saved.characterEvolutionV1.entries[0].compactRule,candidate.data.compactRule,'profile collection commits through actual storage before the next judgment');
+ assert.ok(requests.every(r=>!Object.keys(r.questions).some(k=>k.startsWith('continuity_delta_'))));
  if(route==='normal'){
   const selection=requests.find(r=>r.state.character_profiles);
   assert.ok(selection.questions.character_0_record_0.instructions.includes(candidate.data.compactRule));

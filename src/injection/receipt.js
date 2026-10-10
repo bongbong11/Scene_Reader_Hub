@@ -1,4 +1,5 @@
-import { stableFingerprint } from '../decision/policy.js';
+import {injectionSourceCurrent} from './source-validity.js';
+import {stableFingerprint} from '../decision/policy.js';
 import {rememberOpportunity} from '../scene/opportunities.js';
 
 function promptText(data) {
@@ -24,7 +25,8 @@ export function observePromptReceipt(data,{payload='',worldPayload='',additionBl
         additions:additionBlocks.map(({id,feature,templateId,text})=>({id,feature,templateId,status:check(text)}))};
 }
 
-export function createPromptObserver({getExpected,getNames,getCycleId,getRecord=()=>null,report,updateActivity,updateStatus}) {
+export function createPromptObserver({getExpected:readExpected,getContext,getChatKey,getNames,getCycleId,getRecord=()=>null,report,updateActivity,updateStatus}) {
+    const getExpected=()=>{const value=readExpected();return !getContext||injectionSourceCurrent(value,{chat:getContext().chat,chatKey:getChatKey()})?value:null;};
     let enabled=true,pending=null;
     const reported=new Set();
     function start(type,data={},dryRun=false) {enabled=!dryRun&&type!=='quiet'&&!data?.quiet_prompt;pending=null;reported.clear();}

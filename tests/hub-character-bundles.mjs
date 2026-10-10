@@ -24,7 +24,7 @@ assert.deepEqual(recordBundleRows(reloaded,'character').map(row=>[row.name,row.p
 const active=selectActiveEntries(reloaded,'Aster speaks alone after Briar and Cedar leave.','The Archive');
 assert.equal(active.length,3,'card members are candidates for individual presence judgments');
 const plan=buildLiveCharacterPlan(active,{canonicalOnly:true,transcript:'Aster speaks alone in quiet conversation.'});
-assert.match(buildCharacterTurnQuestions(plan).character_0_presence.instructions,/shared card title/);
+assert.match(buildCharacterTurnQuestions(plan).character_0_participation.instructions,/shared multi-person card title/);
 for(const participating of [[],['Aster'],['Aster','Briar'],names]){
  const decisions=Object.fromEntries(plan.flatMap(p=>[[`character_${p.index}_presence`,participating.includes(p.name)?'active':'absent'],[`character_${p.index}_record_0`,'yes']]));
  const resolved=resolveLiveCharacterPlan(plan,decisions),injection=buildCharacterInjection(resolved);

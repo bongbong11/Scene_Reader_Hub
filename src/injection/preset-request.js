@@ -1,5 +1,6 @@
-import { activePresetPrompts } from './preset-catalog.js';
-import { applyPresetSlots, slotBlock } from './preset-position.js';
+import {activePresetPrompts} from './preset-catalog.js';
+import {applyPresetSlots, slotBlock} from './preset-position.js';
+import {injectionSourceCurrent, captureOwnedBlocks, stripOwnedBlocks} from './source-validity.js';
 
 const CHAIN=Symbol.for('hyedam.request-injection.hook-chain.v1');
 const TYPES=new Set(['normal','regenerate','swipe','continue']);
@@ -12,10 +13,10 @@ function ownedHook(previous,owner,wrapper) {
 // Host transport adapter. Eligibility belongs to the current generation only.
 export function createPresetRequest(deps) {
     const fetchOwner=Symbol('scene-reader.request'),captureOwner=Symbol('scene-reader.capture');
-    let host={},active=false,pending=null,ready=null;
+    let host={},active=false,pending=null,ready=null,invalidated=null,owned=[];
     const prepared=new Map(),certified=new Set();
     const cycle=()=>deps.getCycle();
-    function reset(){active=false;pending=null;ready=null;prepared.clear();certified.clear();}
+    function reset(){active=false;pending=null;ready=null;invalidated=null;owned=[];prepared.clear();certified.clear();}
     function capture() {
         const manager=host.promptManager || deps.getContext().promptManager;
         const original=manager?.preparePrompt;
@@ -26,7 +27,9 @@ export function createPresetRequest(deps) {
             return result;
         });
     }
-    function expected(){const value=cycle()?.injection;return deps.isEnabled() && value?.chatKey===deps.getChatKey() ? value : null;}
+    function expected(){const value=cycle()?.injection;return deps.isEnabled() && injectionSourceCurrent(value,{chat:deps.getContext().chat,chatKey:deps.getChatKey()}) ? value : null;}
+    function names(text){const c=deps.getContext();return String(text||'').replace(/\{\{user\}\}/gi,()=>c.name1||'{{user}}').replace(/\{\{char\}\}/gi,()=>c.name2||'{{char}}');}
+    function track(body,value){owned=captureOwnedBlocks(body,[...blocks(value).map(b=>b.content),...(!value.scenePreset?[names(value.payload),names(value.capturePayload)]:[]),...(!value.worldPreset?[names(value.worldPayload)]:[])]);}
     function blocks(value) {
         const context=deps.getContext();
         const names=text=>String(text || '').replace(/\{\{user\}\}/gi,()=>context.name1 || '{{user}}').replace(/\{\{char\}\}/gi,()=>context.name2 || '{{char}}');
@@ -62,16 +65,22 @@ export function createPresetRequest(deps) {
                     const raw=options?.body ?? (typeof input?.clone==='function'?await input.clone().text():null);
                     if(typeof raw==='string') {
                         const body=JSON.parse(raw);
-                        if(active && requestOwner && ready===requestOwner && requestOwner===expected() && (!body.type || TYPES.has(body.type)) && (certified.has(fingerprint(body)) || mainPath)) {
+                        if(active && requestOwner && ready===requestOwner && (!body.type || TYPES.has(body.type)) && (certified.has(fingerprint(body)) || mainPath)) {
+                            if(requestOwner!==expected()){
+                                const removed=stripOwnedBlocks(body,owned);
+                                deps.report('injection.consume','INJECTION_INVALIDATED',{module:'src/injection/source-validity.js',status:'info',removedCount:removed});
+                                if(typeof input?.clone==='function' && options?.body===undefined)request=new deps.window.Request(input,{body:JSON.stringify(body)});else init={...options,body:JSON.stringify(body)};
+                                return previous.call(this,request,init,...rest);
+                            }
                             const report=apply(body,'send');
                             if(report?.changed){
                                 if(typeof input?.clone==='function' && options?.body===undefined)request=new deps.window.Request(input,{body:JSON.stringify(body)});
                                 else init={...options,body:JSON.stringify(body)};
                             }
-                            deps.verifyRequest(body);
+                            deps.verifyRequest(body);requestOwner.requestSent=true;
                         }
                     }
-                } catch(error){deps.report('injection.slot','PRESET_SLOT_SEND_ERROR',{errorKind:error.name || 'Error'});}
+                } catch(error){deps.report('injection.slot','PRESET_SLOT_SEND_ERROR',{errorKind:error.code || error.name || 'Error'});if(error.code==='HUB_STALE_INJECTION')throw error;}
             }
             return previous.call(this,request,init,...rest);
         });
@@ -82,7 +91,7 @@ export function createPresetRequest(deps) {
     }
     function observeAssembly(data,dryRun=false) {
         const messages=Array.isArray(data?.prompt)?data.prompt:Array.isArray(data?.messages)?data.messages:null;
-        pending=active && !dryRun && messages ? {messages,expected:expected()} : null;
+        pending=active && !dryRun && messages ? {messages,expected:expected()||invalidated} : null;
     }
     function observeRequest(body) {
         const value=expected();
@@ -91,13 +100,14 @@ export function createPresetRequest(deps) {
         const original=pending?.messages?.filter(message=>message && typeof message==='object');
         const sameMessages=body?.messages===pending?.messages || Array.isArray(body?.messages) && (original?.length===body.messages.length && body.messages.every((message,index)=>message===original[index]) || body.messages.some(message=>['user','assistant','tool'].includes(message?.role) && original?.includes(message)));
         const auxiliary=/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(String(new Error().stack || ''));
-        if(!active || !pending || !value || pending.expected!==value || !sameMessages || auxiliary || (body.type && !TYPES.has(body.type)))return;
+        if(!active || !pending || !pending.expected || !sameMessages || auxiliary || (body.type && !TYPES.has(body.type)))return;
+        if(!value||pending.expected!==value){if(pending.expected!==invalidated)return;ready=pending.expected;track(body,ready);remember(body);pending=null;return true;}
         pending=null;
-        apply(body,'prepare');ready=value;remember(body);return true;
+        apply(body,'prepare');ready=value;track(body,value);remember(body);return true;
     }
     async function init(){
         try{host=await (deps.loadHost?deps.loadHost():import('/scripts/openai.js'));}catch{host={};}
         capture();installFetch();
     }
-    return {init,start,observeAssembly,observeRequest,reset,prompts:()=>activePresetPrompts(host,deps.getContext())};
+    return {init,start,observeAssembly,observeRequest,reset,invalidate:value=>{invalidated=value||ready||pending?.expected;},prompts:()=>activePresetPrompts(host,deps.getContext())};
 }

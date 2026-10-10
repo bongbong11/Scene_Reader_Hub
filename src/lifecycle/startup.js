@@ -1,5 +1,5 @@
-import { registerEmptyLegacyMacros } from '../injection/legacy-cleanup.js';
-import { recentTurnCount } from '../context/turn-settings.js';
+import {registerEmptyLegacyMacros} from '../injection/legacy-cleanup.js';
+import {recentTurnCount} from '../context/turn-settings.js';
 import {normalizeStoredAnalysisSettings} from '../continuity/analysis-contract.js';
 // Lifecycle coordination only; feature implementation lives in its module.
 export function createStartup(deps) {
@@ -62,6 +62,7 @@ async function init() {
     });
     if (deps.event_types.GENERATION_ENDED) deps.eventSource.on(deps.event_types.GENERATION_ENDED, () => { deps.resetPresetRequest?.();deps.pendingGenerationType = '';deps.hub?.endCycle(); });
     await deps.clearInjection();
+    deps.initVisibility?.();
     console.info('[씬판독기] loaded');
 }
 return {init};

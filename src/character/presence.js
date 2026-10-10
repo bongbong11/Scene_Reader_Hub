@@ -1,4 +1,4 @@
-import { certainty } from '../decision/policy.js';
+import {certainty} from '../decision/policy.js';
 
 export const PARTICIPATION_CHOICES = {
     unknown:'No reliable current participation evidence.',
@@ -9,25 +9,33 @@ export const PARTICIPATION_CHOICES = {
     reference:'Only a memory, quoted past message, speculation, name mention, or unanswered outgoing message references this person.',
 };
 
-// Participation is an observation; next-response routing uncertainty is not proof of absence.
-export function resolveCharacterPresence(plan, details, answers) {
-    for (const person of plan) {
-        const key=`character_${person.index}_presence`, detail=details[key];
-        if (!detail) continue;
-        const evidence=answers[`character_${person.index}_participation`];
-        const valid=Object.hasOwn(PARTICIPATION_CHOICES,evidence?.choice || '') && certainty(evidence)>=0.55;
-        const basis=valid?evidence.choice:'unknown';
-        detail.participationEvidence=basis;
-        detail.presenceUncertain=detail.fallbackApplied && basis==='unknown';
-        let resolved=detail.effective, reason='policy';
-        if (['departed','reference'].includes(basis)) { resolved='absent'; reason=basis; }
-        else if (detail.fallbackApplied) {
-            if (['direct','remote'].includes(basis)) { resolved='active'; reason='observed_participation'; }
-            else { resolved='background'; reason=basis==='continuing'?'continuing_presence':'uncertain_presence'; }
-        }
-        detail.effective=resolved;
-        detail.coordinatorFinal=resolved;
-        detail.presenceResolution=reason;
-        if(resolved!==detail.policyEffective)detail.rule=({observed_participation:'최신 RP의 실제 발화·행동으로 참여 확인',continuing_presence:'계속되는 장면 참여 · 배경 참고',uncertain_presence:'참여 판정 불확실 · 부재로 확정하지 않음',departed:'최신 RP의 퇴장·연결 종료 확인',reference:'현재 참여 없이 회상·언급만 확인'})[reason];
-    }
+export function participationQuestion(person) {
+ return {type:'choice',instructions:`Observe ${person.name}'s actual participation in the LATEST RP exchange, independently of next-response importance, emotions or record relevance. Dialogue with an NPC does not remove another speaking character. Current texts and calls count, but do not grant access to unsent thoughts or unseen surroundings. A later departure overrides earlier presence. Memories, imagined reactions and unanswered outgoing messages are not current participation. A shared multi-person card title or author label does not establish which member speaks.${person.mainSillyTavernName ? ' Differing sheet language or spelling alone is not absence.' : ''}`,criteria:PARTICIPATION_CHOICES};
+}
+const ACTIVE_PARTICIPATION=['direct','remote','continuing'];
+export function participationBasis(answer) {
+ if(!Object.hasOwn(PARTICIPATION_CHOICES,answer?.choice||''))return 'unknown';
+ if(certainty(answer)>=0.55)return answer.choice;
+ // Direct/remote/continuing compete as subtypes, but all establish involvement.
+ // Do not mistake subtype uncertainty for uncertainty that this actor participates.
+ const values=Object.keys(PARTICIPATION_CHOICES).map(key=>answer.probabilities?.[key]);
+ if(ACTIVE_PARTICIPATION.includes(answer.choice)&&values.every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1)
+  &&Math.abs(values.reduce((sum,v)=>sum+v,0)-1)<=0.06
+  &&ACTIVE_PARTICIPATION.reduce((sum,key)=>sum+answer.probabilities[key],0)>=0.75)return 'participating';
+ return 'unknown';
+}
+// Next-response importance is never independent evidence that an actor vanished.
+export function resolveCharacterPresence(plan, details, answers, observed={}) {
+ for(const person of plan){
+  const key=`character_${person.index}_presence`, evidence=Object.hasOwn(observed,person.id)?observed[person.id]:answers[`character_${person.index}_participation`];
+  const basis=participationBasis(evidence),legacy=details[key];
+  const detail=legacy||{selected:basis,policyEffective:'background',effective:'background',fallbackApplied:basis==='unknown',certainty:certainty(evidence),threshold:0.55};
+  let resolved=detail.effective,reason='policy';
+  if([...ACTIVE_PARTICIPATION,'participating'].includes(basis)){resolved='active';reason=basis==='participating'?'participation_group':basis==='continuing'?'continuing_presence':'observed_participation';}
+  else if(['departed','reference'].includes(basis)){resolved='absent';reason=basis;}
+  else if(!legacy||detail.fallbackApplied){resolved='background';reason='uncertain_presence';}
+  Object.assign(detail,{participationEvidence:basis,presenceUncertain:basis==='unknown'&&resolved==='background',effective:resolved,coordinatorFinal:resolved,presenceResolution:reason,
+   rule:({participation_group:'참여 확인 · 직접/원격/유지의 세부 구분만 불확실',observed_participation:'최신 RP의 실제 참여 확인',continuing_presence:'장면에 남아 있는 인물 · 발화 강제 없음',uncertain_presence:'참여 미확인 · 부재로 확정하지 않음',departed:'최신 RP의 퇴장·연결 종료',reference:'회상·언급만 확인'})[reason]||detail.rule});
+  details[key]=detail;
+ }
 }

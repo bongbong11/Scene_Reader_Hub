@@ -24,7 +24,7 @@ for(const developmentStyle of ['static','balanced','dynamic']) for(const progres
         decisions[key]=details[key].effective;
     }
     deriveDependentDecisions(rec,details,decisions);coordinateDecisions(rec,details,decisions);coordinateActionBudget(rec,details,decisions);
-    assert.equal(decisions.basic_move,developmentStyle==='dynamic'?'action':'dialogue');
+    assert.equal(decisions.basic_move,'action','valid bounded expression is not rejected by a second confidence threshold');
     assert.equal(decisions.primary_focus,'direct');
     const payload=buildInjection({settings:rec.preferences,decisions});
     assert.match(payload,/BASIC_DEVELOPMENT/);assert.match(payload,/Be more forthcoming in ONE fitting way/);
@@ -114,6 +114,7 @@ assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS
             if(key==='progress_need')choice='stalled';
             if(key==='basic_move')choice='dialogue';
             if(key==='character_0_presence')choice='active';
+            if(key.startsWith('scene_participant_')||/^character_\d+_participation$/.test(key))choice='direct';
             if(key.startsWith('verification_'))choice='fulfilled';
             answers[key]={choice,confidence:0.95};
         }

@@ -1,5 +1,5 @@
-import { createJobScope, createWriteQueue } from "../lifecycle/jobs.js";
-import { normalizeCharacterStore } from "../character/store.js";
+import {createJobScope, createWriteQueue} from "../lifecycle/jobs.js";
+import {normalizeCharacterStore} from "../character/store.js";
 
 export function createRuntimeState(stateChatKey) {
     return {
@@ -35,8 +35,6 @@ export function createRuntimeState(stateChatKey) {
         reasonerProfiles: [],
         reasonerProfileError: '',
         connectionRequestService: null,
-        reasonerJobs: new Map(),
-        reasonerGeneration: 0,
         pendingProfileStateCollection: Promise.resolve(),
         pendingProfileStateRequests: new Map(),
         profileStateSequence: 0,

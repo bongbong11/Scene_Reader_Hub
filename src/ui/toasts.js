@@ -17,7 +17,8 @@ function placeContainer(container) {
             if(current?.parentElement===dialog)document.body.append(current);
         });
     }
-    const target=dialog?.open?dialog:document.body;
+    const review=document.getElementById('sr-change-dialog');
+    const target=review?.open?review:dialog?.open?dialog:document.body;
     if(container.parentElement!==target)target.append(container);
 }
 

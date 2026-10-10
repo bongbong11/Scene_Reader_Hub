@@ -2,9 +2,9 @@ import {createOutputEvents} from '../lifecycle/output.js';
 import {createRollback} from '../lifecycle/rollback.js';
 import {createInjectionWriter} from '../injection/writer.js';
 import {selectCapabilities} from '../shared/capabilities.js';
-import { notifySceneReaderToast } from '../ui/toasts.js';
-import { selectedStateSwipe } from "../character/state-contract.js";
-import { StaleRunError } from "../lifecycle/jobs.js";
+
+
+
 // Runtime coordination; dependencies are explicit and supplied by the application.
 export function createOutputLifecycle(deps) {
 const services=Object.create(deps);
@@ -19,7 +19,7 @@ Object.defineProperty(services,'resetInjection',{configurable:true,get:()=>reset
 Object.defineProperty(services,'clearInjection',{configurable:true,get:()=>clearInjection});
 Object.defineProperty(services,'outputChangePromise',{configurable:true,get:()=>outputChangePromise,set:value=>{outputChangePromise=value}});
 Object.defineProperty(services,'injectionWrite',{configurable:true,get:()=>injectionWrite,set:value=>{injectionWrite=value}});
-const {onCharacterMessageReceived,onUserMessageSent} = createOutputEvents(selectCapabilities(services,["analysis","noteDiagnostic","STATE_COLLECTOR_MODE","activeGenerationCycle","clearInjection","collectMainOutputState","currentInputKey","debugInjectionArmed","generationMode","getContext","handleOocOnlySkip","latestStateForChat","messageSnapshot","messageSnapshots","pendingGenerationType","persistChat","record","renderAll","scheduleProfileStateCollection","settings","stableFingerprint","stateChatKey","storeStateEvent","updateActivity","updateStatus","window","postVerifiedCharacterOutput","sourceRevisionKey","selectedWorld"]));
+const {onCharacterMessageReceived,onUserMessageSent} = createOutputEvents(selectCapabilities(services,["analysis","noteDiagnostic","STATE_COLLECTOR_MODE","activeGenerationCycle","clearInjection","collectMainOutputState","currentInputKey","debugInjectionArmed","generationMode","getContext","handleOocOnlySkip","latestStateForChat","messageSnapshot","messageSnapshots","pendingGenerationType","persistChat","record","renderAll","scheduleProfileStateCollection","settings","stableFingerprint","stateChatKey","storeStateEvent","updateActivity","updateStatus","window","sourceRevisionKey","selectedWorld"]));
 const {waitForOutputChanges,rollbackChangedOutput,onAssistantOutputChanged} = createRollback(selectCapabilities(services,["applyStoredInjection","attachSelectedOutput","clearInjection","dropStateEventsFrom","firstChangedMessage","getContext","invalidateReasonerJobs","loadStateHistory","messageSnapshot","messageSnapshots","outputChangePromise","record","renderAll","restoreReversibleState","reversibleStateSnapshot","saveSession","stableFingerprint","stateChatKey","storeStateEvent","window"]));
 const {queueInjectionWrite,applyStoredInjection,resetInjection,clearInjection} = createInjectionWriter(selectCapabilities(services,["hub","INJECT_KEY","IN_CHAT","STATE_CAPTURE_KEY","STATE_COLLECTOR_MODE","SYSTEM_ROLE","WORLD_INJECT_KEY","activeGenerationCycle","activeInjectionPayload","activeMacroPayload","activeWorldMacroPayload","characterStore","document","getContext","injectionWrite","isStreamingEnabled","macroAvailable","mainOutputStatePrompt","record","selectedWorld","setExtensionPrompt","settings","sourceRevisionKey","stateChatKey","stateRoster"]));
 

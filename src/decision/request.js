@@ -1,7 +1,7 @@
+import {sexualRoutingState} from '../character/sexual-conduct.js';
 import {ROUTING_SCOPE} from './opportunity-questions.js';
 import {CONTINUATION_POLICY} from '../context/storyline-reference.js';
-import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
-import { publishKnowledgeVault, knowledgeVaultDecisionState } from '../integration/knowledge-vault.js';
+import {publishKnowledgeVault, knowledgeVaultDecisionState} from '../integration/knowledge-vault.js';
 
 export function createDecisionRequest(deps) {
 async function requestDecision(run,frame) {
@@ -10,7 +10,6 @@ async function requestDecision(run,frame) {
             state: {
                 scope: 'Observe established scene facts from recent_roleplay only. A character\'s claim, belief, suspicion, promise, intention, or proposed action is not automatically a world fact or completed action.\n\nUse current OOC only as guidance or constraints for this routing decision. Use past OOC only for continuity facts or constraints that remain applicable; never re-execute an expired one-turn or scene-specific direction. Do not treat OOC as an event witnessed by characters. Do not pass raw OOC into the final scene injection.\n\nAnswer each question from the supplied evidence; do not assume another question has already been answered. The extension will validate dependencies after receiving all answers.\n\nChoose a supported Primary route and report other plausible routes independently. The extension will retain one Primary and at most one directly dependent Secondary. Every development style favors a fitting concrete response, thought, emotion, or executable step among supported routes; it does not lower fact, knowledge, or diagnostic standards, and does not require a new incident.\n\nFollow narrative speed and rhythm specified in the main prompt. Basic development tendency chooses how the scene moves, including inside advanced events; it does not control prose length. Relationship pace governs the amount of relationship change permitted. Resolution pace governs event resolution. Only advanced progression can introduce a new independent event. None of these controls rewrites the preset\'s genre, world rules, characterization, or prose style.',
                 recent_roleplay: frame.transcript,
-                ...(frame.repetitionComparison ? {repetition_comparison:{scope:'Only compare semantic topic fixation for continuity_trigger. These prior replies do not establish new events or knowledge.',turns:frame.repetitionComparison}} : {}),
                 ...knowledgeVaultDecisionState(frame.vaultCards),
                 appearance_offer: frame.rec.appearanceOffer || null,
                 memory_reference: frame.memory,
@@ -45,7 +44,7 @@ async function requestDecision(run,frame) {
         if(frame.questions.event_opportunity||frame.questions.person_opportunity)frame.jevRequest.state.scope=ROUTING_SCOPE;
         if(frame.storylineReference){frame.jevRequest.state.continuation_reference=frame.storylineReference;frame.jevRequest.state.scope+=' '+CONTINUATION_POLICY;}
         frame.jevRequest.state.new_opportunities=frame.opportunityOffers?{key:frame.opportunityOffers.key,event:{mode:frame.opportunityOffers.event.spontaneous?'spontaneous':'normal',scope:frame.opportunityOffers.event.scope},person:{mode:frame.opportunityOffers.person.spontaneous?'spontaneous':'normal',kind:frame.opportunityOffers.person.kind}}:null;
-        (frame.data = await deps.callJev(frame.jevRequest, frame.recoveryAttempt ? 60000 : 30000, run.controller.signal));
+        (frame.data = await deps.callJev(frame.jevRequest, 30000, run.controller.signal));
         run.assert();
         (frame.missingAnswerCount = frame.data.answerDiagnostics?.invalidKeys?.length||0);
         if(frame.missingAnswerCount)deps.noteDiagnostic?.('jev_partial',{requested:frame.data.answerDiagnostics.requested,missing:frame.missingAnswerCount,keys:frame.data.answerDiagnostics.invalidKeys.slice(0,20)});

@@ -1,6 +1,6 @@
-import {normalizeAnalysisRuntime,assertAnalysisCapacity,ANALYSIS_LIMITS} from './analysis-contract.js';
+import {normalizeAnalysisRuntime, assertAnalysisCapacity, ANALYSIS_LIMITS} from './analysis-contract.js';
 import {normalizeEvolution} from '../character/evolution.js';
-import {continuityView,assignContinuity} from './state-adapter.js';
+import {continuityView, assignContinuity} from './state-adapter.js';
 
 export function stageDeltaCommit(record,candidates,answers) {
  const next=structuredClone(record),runtime=normalizeAnalysisRuntime(next.analysisRuntimeV1);
@@ -32,6 +32,8 @@ export function stageDeltaCommit(record,candidates,answers) {
   if(c.type==='memory')item={...d,id:existing?.id||'continuity:delta:'+c.id,sourceRefs,pressure:existing?.pressure||'none'};
   else if(c.type==='knowledge')item={...d,sourceRefs};
   else item={...d,id:existing?.id||'evolution:'+c.id,status:d.operation==='resolve'?'resolved':d.compactStatus==='compact_budget'?'needs_review':'active',evidenceRefs:sourceRefs,updatedOrdinal:c.sourceIndex};
+  item.collectionOriginV1=existing?.collectionOriginV1||{before:existing?structuredClone(existing):null};
+  item.reviewText=c.reviewText||null;
   delete item.op;delete item.existingId;
   journal.push({proposalId:c.id,type:c.type,key:c.type==='knowledge'?[d.characterId,d.factId]:item.id,before:existing?structuredClone(existing):null,after:structuredClone(item),refs:sourceRefs});
   if(existing)Object.assign(existing,item);else list.push(item);
@@ -63,6 +65,7 @@ export function invalidateDeltasFrom(record,index,{chatRef}={}) {
  evo.revision++;state.revision=(state.revision||0)+1;assignContinuity(record,state);
  record.analysisJournalV1=(record.analysisJournalV1||[]).filter(j=>!affected(j.refs));
  runtime.turnRefs=runtime.turnRefs.filter(t=>!affected(t.refs));runtime.rangeLedger=runtime.rangeLedger.filter(r=>!affected(r.refs));runtime.pendingBatches=runtime.pendingBatches.filter(b=>!affected(b.refs));
+ runtime.recentCoverageV1=(runtime.recentCoverageV1||[]).filter(r=>!affected(r.refs));
  runtime.coveredThrough=Math.min(runtime.coveredThrough??-1,index-1);runtime.openScene=null;runtime.retry={attempts:0,notBefore:0,failureClass:null};record.analysisRuntimeV1=runtime;record.characterEvolutionV1=evo;
 }
 

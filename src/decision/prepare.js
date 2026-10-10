@@ -1,15 +1,14 @@
-import {selectActiveContinuity,confirmedContinuity} from '../continuity/selection.js';
+import {selectActiveContinuity, confirmedContinuity} from '../continuity/selection.js';
 import {confirmedEvolution} from '../character/evolution.js';
 import {makeOpportunities} from '../scene/opportunities.js';
 import {addOpportunityQuestions} from '../scene/opportunity-policy.js';
-import { searchCharacterRecords } from '../retrieval/character-search.js';
+import {searchCharacterRecords} from '../retrieval/character-search.js';
 import {drawOpportunityKey} from '../scene/draw-opportunity.js';
 import {generatedActorCandidates} from '../scene/generated-cast.js';
-import { currentRecords, recordBankIsCurrent } from "../characters/records.js";
-import { stateForEntry } from "../characters/state-contract.js";
-import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
-import { prepareKnowledgeVault } from '../integration/knowledge-vault.js';
-import { repetitionWindow } from '../continuity/repetition.js';
+
+import {stateForEntry} from "../characters/state-contract.js";
+import {buildSexualQuestions, sexualEligible} from "../characters/sexual-conduct.js";
+import {prepareKnowledgeVault} from '../integration/knowledge-vault.js';
 
 export function createDecisionPreparation(deps) {
 async function prepareQuestions(run,frame) {
@@ -40,23 +39,7 @@ if (frame.prefs.settingsContract >= 3) {
     if (frame.prefs.advancedEnabled) frame.questions.advanced_world_rules = {type:'choice',instructions:'From explicit current world rules, recent RP and supplied memory only: are supernatural mechanisms established? A horror label alone does not establish ghosts, curses or exorcism. This is world evidence, never an invitation to invent.',criteria:{mundane:'No supported supernatural mechanics.',supernatural:'Supernatural mechanics are established and compatible with this setting.',unclear:'Insufficient world evidence.'}};
     Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan));
     frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1);
-    if(deps.settings.continuityEnabled && frame.rec.pendingPlan?.outputText) {
-        const comparison=repetitionWindow(deps.getContext().chat,frame.rec.pendingPlan.outputIndex,deps.settings,frame.rec.nonRpOutputIndices || [],deps.stableFingerprint);
-        if(comparison.turns.length>=2)frame.repetitionComparison=comparison.turns;
-    }
-    if (deps.settings.continuityEnabled && frame.rec.pendingPlan?.outputText) frame.questions.continuity_trigger = {
-        type: 'choice',
-        instructions: 'For continuity changes, read only the just-completed USER RP and following CHARACTER output. Is there a newly established durable promise, schedule, delegation, important information transfer, obligation, status change or direct causal pressure? A claim is not completed action. Separately compare recent CHARACTER replies: is one motif being forced into otherwise unrelated dialogue, thoughts and actions even with different wording? This is semantic fixation, not echo or word frequency; an ongoing central activity or renewed user focus is not fixation. Ignore OOC. This triggers analysis, never commits a fact.',
-        criteria: {
-            none: 'No newly established continuity change, direct pressure or disproportionate topic fixation.',
-            topic_fixation: 'Across at least two replies, one motif repeatedly intrudes into unrelated reactions without new relevance or renewed user focus.',
-            commitment: 'A durable promise, plan, schedule, or obligation was explicitly established or changed.',
-            delegation: 'Responsibility or authority was explicitly accepted or delegated.',
-            knowledge_transfer: 'Important information was actually conveyed to a specific person.',
-            major_status_change: 'An important personal or institutional status changed or was directly pressured.',
-        },
-    };
-    frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
+    frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
     (frame.continuityContext = deps.settings.continuityEnabled ? selectActiveContinuity(frame.confirmedContinuity, frame.transcript, { opportunity: frame.rec.sceneOpportunity,actorIds:[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[])].filter(a=>frame.transcript.toLowerCase().includes(a.name.toLowerCase())||frame.sceneGate.participantIds.includes(a.id)).map(a=>a.id) }) : { items: [], knowledge: [], followups: [] });
     (frame.storedFollowupCandidates = frame.continuityContext.followups.map((item) => ({ id: item.id, type: 'followup', label: item.action, evidence: item.reason, data: { relatedStateId: item.relatedStateId, action: item.action, reason: item.reason }, sourceIdentity: item.sourceRefs?.[0] })));
     (frame.pendingCandidates = deps.settings.continuityEnabled
@@ -84,7 +67,7 @@ if (frame.prefs.settingsContract >= 3) {
         const primary = frame.liveCharacters.find((person) => person.id === deps.characterStore.characters[0].id);
         if (primary) primary.mainSillyTavernName = deps.getContext().name2 || '';
     }
-    if (deps.characterStore.enabled) Object.assign(frame.questions, deps.buildCharacterTurnQuestions(frame.liveCharacters));
+    if (deps.characterStore.enabled) Object.assign(frame.questions, deps.buildCharacterTurnQuestions(frame.liveCharacters,frame.sceneGate.participationObservations||{}));
     deps.noteDiagnostic?.('character_protection_candidates', { module:'character/record-protection + record-questions',
         baselineCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.prefilterStats?.baselineCandidateCount ?? p.profileCandidates.length),0),
         supplementalCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.protectedCandidateIds?.length || 0),0),

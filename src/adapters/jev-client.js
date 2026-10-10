@@ -1,6 +1,7 @@
-import { withRequestLifetime } from './request-lifetime.js';
-import { requestFailure } from './failure-info.js';
-import { jevProvider, browserJevKey, JEV_PROVIDERS } from './jev-providers.js';
+import {validNoul} from './answer-value.js';
+import {withRequestLifetime} from './request-lifetime.js';
+import {requestFailure} from './failure-info.js';
+import {jevProvider, browserJevKey, JEV_PROVIDERS} from './jev-providers.js';
 export function createJevClient(deps) {
 function apiError(data, fallback) {
     if (typeof data?.detail === 'string') return data.detail;
@@ -56,7 +57,7 @@ async function callJev(body, timeoutMs = 30000, signal = null, connection = null
         const invalidKeys=requested.filter(([name,question])=>{
             const answer=data.answers[name];
             if(!answer || typeof answer!=='object' || Array.isArray(answer))return true;
-            if(question?.type==='noul')return !Number.isFinite(Number(answer.noul)) && !Object.hasOwn(question?.criteria||{},String(answer.choice??''));
+            if(question?.type==='noul')return !validNoul(answer.noul) && !Object.hasOwn(question?.criteria||{},String(answer.choice??''));
             return !Object.hasOwn(question?.criteria||{},String(answer.choice??''));
         }).map(([name])=>name);
         if(requested.length && invalidKeys.length===requested.length)throw new Error('Jev가 요청한 판정 항목에 유효하게 답하지 않았습니다.');

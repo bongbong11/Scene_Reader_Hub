@@ -1,4 +1,6 @@
-import { applyDecisionPolicy } from "./policy.js";
+import {validNoul} from '../adapters/answer-value.js';
+import {minorRoutingChoice} from './routing-policy.js';
+import {applyDecisionPolicy} from "./policy.js";
 export const FALLBACKS = {
     event_closure: 'unclear',
     basic_move: 'continue',
@@ -14,7 +16,6 @@ export const FALLBACKS = {
     counterevidence: 'unclear',
     unresolved: 'unclear',
     context_change_source: 'none',
-    continuity_trigger: 'none',
     event_state: 'unclear',
     event_valence: 'unclear',
     event_blocker: 'unclear',
@@ -70,7 +71,6 @@ const THRESHOLDS = {
     counterevidence: 0.55,
     unresolved: 0.52,
     context_change_source: 0.60,
-    continuity_trigger: 0.72,
     event_state: 0.55,
     event_valence: 0.55,
     event_blocker: 0.55,
@@ -127,6 +127,7 @@ export function applyPolicy(key, answer, judgmentStyle = 'balanced', allowedChoi
         baseThreshold: THRESHOLDS[key] ?? (String(key).startsWith('verification_') ? 0.66 : 0.7),
         choiceThreshold: CHOICE_THRESHOLDS[key],
     });
+    if(minorRoutingChoice(key,result.selected,allowedChoices))Object.assign(result,{effective:result.selected,threshold:0,adjusted:false,fallbackApplied:false,rule:'작은 표현 후보 유지 · 설정과 실제 근거의 정합성은 후처리'});
     result.policyEffective = result.effective;
     result.coordinatorFinal = result.effective;
     return result;
@@ -149,7 +150,7 @@ export function applyCharacterPolicy(key, answer, judgmentStyle, allowedChoices)
 
 export function applyRecordRelevance(answer) {
     const value = Number(answer?.noul);
-    const valid = answer?.type === 'noul' && Number.isFinite(value) && value >= 0 && value <= 1;
+    const valid = answer?.type === 'noul' && validNoul(answer.noul);
     const selected = valid && value >= 0.5 ? 'yes' : 'no';
     return { selected, effective: selected, policyEffective: selected, coordinatorFinal: selected,
         certainty: valid ? value : 0, threshold: 0.5, adjusted: false,

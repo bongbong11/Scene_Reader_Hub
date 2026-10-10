@@ -1,15 +1,15 @@
-import {pendingDeltas,buildDeltaQuestions,commitFrameDeltas} from '../continuity/delta-verification.js';
 import {pausedCharacterReference} from '../injection/paused-character.js';
 import {sceneDisplayState} from './display-state.js';
-import {inheritedStates,CONTINUATION_POLICY,storylineInjection,storylineRetrievalCue} from '../context/storyline-reference.js';
+import {inheritedStates, CONTINUATION_POLICY, storylineInjection, storylineRetrievalCue} from '../context/storyline-reference.js';
 import {bankIdentity} from '../retrieval/bank-identity.js';
-import { notifySceneReaderToast } from "../ui/toasts.js";
-import { MEMORY_REFERENCE_ENABLED } from "../memory/context.js";
-import { sceneGateRequest, resolveSceneGate, sceneGateAnswersConflict, sceneGateConflictRequest, resolveSceneGateConflict } from "./intimacy-gate.js";
-import { currentRecords, recordBankIsCurrent } from "../characters/records.js";
-import { addWorldQuestions, selectedWorldRecords, worldPayload as buildWorldPayload } from "../world/advanced.js";
-import { seasonalWorldNote } from "../world/seasonal.js";
-import { stateForEntry } from "../characters/state-contract.js";
+import {notifySceneReaderToast} from "../ui/toasts.js";
+import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
+import {visibilityKey} from '../context/visibility.js';
+import {sceneGateRequest, resolveSceneGate, sceneGateAnswersConflict, sceneGateConflictRequest, resolveSceneGateConflict} from "./intimacy-gate.js";
+import {recordBankIsCurrent} from "../characters/records.js";
+import {addWorldQuestions, selectedWorldRecords, worldPayload as buildWorldPayload} from "../world/advanced.js";
+import {seasonalWorldNote} from "../world/seasonal.js";
+import {stateForEntry} from "../characters/state-contract.js";
 
 export function createGateStage(deps) {
 async function prepareGate(run,frame) {
@@ -40,8 +40,6 @@ async function prepareGate(run,frame) {
     run.assert();
     (frame.worldRecordCandidates = addWorldQuestions(frame.gateRequest, frame.world, frame.transcript, frame.worldRetrieval.indices));
     if (deps.characterStore.enabled) deps.addCharacterNeedsQuestions(frame.gateRequest, frame.gatePeople);
-    frame.deltaCandidates=pendingDeltas(frame.rec,{chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,store:deps.characterStore,enabled:deps.settings?.continuityEnabled});
-    Object.assign(frame.gateRequest.questions,buildDeltaQuestions(frame.deltaCandidates));
     (frame.sceneGate = undefined);
     (frame.sceneGateError = '');
     (frame.worldRecordAnswers = {});
@@ -52,11 +50,10 @@ async function prepareGate(run,frame) {
     deps.setBusy(true);
     try {
         deps.updateStatus('현재 장면 확인 중…');
-        const gateData=await deps.callJev(frame.gateRequest,frame.worldRecordCandidates.length||frame.deltaCandidates.length ? 30000 : 15000,run.controller.signal);
+        const gateData=await deps.callJev(frame.gateRequest,frame.worldRecordCandidates.length ? 30000 : 15000,run.controller.signal);
         run.assert();
         if(deps.currentInputKey(frame.pendingUserText,frame.cycleSalt)!==frame.inputKey || deps.recentContext(frame.pendingUserText).contextKey!==frame.context.contextKey || deps.sourceRevisionKey(deps.record(),deps.selectedWorld())!==frame.sourceKey)throw new deps.StaleRunError();
         frame.worldRecordAnswers = gateData.answers || {};
-        commitFrameDeltas(frame,run,frame.deltaCandidates,gateData.answers||{},{onFailure:error=>deps.noteDiagnostic?.('analysis_failed',{module:'src/continuity/delta-verification.js',status:'failed',reasonCode:error.code||'DELTA_COMMIT_FAILED'})});
         frame.worldInvalidCount = frame.worldRecordCandidates.filter((_, index) => !['yes', 'no'].includes(frame.worldRecordAnswers[`world_record_${index}`]?.choice)).length;
         frame.worldSelectionFailed = frame.worldRecordCandidates.length > 0 && frame.worldInvalidCount === frame.worldRecordCandidates.length;
         frame.sceneGate=resolveSceneGate(gateData.answers,frame.gateRequest,frame.previousSceneRoute);
@@ -107,6 +104,7 @@ async function prepareGate(run,frame) {
         (frame.payload = deps.buildPausedInjection({settings:frame.prefs,privatePrompt:frame.prefs.privatePromptEnabled?deps.ownerPrompt():'',referenceLines,activeWorldName:frame.world?.name||''}));
         const carry=storylineInjection(frame.rec);if(carry)frame.payload=carry+'\n\n'+frame.payload;
         frame.rec.lastJudgment={details:{},decisions:{},payload: frame.payload,worldSelection: frame.worldSelection,worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}),worldPayload:frame.selectedWorldPayload,inputKey: frame.inputKey,contextKey:frame.context.contextKey,sourceKey: frame.sourceKey,continuityCacheKey: frame.continuityCacheKey,memoryKey: frame.memoryKey,characterTrace:[],sceneIntimacy:frame.rec.sceneIntimacy,judgedAt:new Date().toISOString(),model:deps.JEV_MODEL};
+        frame.rec.lastJudgment.visibilityKeyV1=visibilityKey(deps.getContext().chat||[]);
         run.assert();
         if(deps.storageVersion>=2)await deps.queueWrite('session:'+run.identity,()=>{run.assert();return deps.storagePost('transaction',{chatKey:run.identity,chat:structuredClone(frame.rec),history:run.history.slice(-deps.STATE_HISTORY_LIMIT)});});
         else await deps.persistChat(run.identity,frame.rec);

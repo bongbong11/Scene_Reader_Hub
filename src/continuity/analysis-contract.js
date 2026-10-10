@@ -11,5 +11,5 @@ export function normalizeAnalysisRuntime(value) {
 export const analysisBytes = value => new TextEncoder().encode(JSON.stringify(value)).length;
 export function assertAnalysisCapacity(record) {
  const runtime=normalizeAnalysisRuntime(record.analysisRuntimeV1);
- if(runtime.pendingBatches.reduce((n,b)=>n+(b.candidates||[]).filter(c=>c.status==='pending').length,0)>ANALYSIS_LIMITS.maxPending || analysisBytes([runtime,record.characterEvolutionV1||null,record.analysisJournalV1||[],record.continuity||null,record.characterState?.knowledge||[]])>ANALYSIS_LIMITS.stateBytes)throw Object.assign(new Error('누적 자료 저장 한도에 도달했습니다. 기존 자료는 유지합니다.'),{code:'ANALYSIS_CAPACITY'});
+ if(runtime.pendingBatches.reduce((n,b)=>n+(b.candidates||[]).filter(c=>c.status==='pending').length,0)>ANALYSIS_LIMITS.maxPending || analysisBytes([runtime,record.characterEvolutionV1||null,record.analysisJournalV1||[],record.continuity||null,record.characterState?.knowledge||[],record.historyAnalysisV1||null,record.approvedHistorySourcesV1||[]])>ANALYSIS_LIMITS.stateBytes)throw Object.assign(new Error('누적 자료 저장 한도에 도달했습니다. 기존 자료는 유지합니다.'),{code:'ANALYSIS_CAPACITY'});
 }

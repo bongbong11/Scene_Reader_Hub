@@ -1,7 +1,7 @@
-import {clone,digest,object} from '../storage/shared-document.js';
+import {clone, digest, object} from '../storage/shared-document.js';
 import {latestStateForChat} from '../character/state-contract.js';
 import {roomPreferences} from '../storage/common-preferences.js';
-export const STORY_FIELDS=['pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','eventProfile','npcProfile','villainProfile','generatedCast','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','continuity','opportunities','lastOpportunityVerification','characterEvolutionV1','analysisJournalV1'];
+export const STORY_FIELDS=['pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','eventProfile','npcProfile','villainProfile','generatedCast','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','continuity','opportunities','lastOpportunityVerification','characterEvolutionV1','analysisJournalV1','approvedHistorySourcesV1'];
 const TRANSIENT=new Set(['sharedSource','sharedWorld','sharedReference','sharedLinkV1']);
 function portableCompanions(value,sourceChatRef) {
     const stores=value?.knowledgeVaultV1?{knowledgeVaultV1:clone(value.knowledgeVaultV1)}:{};

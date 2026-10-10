@@ -1,21 +1,22 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
-import {downloadStoredFile,importBackupStream} from '../../storage/backup-stream.js';
-import {backupSource,backupFilename} from '../../storage/backup-label.js';
+import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
+import {backupSource, backupFilename} from '../../storage/backup-label.js';
 import {openBackupCharacters} from '../backup-characters.js';
-import { bindEmbeddingMaintenance } from '../embedding-maintenance.js';
-import { wholeDiagnosticReport } from '../../debug/whole-report.js';
-import { vaultDiagnosticReport } from '../../integration/vault-diagnostics.js';
-import { bindRetrievalSettings } from '../retrieval-settings.js';
-import { bindPresetSlots } from '../preset-slots.js';
-import { bindJevSettings } from '../jev-settings.js';
-import { notifySceneReaderToast } from "../toasts.js";
-import { MEMORY_REFERENCE_ENABLED } from "../../context/memory.js";
-import { bindCharacterTransfer } from "../character-transfer.js";
-import { openPersonPreview } from "../person-preview.js";
-import { worldCompilerPrompt, parseAdvancedWorld, advancedWorldToStored, storedWorldToJson } from "../../world/advanced.js";
-import { characterCopyNotice, worldCopyNotice } from '../compiler-copy.js';
+import {bindEmbeddingMaintenance} from '../embedding-maintenance.js';
+import {wholeDiagnosticReport} from '../../debug/whole-report.js';
+import {vaultDiagnosticReport} from '../../integration/vault-diagnostics.js';
+import {bindRetrievalSettings} from '../retrieval-settings.js';
+import {bindPresetSlots} from '../preset-slots.js';
+import {bindJevSettings} from '../jev-settings.js';
+import {notifySceneReaderToast} from "../toasts.js";
+import {bindAnalysisActions} from '../analysis-actions.js';
+import {MEMORY_REFERENCE_ENABLED} from "../../context/memory.js";
+import {bindCharacterTransfer} from "../character-transfer.js";
+import {openPersonPreview} from "../person-preview.js";
+import {worldCompilerPrompt, parseAdvancedWorld, advancedWorldToStored} from "../../world/advanced.js";
+import {characterCopyNotice, worldCopyNotice} from '../compiler-copy.js';
 import {ensureSharedWorld} from '../../world/shared-library.js';
-import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
+import {SEASONAL_OPTIONS} from "../../world/seasonal.js";
 
 export function createFormBindings(deps) {
 function bindForm() {
@@ -23,8 +24,7 @@ function bindForm() {
     bindOpportunitySettings(deps);
     deps.document.getElementById('sr-continuity-interval')?.addEventListener('change',event=>deps.runUiTask(deps.saveGlobal('continuityInterval',Number(event.target.value)===5?5:3),'수집 간격을 저장하지 못했습니다.'));
     deps.document.getElementById('sr-collect-persona-changes')?.addEventListener('change',event=>deps.runUiTask(deps.saveGlobal('collectPersonaChanges',Boolean(event.target.checked)),'페르소나 수집 설정을 저장하지 못했습니다.'));
-    deps.document.getElementById('sr-analysis-now')?.addEventListener('click',()=>deps.analysis?.requestManual());
-    deps.document.getElementById('sr-evolution-results')?.addEventListener('click',event=>{const button=event.target.closest?.('[data-sr-exclude-change]');if(button)deps.runUiTask(deps.analysis?.exclude(button.dataset.srExcludeChange),'변화 제외를 저장하지 못했습니다.');});
+    bindAnalysisActions(deps);
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());
     for(const id of ['sr-world-edit-name','sr-world-edit-prompt','sr-world-advanced-json'])deps.document.getElementById(id)?.addEventListener('input',updateWorldCopy);
     deps.document.getElementById('sr-world-profile')?.addEventListener('change',updateWorldCopy);

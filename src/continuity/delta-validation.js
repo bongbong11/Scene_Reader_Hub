@@ -1,4 +1,4 @@
-import {COVERAGE_SECTIONS,ANALYSIS_LIMITS} from './analysis-contract.js';
+import {COVERAGE_SECTIONS, ANALYSIS_LIMITS} from './analysis-contract.js';
 import {validateCompactRecord} from '../character/evolution.js';
 const kinds=new Set(['commitment','plan','schedule','obligation','delegation','status','fact','open_issue']);
 const sources=new Set(['world_fact','claim','belief','intention','promise','delegation','completed_action']);
@@ -57,7 +57,7 @@ export function validateDeltaPacket(raw,{window,actors,bases,state,evolution,fin
    }
    const id=fingerprint([type,data,evidence.map(e=>[e.identity,e.quote])]);
    const candidate={id,type,section,data,baseline,prior,evidence,attempts:0,status:'pending',sourceIndex:Math.max(...evidence.map(e=>e.identity.messageIndex))};
-   if(JSON.stringify(candidate).length>4800){candidate.status='needs_review';candidate.reasonCode='verification_budget';}
+   candidate.reviewText={originalKo:short(value.original_ko),replacementKo:short(value.replacement_ko),reasonKo:short(value.reason_ko)};
    candidates.push(candidate);
   }
  }

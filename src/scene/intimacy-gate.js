@@ -1,3 +1,4 @@
+import {participationQuestion, participationBasis} from '../character/presence.js';
 const choice = value => String(value?.choice ?? value ?? '').trim();
 
 export function sceneGateRequest({model,transcript,previous='normal',people=[],previousParticipantIds=[]}) {
@@ -7,7 +8,7 @@ export function sceneGateRequest({model,transcript,previous='normal',people=[],p
         scene_phase:{type:'choice',instructions:`Previous confirmed route: ${previous}. Classify whether the actual ongoing interaction is active, briefly paused, clearly ended, or ordinary. A pause to talk or rest inside the same interaction is not an ending. Mere absence of description, a location change, or elapsed turns is not enough to end it. A possibility of resuming is not enough to keep a completed scene active. Judge this independently of the level question.`,criteria:{normal:'No sexual activity has begun in the current interaction.',active:'Explicit sexual activity is actually being performed.',paused:'The same sexual interaction is briefly paused for talk, rest, or preparation.',ended:'The activity was completed or the current purpose has shifted to another activity.',unclear:'Insufficient or conflicting evidence.'}},
         scene_evidence:{type:'choice',instructions:'Select the one supplied RP message that best supports the current scene phase and level. Do not cite OOC, an imagined action, or an absent message.',criteria:{none:'No message reliably supports a transition.',...Object.fromEntries(messageIds.map(id=>[id,`RP message [${id}]`]))}},
     };
-    for(const [index,person] of people.entries())questions[`scene_participant_${index}`]={type:'choice',instructions:`Is registered ${person.name} actually participating in the current interaction? Do not equate mere mention with participation. Judge this independently of other answers.`,criteria:{yes:'Currently participating.',no:'Absent, mentioned, or only background.',unclear:'Cannot determine.'}};
+    for(const [index,person] of people.entries())questions[`scene_participant_${index}`]=participationQuestion(person);
     return {model,state:{scope:'Classify current scene continuity and any supplied world-rule relevance. Do not propose actions, character traits, or a new scene.',recent_roleplay:transcript,previous_route:previous,previous_participant_ids:previous==='paused'?previousParticipantIds:[],registered_people:people.map(person=>({id:person.id,name:person.name,aliases:person.aliases||[]}))},questions};
 }
 
@@ -52,11 +53,15 @@ export function resolveSceneGate(answers,request,previous='normal') {
     } else if(route==='paused' && recentEvidence && ['0','1','2'].includes(level) && ['ended','normal'].includes(phase)) {
         route='normal';transition='exited';
     }
-    const participantIds=[];
+    const participantIds=[],participationObservations={};
     const priorParticipants=new Set(request.state.previous_participant_ids||[]);
     for(const [index,person] of (request.state.registered_people||[]).entries()) {
-        const participation=choice(answers?.[`scene_participant_${index}`]);
-        if(participation==='yes' || (route==='paused' && previous==='paused' && ['', 'unclear'].includes(participation) && priorParticipants.has(person.id)))participantIds.push(person.id);
+        const answer=answers?.[`scene_participant_${index}`];
+        const legacy=choice(answer);
+        const participation=legacy==='yes'?'direct':legacy==='no'?'reference':participationBasis(answer);
+        participationObservations[person.id]=legacy==='yes'?{choice:'direct',confidence:1}:legacy==='no'?{choice:'reference',confidence:1}:answer||{choice:'unknown',confidence:0};
+        if(['direct','remote','continuing','participating'].includes(participation) || (route==='paused' && previous==='paused' && participation==='unknown' && priorParticipants.has(person.id)))participantIds.push(person.id);
     }
-    return {route,transition,level:['0','1','2','3','4'].includes(level)?Number(level):null,phase,evidence:validEvidence?evidence:null,participantIds};
+    const unresolved=level==='unclear'||phase==='unclear'||(route==='paused'&&previous==='paused'&&phase!=='paused'&&!recentEvidence);
+    return {...(unresolved?{confirmation:'unresolved'}:{}),route,transition,level:['0','1','2','3','4'].includes(level)?Number(level):null,phase,evidence:validEvidence?evidence:null,participantIds,participationObservations};
 }

@@ -1,13 +1,12 @@
 import {stageDeltaCommit} from './delta-commit.js';
 import {validateSourceRefs} from './analysis-window.js';
 import {evolutionMatchesBase} from '../character/evolution.js';
-import {buildDeltaQuestions} from './delta-prompts.js';
 export function pendingDeltas(record,{chatRef,chat,fingerprint,store,enabled}) {
  if(!enabled)return [];
- const candidates=(record.analysisRuntimeV1?.pendingBatches||[]).flatMap(b=>b.candidates||[]).filter(c=>c.status==='pending'
-  &&validateSourceRefs(c.evidence.map(e=>e.identity),{chatRef,chat,fingerprint})
+ const candidates=(record.analysisRuntimeV1?.pendingBatches||[]).flatMap(b=>b.candidates||[]).filter(c=>c.status==='pending' && c.evidence?.length
+  &&validateSourceRefs((c.evidence||[]).map(e=>e.identity),{chatRef,chat,fingerprint})
   &&(c.type!=='character'||evolutionMatchesBase(c.data,store)));
- const selected=[];let size=0;for(const c of candidates){const chars=JSON.stringify(buildDeltaQuestions([c])).length;if(size+chars>6000)continue;selected.push(c);size+=chars;if(selected.length===6)break;}return selected;
+ return candidates;
 }
 export function commitFrameDeltas(frame,run,candidates,answers,{onFailure=()=>{}}={}) {
  if(!candidates?.length)return [];
@@ -27,4 +26,8 @@ export function commitFrameDeltas(frame,run,candidates,answers,{onFailure=()=>{}
   Object.assign(frame.rec,result.record);return result.accepted;
  }catch(error){onFailure(error);return [];}
 }
-export {buildDeltaQuestions};
+// The profile already analyzed meaning. Publish locally validated updates without a second model vote.
+export function commitCollectedDeltas(record,history,options) {
+ const candidates=pendingDeltas(record,options),frame={rec:record};
+ return commitFrameDeltas(frame,{history},candidates,Object.fromEntries(candidates.map((_,i)=>[`continuity_delta_${i}`,{choice:'supported'}])),{onFailure:error=>{throw error;}});
+}

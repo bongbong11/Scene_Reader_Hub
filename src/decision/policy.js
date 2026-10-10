@@ -3,7 +3,7 @@ export const OBSERVATION_KEYS = new Set([
     'event_closure', 'advanced_world_rules', 'scene_state', 'conflict_state', 'relationship_motion', 'trust_signal',
     'intimacy_signal', 'romance_evidence', 'counterevidence',
     'unresolved', 'event_state', 'event_valence', 'event_blocker',
-    'progress_need', 'resolution_readiness', 'npc_presence', 'npc_valence', 'npc_knowledge_fit', 'context_change_source', 'continuity_trigger',
+    'progress_need', 'resolution_readiness', 'npc_presence', 'npc_valence', 'npc_knowledge_fit', 'context_change_source',
 ]);
 
 export const DIAGNOSTIC_KEYS = new Set([

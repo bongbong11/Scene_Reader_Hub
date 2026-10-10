@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {repetitionWindow,assessRepetition,repetitionInjection,REPETITION_SYSTEM} from '../src/continuity/repetition.js';
 import {recentTurnCount,renderRecentTurns} from '../src/context/turn-settings.js';
-import {createContinuityRuntime} from '../src/continuity/runtime.js';
-import {REASONER_SYSTEM,normalizeContinuity,validateReasonerResult} from '../src/continuity/engine.js';
-import {splitOocText} from '../src/context/messages.js';
+import {analysisFixture,emptyResponse} from './fixtures/analysis-runtime.mjs';
 import {createStateSnapshots} from '../src/lifecycle/snapshots.js';
 import {fixture as makeHub} from './regression/audit-v012.mjs';
 
@@ -61,16 +59,16 @@ const snapshots=createStateSnapshots({});const rec={repetitionGuard:prepared.gua
 rec.repetitionGuard=null;snapshots.restoreReversibleState(rec,saved);assert.deepEqual(rec.repetitionGuard,prepared.guard);
 snapshots.restoreReversibleState(rec,{});assert.equal(rec.repetitionGuard,undefined,'old snapshots cannot retain a newer hint');
 
-let calls=0,saves=0;const live={};const events=[];
-const deps={settings,connectionRequestService:{},REASONER_SYSTEM,splitOocText,sourceRevisionKey:()=> 'source',selectedWorld:()=>null,stateChatKey:()=> 'room-A',getContext:()=>({chat}),reasonerJobs:new Map(),reasonerGeneration:0,normalizeContinuity,continuityView:()=>({}),stableFingerprint:hash,record:()=>live,validateReasonerResult,renderAll(){},noteDiagnostic:(stage,data)=>events.push({stage,...data}),persistChat:async()=>{saves++;},requestWithConnectionProfile:async(_service,_profile,system,payload)=>{
-    calls++;assert.match(system,/TOPIC_FIXATION_REVIEW/);assert.equal(payload.repetition_context.turns.length,2);assert.ok(!payload.source_rp.includes(chat[1].mes),'old evidence remains separate from current continuity/vault source');
-    return {result:{new_items:[],affected:[],knowledge_updates:[],possible_followups:[],...fixture}};
-}};
-const runtime=createContinuityRuntime(deps),pending={outputText:chat[3].mes,outputFingerprint:hash(chat[3].mes),outputIndex:3,sourceKey:'source'};
-await runtime.postVerifiedCharacterOutput(live,pending,null,'topic_fixation');await deps.reasonerJobs.get('room-A');
-assert.equal(calls,1);assert.equal(saves,1);assert.equal(live.repetitionGuard.topic,fixture.topic_fixation.topic);
-await runtime.postVerifiedCharacterOutput(live,pending,null,'topic_fixation');assert.equal(calls,1,'same completed reply is not re-requested');
-assert.ok(!JSON.stringify(events).includes('envelope'),'diagnostics contain status/counts, not topic or dialogue');
+const liveFixture=analysisFixture({chat:structuredClone(chat),settings,fingerprint:hash});
+let calls=0;
+liveFixture.deps.requestWithConnectionProfile=async(_service,_profile,system,payload)=>{
+ calls++;assert.match(system,/TOPIC_FIXATION_REVIEW/);assert.equal(payload.repetition_context.turns.length,2);
+ return {result:{...emptyResponse().result,...fixture}};
+};
+await liveFixture.analysis.requestManual().completion;
+assert.equal(calls,1);assert.equal(liveFixture.records.get('room-A').repetitionGuard.topic,fixture.topic_fixation.topic);
+await liveFixture.analysis.requestManual().completion;assert.equal(calls,1,'same completed reply is not re-requested');
+assert.ok(!JSON.stringify(liveFixture.events).includes('envelope'));
 // Exercise the actual Hub assembly/cache path, not just the formatter.
 const hub=makeHub(),requests=[];
 hub.ctx.chat=structuredClone(chat);
@@ -91,9 +89,7 @@ const callsBefore=requests.length;await hub.run('runJudge()');
 assert.equal(requests.length,callsBefore,'same input reuses the judgment without a new model call');
 hub.run('Object.assign(record().pendingPlan,{outputText:getContext().chat[3].mes,outputIndex:3,outputFingerprint:stableFingerprint(getContext().chat[3].mes)});');
 await hub.run('runJudge({force:true})');
-const decision=requests.findLast(body=>body.questions.continuity_trigger);
-assert.equal(decision.state.repetition_comparison.turns.length,2,'min-two comparison reaches Jev even with a short ordinary context');
-assert.ok(decision.questions.continuity_trigger.criteria.topic_fixation);
+assert.ok(requests.every(body=>!body.questions.continuity_trigger),'fixation is collected by the existing auxiliary job, without another Jev permission');
 hub.ctx.chat.push({is_user:true,mes:'Now the bridge opens.'},{is_user:false,mes:'The bridge gate swings open.'});
 await hub.run('runJudge({force:true})');
 assert.doesNotMatch(hub.run('record().lastJudgment.payload'),/<TOPIC_BALANCE>/,'the next completed reply ends the previous hint');

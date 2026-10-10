@@ -70,6 +70,9 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
         if(event.stage==='jev_request') {
             set(event.requestKind==='scene'?'scene':'decision',event,{message:event.status==='degraded'?'일부 판정 응답이 누락되거나 형식이 맞지 않습니다. 전체 로그를 확인해 주세요.':''});return;
         }
+        if(event.stage==='history_analysis') {set('profile',event,{state:event.status==='failed'?'failed':event.status==='running'?'running':event.status==='partial'?'partial':'success',sticky:false,message:event.status==='failed'?'이전 이야기 확인 실패 · 완료한 자료는 유지합니다.':event.status==='running'?'이전 이야기 확인 중 · 롤플은 계속 진행됩니다.':event.status==='partial'?'이전 이야기 일부 확인 · 이어 확인할 수 있습니다.':'이전 이야기 확인 완료 · 후보를 검토해 주세요.'});return;}
+        if(event.stage==='visibility') {set('preparation',event,{state:event.status==='failed'?'failed':'skipped',sticky:false,message:event.status==='failed'?'숨김 반영 실패 · 다음 실행 전에 확인해 주세요.':'가시성 변경 반영 · 이전 주입은 해제했습니다.'});return;}
+        if(event.stage==='analysis_manual') {set('profile',event,{state:'running',message:'확인 요청 접수 · 연결모델 호출 준비 중'});return;}
         if(event.stage==='profile_request') {if(!event.testing)set('profile',event);return;}
         if(event.stage==='analysis_failed') {set('profile',{...event,errorKind:event.reasonCode,status:'failed'},{sticky:false});return;}
         if(event.stage==='analysis_result'&&event.status==='succeeded') {pendingFailures.delete('profile');set('profile',event,{sticky:false});return;}
@@ -79,6 +82,8 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
                 analysis_disabled:'보조 분석 기능을 사용하지 않습니다.', no_continuity_change:'연속성 추가 분석 조건에 해당하지 않아 호출하지 않았습니다.',
                 profile_not_configured:'설정에서 확장 연결모델 프로필을 선택해 주세요.', already_analyzed:'이 출력은 이미 분석했습니다. 중복 호출하지 않습니다.',
                 analysis_in_progress:'보조 분석을 이미 진행 중입니다. 중복 호출하지 않습니다.',
+                interval_pending:'설정한 수집 주기까지 대기 중입니다.', scene_end_pending:'장면 종료 후 이어서 분석합니다.',
+                needs_review:'수집 완료 · 확인 대기 항목을 검토해 주세요.', source_unavailable:'숨김·수정으로 읽을 수 없는 구간이 있습니다.',
             };
             set('profile',event,{state:event.status==='failed'?'failed':event.status==='running'?'running':event.status==='needs_setup'?'needs_setup':'not_needed',message:messages[event.reasonCode] || '이번 실행에서는 추가 분석을 호출하지 않았습니다.'});return;
         }

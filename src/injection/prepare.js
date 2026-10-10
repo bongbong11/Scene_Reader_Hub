@@ -1,11 +1,12 @@
+import {resolveSexualConduct, buildSexualInjection} from '../character/sexual-conduct.js';
 import {buildMemoryStateBlock} from './memory-state.js';
 import {selectActiveContinuity} from '../continuity/selection.js';
+import {visibilityKey} from '../context/visibility.js';
 import {characterVolume} from '../character/volume.js';
-import {additionBlocks,incorporateAdditions} from './opportunity.js';
+import {additionBlocks, incorporateAdditions} from './opportunity.js';
 import {repetitionInjection} from '../continuity/repetition.js';
 import {storylineInjection} from '../context/storyline-reference.js';
-import { selectExecutionCorrectionKeys } from "../scene/correction-selection.js";
-import { applySexualChoice, buildSexualInjection, buildSexualQuestions, resolveSexualConduct, sexualEligible, sexualRoutingState } from "../characters/sexual-conduct.js";
+import {selectExecutionCorrectionKeys} from "../scene/correction-selection.js";
 
 export function createInjectionPreparation(deps) {
 async function prepareInjection(run,frame) {
@@ -80,6 +81,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         (frame.rawChoices = Object.fromEntries(Object.entries(frame.data.answers || {}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));
         frame.rec.lastJudgment = { details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
         frame.rec.lastJudgment.opportunityPlan=frame.opportunityPlan||null;
+        frame.rec.lastJudgment.visibilityKeyV1=visibilityKey(deps.getContext().chat||[]);
         frame.rec.lastJudgment.additionBlocks=frame.additionBlocks;
         frame.rec.lastJudgment.correctionSelection = frame.correctionSelection;
         frame.rec.lastJudgment.drawDiagnostics=frame.drawDiagnostics;
