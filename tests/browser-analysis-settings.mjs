@@ -26,12 +26,20 @@ export async function checkAnalysisSettings(page,store,requests,setViewportSize,
  await page.evaluate(()=>{mock.chat.push({is_user:true,mes:'A synthetic question for the manual analysis.'},{is_user:false,mes:'A synthetic completed reply for the manual analysis.'});});
  await page.locator('#sr-analysis-now').click();
  await page.waitForFunction(()=>[...document.querySelectorAll('.sr-toast-message')].some(n=>n.textContent.includes('확인 요청을 받았습니다')));
- await page.waitForFunction(()=>document.getElementById('sr-analysis-status').textContent.includes('새 변화 없음')&&!document.getElementById('sr-analysis-now').disabled);
- assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),before+1,'manual click calls the selected extension profile once');
+ let pageCalls=1;
+ for(let pass=0;pass<8;pass++){
+  await page.waitForFunction(()=>!document.getElementById('sr-analysis-now').disabled&&!document.getElementById('sr-analysis-status').textContent.includes('분석 중'));
+  const text=await page.locator('#sr-analysis-status').textContent();
+  if(text.includes('새 변화 없음'))break;
+  assert.match(text,/일부 분석 대기/,'remaining original pages must be explicitly incomplete');
+  await page.locator('#sr-analysis-now').click();pageCalls++;
+ }
+ assert.match(await page.locator('#sr-analysis-status').textContent(),/새 변화 없음/);
+ assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),before+pageCalls,'each original page is requested once without duplicate semantic judging');
  assert.ok(await page.locator('.sr-toast-message').filter({hasText:'분석 완료 · 새로 저장할 변화는 없습니다.'}).count());
  await page.locator('#sr-analysis-now').click();
  await page.waitForFunction(()=>document.getElementById('sr-analysis-status').textContent.includes('새로 분석할 대화 없음'));
- assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),before+1,'repeat click does not call either model for an already scanned range');
+ assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),before+pageCalls,'repeat click does not call either model for an already scanned range');
  await page.evaluate(async()=>{const {ConnectionManagerRequestService}=await import('/scripts/extensions/shared.js');mock.restoreManualProfile=ConnectionManagerRequestService.sendRequest;ConnectionManagerRequestService.sendRequest=async()=>{throw new Error('Synthetic manual profile failure');};mock.chat.push({is_user:true,mes:'Another synthetic question.'},{is_user:false,mes:'Another synthetic completed reply.'});});
  await page.locator('#sr-analysis-now').click();
  await page.waitForFunction(()=>[...document.querySelectorAll('.sr-toast-message')].some(n=>n.textContent.includes('변화 분석에 실패했습니다')));
@@ -45,7 +53,7 @@ export async function checkAnalysisSettings(page,store,requests,setViewportSize,
    const input=JSON.parse(messages[1].content);
    if(messages[0].content.startsWith('Translate only'))return {content:JSON.stringify({english:'Feels safer around the player after the shared journey.',original_ko:null,replacement_ko:'함께한 여정 이후 상대 곁에서 더 안심합니다.'})};
    const actor=input.actors.find(a=>a.kind!=='persona'),segment=input.source_segments[0];
-   return {content:JSON.stringify({protocol:1,coverage:{memory:'complete',characters:'complete',persona:input.persona_enabled?'complete':'not_requested'},memory_changes:[],knowledge_changes:[],deferred_changes:[],character_changes:actor?[{actor_id:actor.id,target_ids:[],base_ref:null,op:'add_state',state_summary:'Feels safer around the player after a shared journey.',source_type:'world_fact',epistemic:'established',replacement_ko:'함께한 여정 이후 상대 곁에서 더 안심합니다.',reason_ko:'요약 참고 · 적용 전 확인이 필요합니다.',evidence:[{ref:segment.ref,quote:segment.text.slice(0,120)}]}]:[]})};
+   return {content:JSON.stringify({protocol:1,record_reviews:(input.baseline_records||[]).map(b=>({base_ref:b.ref,status:'keep',reason_ko:'이 기록은 유지'})),coverage:{memory:'complete',characters:'complete',persona:input.persona_enabled?'complete':'not_requested'},memory_changes:[],knowledge_changes:[],deferred_changes:[],character_changes:actor?[{actor_id:actor.id,target_ids:[],base_ref:null,op:'add_state',state_summary:'Feels safer around the player after a shared journey.',source_type:'world_fact',epistemic:'established',replacement_ko:'함께한 여정 이후 상대 곁에서 더 안심합니다.',reason_ko:'요약 참고 · 적용 전 확인이 필요합니다.',evidence:[{ref:segment.ref,quote:segment.text.slice(0,120)}]}]:[]})};
   };
  });
  await page.locator('#sr-history-now').click();

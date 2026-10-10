@@ -1,3 +1,5 @@
+import {deltaRepairInput,DELTA_REPAIR_SYSTEM} from './delta-repair.js';
+import {ensureReviewTranslations} from './review-translation.js';
 import {analysisRequestBudget} from './request-budget.js';
 import {commitCollectedDeltas} from './delta-verification.js';
 import {createAnalysisScheduler} from './analysis-scheduler.js';
@@ -85,7 +87,7 @@ export function createAnalysisRuntime(deps) {
    const priorEvolution=deps.fingerprint(record.characterEvolutionV1||null),storeKey=deps.fingerprint([...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[]),deps.characterStore.persona].filter(Boolean).map(a=>[a.id,a.recordBank?.analysisId,a.recordBank?.pagedRecords?.bankId]));
    const started=Date.now(),requestProfile=analysisRequestBudget(deps.requestWithConnectionProfile);
    try{
-    const context=due?await analysisContext(record,window,{store:deps.characterStore,selectActiveEntries:deps.selectActiveEntries,name:deps.getContext().name2,chat,fingerprint:deps.fingerprint,signal,maxInputChars:contextBudget,recentInterval:config.interval,baselineOffset:runtime.baselineProgress?.windowId===window.id?runtime.baselineProgress.offset:0}):null;
+    const context=due?await analysisContext(record,window,{store:deps.characterStore,selectActiveEntries:deps.selectActiveEntries,name:deps.getContext().name2,userName:deps.getContext().name1,chat,fingerprint:deps.fingerprint,signal,maxInputChars:contextBudget,recentInterval:config.interval,baselineOffset:runtime.baselineProgress?.windowId===window.id?runtime.baselineProgress.offset:0}):null;
     const input={...(context?.input||{}),...extraInput};
     if(JSON.stringify(input).length>ANALYSIS_LIMITS.inputChars)throw Object.assign(new Error('분석 자료 한도'),{code:'ANALYSIS_INPUT_CAPACITY'});
     report('analysis_started',{status:'running',turnCount:window?.turnCount||0,inputChars:JSON.stringify(input).length});
@@ -95,20 +97,21 @@ export function createAnalysisRuntime(deps) {
     const unchanged=()=>sourceValid()&&deps.fingerprint(deps.record(true).characterEvolutionV1||null)===priorEvolution&&storeKey===deps.fingerprint([...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[]),deps.characterStore.persona].filter(Boolean).map(a=>[a.id,a.recordBank?.analysisId,a.recordBank?.pagedRecords?.bankId]));
     if(!unchanged())return {status:'cancelled'};
     if(due){
-     const packet=await validatedDeltaResponse(response,{window,...context,fingerprint:deps.fingerprint},{request:()=>requestProfile(deps.connectionRequestService,profile,system+'\nReturn all four required arrays, protocol 1 and coverage. Use supplied IDs and exact quotes. No prose or thought process.',input,{signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs}),valid:unchanged,report});
+     const packet=await validatedDeltaResponse(response,{window,...context,fingerprint:deps.fingerprint},{request:feedback=>requestProfile(deps.connectionRequestService,profile,feedback.mode==='patch'?DELTA_REPAIR_SYSTEM:system+'\nReturn all four required arrays, protocol 1 and coverage. Use supplied IDs and exact quotes. No prose or thought process.',deltaRepairInput(input,feedback),{signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs}),valid:unchanged,report});
+     await ensureReviewTranslations(packet,{request:(system,translation)=>requestProfile(deps.connectionRequestService,profile,system,translation,{signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs}),valid:unchanged,report});
      await idle(signal);if(!unchanged())return {status:'cancelled'};
      if(context.baseline.nextOffset!==null)packet.coverage.evolution='deferred';
      let resultStatus='empty',acceptedCount=0;
      const saved=await commitDeltaTransaction(key,({current,history})=>{
       const next=normalizeAnalysisRuntime(current.analysisRuntimeV1);
-      next.baselineProgress=context.baseline.nextOffset===null?null:{windowId:window.id,offset:context.baseline.nextOffset,total:context.baseline.total,blocked:context.baseline.blocked};
+      next.baselineProgress=packet.comparison?.missing?{windowId:window.id,offset:context.baseline.offset,total:context.baseline.total,blocked:false}:context.baseline.nextOffset===null?null:{windowId:window.id,offset:context.baseline.nextOffset,total:context.baseline.total,blocked:context.baseline.blocked};
       next.pendingBatches=next.pendingBatches.filter(b=>b.status==='pending'||b.candidates?.some(c=>c.status==='needs_review'));
       const priorBatch=next.pendingBatches.find(b=>b.id===packet.id);
       if(priorBatch){priorBatch.candidates=[...priorBatch.candidates,...packet.candidates.filter(c=>!priorBatch.candidates.some(old=>old.id===c.id))];priorBatch.coverage=packet.coverage;priorBatch.invalid=packet.invalid;}
       else next.pendingBatches.push(packet);
       next.rangeLedger.push({id:window.id,refs:window.sourceRefs,coverage:packet.coverage});
       const partial=Object.values(packet.coverage).includes('deferred');
-      next.retry={attempts:partial?(next.retry.attempts||0)+1:0,notBefore:partial?Date.now()+ANALYSIS_LIMITS.retryMs:0,failureClass:partial?'ANALYSIS_PARTIAL':null};next.lastRun={status:packet.candidates.length?'needs_review':partial?'partial':'empty',candidateCount:packet.candidates.length,turnCount:window.turnCount,durationMs:Date.now()-started,baselineCount:context.bases.length,baselineTotal:context.baseline.total,repairCount:packet.repairCount||0,invalidCount:Object.values(packet.invalid).reduce((n,v)=>n+v,0)};
+      next.retry={attempts:partial?(next.retry.attempts||0)+1:0,notBefore:partial?Date.now()+ANALYSIS_LIMITS.retryMs:0,failureClass:partial?'ANALYSIS_PARTIAL':null};next.lastRun={status:packet.candidates.length?'needs_review':partial?'partial':'empty',candidateCount:packet.candidates.length,turnCount:window.turnCount,durationMs:Date.now()-started,baselineCount:context.bases.length,baselineTotal:context.baseline.total,comparison:packet.comparison,translationMissing:packet.translationMissing||0,repairCount:packet.repairCount||0,invalidCount:Object.values(packet.invalid).reduce((n,v)=>n+v,0)};
       for(const section of ['continuity','evolution','persona']){next.sections[section].scannedThrough=window.sourceRefs.at(-1);if(packet.coverage[section]==='complete'&&!packet.candidates.some(c=>c.section===section))next.sections[section].settledThrough=window.sourceRefs.at(-1);}
       const pruned=pruneAnalysisRuntime(next,{chat:deps.getContext().chat,persona:config.persona,fingerprint:deps.fingerprint});
       pruned.carryPending=window.sourceRefs.some(ref=>ref.part?.end<sourceRp(deps.getContext().chat[ref.messageIndex]).length);
@@ -123,7 +126,7 @@ export function createAnalysisRuntime(deps) {
      },unchanged);
      if(saved&&acceptedCount)await deps.clearInjection?.({chatKey:key});
      outcome=saved?{status:resultStatus,candidateCount:packet.candidates.length,acceptedCount}:{status:'cancelled'};
-     report('analysis_result',{status:saved?'succeeded':'deferred',candidateCount:packet.candidates.length,acceptedCount,turnCount:window.turnCount,baselineCount:context.bases.length,baselineTotal:context.baseline.total,repairCount:packet.repairCount||0,invalidCount:Object.values(packet.invalid).reduce((n,v)=>n+v,0),durationMs:Date.now()-started});
+     report('analysis_result',{status:saved?'succeeded':'deferred',candidateCount:packet.candidates.length,acceptedCount,turnCount:window.turnCount,baselineCount:context.bases.length,baselineTotal:context.baseline.total,comparison:packet.comparison,translationMissing:packet.translationMissing||0,repairCount:packet.repairCount||0,invalidCount:Object.values(packet.invalid).reduce((n,v)=>n+v,0),durationMs:Date.now()-started});
     }
     if(vault&&bridge.analysisCurrent(vault.token)){
      try{

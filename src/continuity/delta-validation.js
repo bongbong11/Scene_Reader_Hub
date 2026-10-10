@@ -1,3 +1,4 @@
+import {sameRuleMeaningText,sameComparisonBase,resolveRoleReferences,mentionsActor} from './record-comparison.js';
 import {COVERAGE_SECTIONS, ANALYSIS_LIMITS} from './analysis-contract.js';
 import {validateCompactRecord} from '../character/evolution.js';
 const kinds=new Set(['commitment','plan','schedule','obligation','delegation','status','fact','open_issue']);
@@ -11,19 +12,19 @@ export function validateEvidence(value,window) {
  const result=[];for(const e of value){const segment=window.segments.find(s=>s.ref===e?.ref);if(!segment||typeof e.quote!=='string'||!e.quote.trim()||e.quote.length>320||!segment.text.includes(e.quote))return null;result.push({identity:segment.identity,quote:e.quote});}return result;
 }
 export function validateCoverage(value,persona) {return Object.fromEntries(Object.entries(COVERAGE_SECTIONS).map(([key,section])=>[section,key==='persona'&&!persona?'not_requested':['complete','deferred','not_requested'].includes(value?.[key])&&value[key]!=='not_requested'?value[key]:'deferred']));}
-export function validateDeltaPacket(raw,{window,actors,bases,state,evolution,fingerprint}) {
+export function validateDeltaPacket(raw,{window,actors,bases,state,evolution,fingerprint,input}) {
  if(!raw||raw.protocol!==1||typeof raw.coverage!=='object')throw Object.assign(new Error('누적 분석 응답 형식을 확인하지 못했습니다.'),{code:'ANALYSIS_INVALID_RESPONSE'});
  const coverage=validateCoverage(raw.coverage,window.persona),actorMap=new Map(actors.map(a=>[a.id,a])),baseMap=new Map(bases.map(b=>[b.ref,b]));
- const candidates=[],invalid={continuity:0,evolution:0,persona:0};let total=0;
+ const candidates=[],rejections=[],invalid={continuity:0,evolution:0,persona:0};let total=0;
  const knownItems=new Map((state.items||[]).map(i=>[i.id,i])),knownChanges=new Map((evolution.entries||[]).map(i=>[i.id,i]));
- const lists=[['memory_changes','memory','continuity'],['knowledge_changes','knowledge','continuity'],['character_changes','character','evolution'],['deferred_changes','character','evolution']];
+ const lists=[['character_changes','character','evolution'],['deferred_changes','character','evolution'],['memory_changes','memory','continuity'],['knowledge_changes','knowledge','continuity']];
  for(const [field,type,defaultSection]of lists){
   if(!Array.isArray(raw[field])){coverage[defaultSection]='deferred';continue;}
-  for(const value of raw[field]){
+  for(const [itemIndex,value]of raw[field].entries()){
    total++;let section=defaultSection;const actor=actorMap.get(value?.actor_id);if(actor?.kind==='persona')section='persona';
-   const reject=()=>{invalid[section]++;coverage[section]='deferred';};
-   if(total>ANALYSIS_LIMITS.maxChanges){reject();continue;}
-   const evidence=validateEvidence(value?.evidence,window);if(!evidence||!sources.has(value?.source_type)){reject();continue;}
+   const reject=(code='invalid_fields')=>{invalid[section]++;coverage[section]='deferred';if(rejections.length<32)rejections.push({field,index:itemIndex,code});};
+   if(total>ANALYSIS_LIMITS.maxChanges){reject('change_limit');continue;}
+   const evidence=validateEvidence(value?.evidence,window);if(!evidence||!sources.has(value?.source_type)){reject(!evidence?'invalid_evidence':'invalid_source_type');continue;}
    const ids=v=>Array.isArray(v)&&v.every(id=>actorMap.has(id))?[...new Set(v)].sort():null;
    let data,baseline=null,prior=null;
    if(type==='memory'){
@@ -41,25 +42,27 @@ export function validateDeltaPacket(raw,{window,actors,bases,state,evolution,fin
     const targets=ids(value.target_ids||[]);if(!targets){reject();continue;}
     const base=value.base_ref?baseMap.get(value.base_ref):null;
     if(value.base_ref&&(!base||base.actorId!==actor.id)){reject();continue;}
-    const namedTarget=base&&actors.find(a=>[a.name,...(a.aliases||[])].some(name=>String(base.record.target||'').toLowerCase()===String(name).toLowerCase()));
-    if(namedTarget&&namedTarget.id!==actor.id&&!targets.includes(namedTarget.id)){reject();continue;}
+    const namedTarget=base&&actors.find(a=>[a.name,...(a.aliases||[])].some(name=>name&&resolveRoleReferences(base.record.target,input?.role_bindings).toLowerCase()===String(name).toLowerCase()));
+    if(namedTarget&&namedTarget.id!==actor.id&&!targets.includes(namedTarget.id)){reject('missing_target_id');continue;}
     const existing=value.existing_change_id?knownChanges.get(value.existing_change_id):null;
     if(value.existing_change_id&&!existing||existing&&base&&existing.baseRef&&existing.baseRef.recordDigest!==base.baseRef.recordDigest){reject();continue;}
     if(existing&&existing.actorId!==actor.id){reject();continue;}
     let op=value.op,rule=typeof value.compact_rule==='string'&&value.compact_rule.trim()&&!/[<>]/.test(value.compact_rule)?value.compact_rule.trim():null,stateSummary=short(value.state_summary),fits=false;
     if(field==='deferred_changes'){if(value.reason_code!=='compact_budget'||!base){reject();continue;}op='add_state';}
     if(!['replace','exception','add_state','resolve'].includes(op)||op==='resolve'&&!existing){reject();continue;}
-    if(['replace','exception'].includes(op)){if(!base||!rule||value.record_type!==base.record.type){reject();continue;}fits=validateCompactRecord(base.record,rule);if(!fits){op='add_state';stateSummary=stateSummary||null;}}
-    if(fits&&targets.some(id=>{const target=actorMap.get(id);return ![target.name,...(target.aliases||[])].some(name=>name&&rule.toLowerCase().includes(name.toLowerCase()));})){reject();continue;}
-    if(op==='add_state'&&!stateSummary){reject();continue;}
-    baseline=base?.record||null;prior=existing||(base?evolution.entries.find(e=>e.actorId===actor.id&&e.baseRef?.recordDigest===base.baseRef.recordDigest&&JSON.stringify(e.scope?.targetIds||[])===JSON.stringify(targets)):null)||null;
+    if(['replace','exception'].includes(op)){if(!base||!rule||value.record_type!==base.record.type){reject('invalid_original_mapping');continue;}const effective=existing||evolution.entries.find(e=>e.actorId===actor.id&&sameComparisonBase(e.baseRef,base.baseRef)&&JSON.stringify(e.scope?.targetIds||[])===JSON.stringify(targets));if(sameRuleMeaningText(effective?.compactRule||base.record.rule,rule,input?.role_bindings)){reject('unchanged_rule');continue;}fits=validateCompactRecord(base.record,rule);if(!fits){op='add_state';stateSummary=stateSummary||short(rule);}}
+    if(fits&&targets.some(id=>!mentionsActor(rule,actorMap.get(id),input?.role_bindings))){reject('target_scope_mismatch');continue;}
+    if(op==='add_state'&&!stateSummary){reject(base?'compact_budget_without_summary':'missing_state_summary');continue;}
+    baseline=base?.record||null;prior=existing||(base?evolution.entries.find(e=>e.actorId===actor.id&&sameComparisonBase(e.baseRef,base.baseRef)&&JSON.stringify(e.scope?.targetIds||[])===JSON.stringify(targets)):null)||null;
     data={actorId:actor.id,baseRef:base?.baseRef||null,existingId:prior?.id||null,operation:op,category:base?.record.type||existing?.category||'relationship',compactRule:fits?rule:null,stateSummary,compactStatus:fits?'fits':base?'compact_budget':'not_applicable',exportEligible:fits,scope:{actorId:actor.id,targetIds:targets,knowledgeOwnerIds:[]},sourceType:value.source_type,epistemic:value.epistemic};
    }
    const id=fingerprint([type,data,evidence.map(e=>[e.identity,e.quote])]);
    const candidate={id,type,section,data,baseline,prior,evidence,attempts:0,status:'pending',sourceIndex:Math.max(...evidence.map(e=>e.identity.messageIndex))};
-   candidate.reviewText={originalKo:short(value.original_ko),replacementKo:short(value.replacement_ko),reasonKo:short(value.reason_ko)};
+   if(type==='character'&&data.compactStatus==='compact_budget')candidate.reasonCode='compact_budget';
+   const review=v=>typeof v==='string'&&v.trim().length<=2000&&!/[<>]/.test(v)?v.trim():null;
+   candidate.reviewText={originalKo:review(value.original_ko),replacementKo:review(value.replacement_ko),reasonKo:review(value.reason_ko)};
    candidates.push(candidate);
   }
  }
- return {id:window.id,coverage,candidates,refs:window.sourceRefs,invalid,status:candidates.length?'pending':'empty'};
+ return {id:window.id,coverage,candidates,refs:window.sourceRefs,invalid,rejections,status:candidates.length?'pending':'empty'};
 }

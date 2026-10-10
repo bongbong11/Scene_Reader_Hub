@@ -35,9 +35,10 @@ assert.deepEqual(arden.recordBank.records,[original],'canonical bank is immutabl
 assert.equal(effectiveRecord(original,arden,accepted.characterEvolutionV1,hash,{actorIds:['a','b']}).rule,raw.character_changes[0].compact_rule);
 assert.equal(effectiveRecord(original,arden,accepted.characterEvolutionV1,hash,{actorIds:['a','c']}).rule,original.rule,'A-to-B exception never applies to C');
 assert.equal(effectiveRecord(original,{...arden,recordBank:{...arden.recordBank,analysisId:'replacement'}},accepted.characterEvolutionV1,hash,{actorIds:['b']}).rule,original.rule,'replaced file invalidates old changes');
-assert.equal(validateCompactRecord(original,'x'.repeat(original.rule.length+1)),false);
-assert.equal(validateCompactRecord(original,'界'.repeat(60)),false,'UTF-8 bound as well as character count');
-const longer=structuredClone(raw);longer.character_changes[0].compact_rule='x'.repeat(200);longer.character_changes[0].state_summary='Arden trusted Blake for one task.';
+assert.equal(validateCompactRecord(original,'x'.repeat(original.rule.length+1)),true,'original length is a writing target, not a strict rejection threshold');
+assert.equal(validateCompactRecord(original,'x'.repeat(4001)),false,'abnormally large items still need review');
+assert.equal(validateCompactRecord(original,'😀'.repeat(4000)),false,'UTF-8 payload ceiling also applies');
+const longer=structuredClone(raw);longer.character_changes[0].compact_rule='x'.repeat(4001);longer.character_changes[0].state_summary='Arden trusted Blake for one task.';
 const longPacket=validate(longer),longResult=stageDeltaCommit({...initial,analysisRuntimeV1:{...runtime,pendingBatches:[longPacket]}},longPacket.candidates,{continuity_delta_0:{choice:'supported'}}).record;
 assert.equal(longResult.characterEvolutionV1.entries[0].status,'needs_review','over-budget rewrite is never a second conflicting instruction');
 assert.equal(buildMemoryStateBlock(longResult,{actors:[arden,blake],store}).text,'');

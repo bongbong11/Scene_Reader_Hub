@@ -1,5 +1,6 @@
 import {recordText, hash53} from '../retrieval/identity.js';
 import {eligibleSource} from '../continuity/source-eligibility.js';
+import {evolutionRuleBudget} from './evolution-budget.js';
 const chars=t=>Array.from(String(t)).length,bytes=t=>new TextEncoder().encode(String(t)).length;
 export function normalizeEvolution(value) {return {schemaVersion:1,revision:Math.max(0,Number(value?.revision)||0),entries:structuredClone(Array.isArray(value?.entries)?value.entries:[]),excludedProposals:structuredClone(value?.excludedProposals||[])};}
 export function baseRecordRef(bank,record,index,fingerprint) {
@@ -7,8 +8,8 @@ export function baseRecordRef(bank,record,index,fingerprint) {
 }
 export function validateCompactRecord(original,rule) {
  if(typeof rule!=='string'||!rule.trim()||/[<>]/.test(rule))return false;
- const proposed={...original,rule:rule.trim()};
- return chars(proposed.rule)<=chars(original.rule)&&bytes(proposed.rule)<=bytes(original.rule)&&bytes(JSON.stringify(proposed))<=bytes(JSON.stringify(original));
+ const proposed=rule.trim(),budget=evolutionRuleBudget(original);
+ return chars(proposed)<=budget.maxChars&&bytes(proposed)<=budget.maxUtf8&&bytes(JSON.stringify(proposed))<=budget.maxJsonStringUtf8;
 }
 export function selectEvolutionForActors(value,actorIds) {const ids=new Set(actorIds);return normalizeEvolution(value).entries.filter(e=>e.status==='active'&&ids.has(e.actorId));}
 export function effectiveRecord(record,entry,evolution,fingerprint,{actorIds=[],index}={}) {
@@ -21,6 +22,7 @@ export function effectiveRecord(record,entry,evolution,fingerprint,{actorIds=[],
  const digest=fingerprint(original),bankDigest=bank.pagedRecords?.bankId||String(bank.analysisId||''),present=new Set(actorIds);
  const change=(evolution?.entries||[]).filter(e=>e.status==='active'&&e.actorId===entry.id&&e.compactStatus==='fits'
   &&e.baseRef?.analysisId===String(bank.analysisId||'')&&e.baseRef.bankDigest===bankDigest&&e.baseRef.recordDigest===digest
+  &&(!Number.isInteger(index)||e.baseRef.index===index)
   &&(e.scope?.targetIds||[]).every(id=>present.has(id)))
   .sort((a,b)=>(b.updatedOrdinal??0)-(a.updatedOrdinal??0))[0];
  return change&&validateCompactRecord(original,change.compactRule)?{...record,rule:change.compactRule,evolutionChangeId:change.id}:record;

@@ -662,3 +662,5 @@
 #scene-reader-dialog #sr-change-dialog :is(button,summary):focus-visible { outline:2px solid var(--SmartThemeQuoteColor,currentColor); outline-offset:2px; }
 
 #scene-reader-dialog #sr-change-dialog > :is(#toast-container,#scene-reader-toast-container) { position:absolute; top:8px; left:50%; right:auto; transform:translateX(-50%); width:min(300px,calc(100% - 16px)); max-height:calc(100% - 16px); z-index:1001; }
+
+#scene-reader-dialog #sr-change-dialog .sr-change-group { margin:12px 0 6px; font-size:12px; }

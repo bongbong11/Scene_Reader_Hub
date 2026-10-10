@@ -21,7 +21,7 @@ for(const route of ['normal','paused']){
  let profileCalls=0;
  f.sandbox.mockProfile=async(_service,_profile,_system,input)=>{
   profileCalls++;const base=input.baseline_records.find(b=>b.actorId==='a'),segment=input.source_segments.find(s=>s.role==='assistant');
-  return {result:{protocol:1,coverage:{memory:'complete',characters:'complete',persona:'not_requested'},memory_changes:[],knowledge_changes:[],deferred_changes:[],character_changes:[{actor_id:'a',base_ref:base.ref,record_type:rule.type,target_ids:['b'],op:'exception',compact_rule:candidate.data.compactRule,source_type:'world_fact',epistemic:'established',evidence:[{ref:segment.ref,quote:'I trust Blake with this task.'}]}]}};
+  return {result:{protocol:1,record_reviews:input.baseline_records.map(b=>({base_ref:b.ref,status:'change',reason_ko:'일정 범위의 신뢰가 확인됨'})),coverage:{memory:'complete',characters:'complete',persona:'not_requested'},memory_changes:[],knowledge_changes:[],deferred_changes:[],character_changes:[{actor_id:'a',base_ref:base.ref,record_type:rule.type,target_ids:['b'],op:'exception',compact_rule:candidate.data.compactRule,original_ko:'함께 하는 일에서도 신뢰하지 않는다.',replacement_ko:'이 일에서는 상대를 신뢰한다.',reason_ko:'대사에 명확한 근거가 있다.',source_type:'world_fact',epistemic:'established',evidence:[{ref:segment.ref,quote:'I trust Blake with this task.'}]}]}};
  };
  f.run('connectionRequestService={};requestWithConnectionProfile=mockProfile;');
  const collected=await f.run('analysis.requestManual().completion');

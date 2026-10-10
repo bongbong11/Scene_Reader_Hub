@@ -1,3 +1,6 @@
+import {deltaRepairInput,DELTA_REPAIR_SYSTEM} from './delta-repair.js';
+import {ensureReviewTranslations} from './review-translation.js';
+import {sameComparisonBase,mergeComparisonProgress,RECORD_COMPARISON_VERSION} from './record-comparison.js';
 import {commitFrameDeltas} from './delta-verification.js';
 import {analysisRequestBudget} from './request-budget.js';
 import {validatedDeltaResponse} from './response-validation.js';
@@ -9,7 +12,7 @@ import {createDeltaCommit} from './delta-commit.js';
 import {visibilityKey} from '../context/visibility.js';
 import {sourceEligibility} from './source-eligibility.js';
 import {loadBankRecords} from '../storage/character-pages.js';
-const HISTORY_POLICY=`This is a retrospective comparison, not next-scene writing. Reference summaries and lorebook entries are fallible author-level data, not proof that a character learned a secret. They can omit dates and context. Distinguish original setting from actual story development. Compare all supplied original records with grounded changes, preserving unrelated personality and relationship targets. Do not erase a newer confirmed change using an older event. Reference-only findings require user review. Cite supplied source segments exactly. Hidden chat and unselected swipes are absent and must not be reconstructed. Your output will be reviewed before application.`;
+export const HISTORY_POLICY=`This is a retrospective comparison, not next-scene writing. Reference summaries and lorebook entries are fallible author-level data, not proof that a character learned a secret. They can omit dates and context. Distinguish original setting from actual story development. Compare all supplied original records with grounded changes, preserving unrelated personality and relationship targets. Do not erase a newer confirmed change using an older event. Reference-only findings require user review. Cite supplied source segments exactly. Hidden chat and unselected swipes are absent and must not be reconstructed. Your output will be reviewed before application.`;
 const bankSignature=(store,fingerprint)=>fingerprint([...(store.characters||[]),...(store.npcs||[]),...[store.persona].filter(Boolean)].map(a=>[a.id,a.recordBank?.analysisId,a.recordBank?.pagedRecords?.bankId,a.recordBank?.records]));
 const failure=error=>typeof error?.code==='string'&&/^[A-Z0-9_]+$/.test(error.code)?error.code:'HISTORY_ANALYSIS_FAILED';
 export function createHistoryAnalysis(deps){
@@ -32,28 +35,31 @@ export function createHistoryAnalysis(deps){
     report('HISTORY_SOURCE_STATUS',{status:'running',charm:read.statuses.charm,lorebook:read.statuses.lorebook,chat:read.statuses.chat,messageCount:read.sources.length});
     if(!read.sources.length){if(Object.values(read.statuses).some(s=>['error','timeout','stale'].includes(s)))throw Object.assign(new Error('이전 기억을 읽지 못했습니다.'),{code:'HISTORY_SOURCE_FAILED'});const emptySaved=await commitDeltaTransaction(key,({current,history})=>{current.historyAnalysisV1={...(current.historyAnalysisV1||{}),status:'empty',sourceStatus:read.statuses};return {chat:current,history};},()=>valid(job));if(!emptySaved)return {status:'cancelled'};report('HISTORY_EMPTY',{status:'succeeded'});return {status:'no_history'};}
     const old=deps.record()?.historyAnalysisV1;
-    if(!restart&&old?.signature===read.signature&&old?.bankSignature===banks&&['complete','limited'].includes(old.status)){report('HISTORY_UNCHANGED',{status:'succeeded'});return {status:'already_analyzed'};}
-    const continuing=!restart&&old?.signature===read.signature&&old?.bankSignature===banks&&old.cursor&&['partial','failed','running'].includes(old.status);
-    let state=continuing?structuredClone(old):{schemaVersion:1,signature:read.signature,bankSignature:banks,checkpointId:deps.fingerprint([key,read.signature,banks,Date.now()]),cursor:{source:0,offset:0},baselineOffset:0,review:structuredClone((old?.review||[]).filter(c=>c.status==='history_review')),approvedSources:old?.approvedSources||[],pages:0};
+    if(!restart&&old?.comparisonVersion===RECORD_COMPARISON_VERSION&&old?.signature===read.signature&&old?.bankSignature===banks&&['complete','limited'].includes(old.status)){report('HISTORY_UNCHANGED',{status:'succeeded'});return {status:'already_analyzed'};}
+    const continuing=!restart&&old?.comparisonVersion===RECORD_COMPARISON_VERSION&&old?.signature===read.signature&&old?.bankSignature===banks&&old.cursor&&['partial','failed','running'].includes(old.status);
+    let state=continuing?structuredClone(old):{schemaVersion:1,comparisonVersion:RECORD_COMPARISON_VERSION,signature:read.signature,bankSignature:banks,checkpointId:deps.fingerprint([key,read.signature,banks,Date.now()]),cursor:{source:0,offset:0},baselineOffset:0,review:structuredClone((old?.review||[]).filter(c=>c.status==='history_review')),approvedSources:old?.approvedSources||[],pages:0};
     state.status='running';state.sources=read.sources.map(s=>({id:s.id,kind:s.kind,hash:s.hash,scope:s.scope,limited:s.limited===true}));state.sourceStatus=read.statuses;
     for(let pass=0;pass<3;pass++){
      const window=historyWindow(read.sources,{cursor:state.cursor,chatRef:key,checkpointId:state.checkpointId,fingerprint:deps.fingerprint,persona:deps.settings.collectPersonaChanges});
-     const context=await analysisContext(deps.record(true),window,{store:deps.characterStore,selectActiveEntries:deps.selectActiveEntries,name:deps.getContext().name2,chat:deps.getContext().chat,fingerprint:deps.fingerprint,signal:job.signal,baselineOffset:state.baselineOffset,allActors:true});
-     const input={...context.input,source_kinds:window.segments.map(s=>({ref:s.ref,kind:s.identity.sourceKind,scope:s.scope})),retrospective:true};
+     const context=await analysisContext(deps.record(true),window,{store:deps.characterStore,selectActiveEntries:deps.selectActiveEntries,name:deps.getContext().name2,userName:deps.getContext().name1,chat:deps.getContext().chat,fingerprint:deps.fingerprint,signal:job.signal,baselineOffset:state.baselineOffset,allActors:true});
+     const input={...context.input,earlier_review_candidates:(state.review||[]).filter(c=>c.type==='character'&&context.bases.some(b=>b.actorId===c.data.actorId&&sameComparisonBase(b.baseRef,c.data.baseRef))).slice(-8).map(c=>({actor_id:c.data.actorId,base_ref:context.bases.find(b=>b.actorId===c.data.actorId&&sameComparisonBase(b.baseRef,c.data.baseRef))?.ref,proposed_rule:c.data.compactRule,status:'unapproved_reference'})),source_kinds:window.segments.map(s=>({ref:s.ref,kind:s.identity.sourceKind,scope:s.scope})),retrospective:true};
      if(JSON.stringify(input).length>ANALYSIS_LIMITS.inputChars)throw Object.assign(new Error('과거 분석 자료 한도'),{code:'ANALYSIS_INPUT_CAPACITY'});
      const response=await requestProfile(deps.connectionRequestService,profile,buildDeltaSystem(HISTORY_POLICY),input,{signal:job.signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs});
      if(!valid(job))return {status:'cancelled'};
-     const packet=await validatedDeltaResponse(response,{window,...context,fingerprint:deps.fingerprint},{request:()=>requestProfile(deps.connectionRequestService,profile,buildDeltaSystem(HISTORY_POLICY+' Return all required arrays and coverage keys. Use only supplied IDs and exact evidence.'),input,{signal:job.signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs}),valid:()=>valid(job),report});
-     for(const candidate of packet.candidates){candidate.status='history_review';if(!state.review.some(c=>c.id===candidate.id))state.review.push(candidate);}
+     const packet=await validatedDeltaResponse(response,{window,...context,fingerprint:deps.fingerprint},{request:feedback=>requestProfile(deps.connectionRequestService,profile,feedback.mode==='patch'?DELTA_REPAIR_SYSTEM:buildDeltaSystem(HISTORY_POLICY+' Return all required arrays and coverage keys. Use only supplied IDs and exact evidence.'),deltaRepairInput(input,feedback),{signal:job.signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs}),valid:()=>valid(job),report});
+     await ensureReviewTranslations(packet,{request:(system,translation)=>requestProfile(deps.connectionRequestService,profile,system,translation,{signal:job.signal,maxTokens:ANALYSIS_LIMITS.maxTokens,timeoutMs:ANALYSIS_LIMITS.timeoutMs}),valid:()=>valid(job),report});
+     if(!valid(job))return {status:'cancelled'};
+     for(const candidate of packet.candidates){candidate.status='history_review';const existing=state.review.findIndex(c=>c.id===candidate.id);if(existing<0)state.review.push(candidate);else state.review[existing]=candidate;}
      if(state.review.length>128)throw Object.assign(new Error('검토 자료 한도'),{code:'HISTORY_REVIEW_CAPACITY'});
      const partial=Object.values(packet.coverage).includes('deferred');
-     state.pages++;state.baselineOffset=context.baseline.nextOffset??0;
+     state.pages++;state.baselineTotal=context.baseline.total;state.comparison=mergeComparisonProgress(state.comparison,packet.comparison);state.lastComparison=packet.comparison;state.translationMissing=state.review.filter(c=>c.reviewText?.status==='missing').length;
+     if(!partial)state.baselineOffset=context.baseline.nextOffset??0;
      if(!partial&&context.baseline.nextOffset===null)state.cursor=window.next;
      state.status=!partial&&context.baseline.nextOffset===null&&window.next===null?(read.limited||Object.values(read.statuses).some(s=>['error','timeout','partial','stale','unsupported'].includes(s))?'limited':'complete'):'partial';
-     state.lastCoverage=packet.coverage;state.reviewCount=state.review.filter(c=>c.status==='history_review').length;
+     state.lastCoverage=packet.coverage;state.lastCounts={recordChanges:state.review.filter(c=>c.type==='character'&&c.data.baseRef).length,memoryItems:state.review.filter(c=>c.type!=='character').length,additionalStates:state.review.filter(c=>c.type==='character'&&!c.data.baseRef).length};state.reviewCount=state.review.filter(c=>c.status==='history_review').length;
      const saved=await commitDeltaTransaction(key,({current,history})=>{current.historyAnalysisV1=structuredClone(state);return {chat:current,history};},()=>valid(job));
      if(!saved)return {status:'cancelled'};
-     deps.renderAll();report('HISTORY_PAGE',{status:'succeeded',candidateCount:packet.candidates.length,pageCount:state.pages});
+     deps.renderAll();report('HISTORY_PAGE',{status:'succeeded',candidateCount:packet.candidates.length,pageCount:state.pages,baselineCount:context.bases.length,baselineTotal:context.baseline.total,comparedCount:packet.comparison?.reviewed||0,missingComparison:packet.comparison?.missing||0,recordChangeCount:packet.candidates.filter(c=>c.type==='character'&&c.data.baseRef).length,translationMissing:packet.translationMissing||0});
      if(state.status==='complete'||state.status==='limited'||partial||context.baseline.blocked)break;
     }
     report('HISTORY_RESULT',{status:state.status==='complete'?'succeeded':'partial',candidateCount:state.reviewCount,pageCount:state.pages});
