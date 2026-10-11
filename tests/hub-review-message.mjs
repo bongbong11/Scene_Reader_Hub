@@ -49,7 +49,18 @@ cancelled.host.generateQuietPrompt=async options=>{const messages=[{role:'system
 const cancelClient=createCurrentChatReview({loadHost:async()=>cancelled.host}),abort=new AbortController(),waiting=cancelClient.request('audit',{signal:abort.signal});
 await new Promise(r=>setImmediate(r));abort.abort();await assert.rejects(waiting,{code:'REVIEW_CANCELLED'});assert.equal(cancelClient.busy,true);
 const unrelated=[{role:'user',content:'unrelated'}];await cancelled.emit('request',{messages:unrelated});assert.deepEqual(unrelated,[{role:'user',content:'unrelated'}]);finish('late');await new Promise(r=>setImmediate(r));assert.equal(cancelled.count(),0);assert.equal(cancelClient.busy,false);
-assert.throws(()=>validateReviewTemplate(''),/명령문/);assert.throws(()=>validateReviewTemplate('No subject'),/subject/);
+assert.throws(()=>validateReviewTemplate(''),/명령문/);
+for(const template of ['Audit {{char}} and {{user}}','Audit the character across all available history.']){
+ assert.equal(validateReviewTemplate(template),template);
+ assert.equal(currentCharacterReview('Selected persona',template),template,'host macros and plain instructions must not require the optional subject macro');
+}
+const macros=fixture(),macroHook=macros.install(currentCharacterReview('Selected persona','Audit {{char}} and {{user}}'));
+// SillyTavern expands quiet-prompt macros before emitting prompt-ready.
+const macroMessages=[{role:'system',content:macroHook.quietPrompt.replaceAll('{{char}}','Chat Actor').replaceAll('{{user}}','Chat Persona')}];
+await macros.emit('prompt',{chat:macroMessages});await macros.emit('request',{messages:macroMessages});macroHook.verify();
+assert.deepEqual(macroMessages.at(-1),{role:'user',content:'Audit Chat Actor and Chat Persona'});macroHook.dispose();
 const quoted='A $& "quoted"';assert.equal(currentCharacterReview(quoted,'Audit {{subject}} and {{subject}}'),`Audit ${JSON.stringify(quoted)} and ${JSON.stringify(quoted)}`);
+assert.equal(currentCharacterReview('Persona','{{char}} / {{user}} / {{CHAR}} / {{USER}} / {{subject}} / {{other}}',true),'{{user}} / {{char}} / {{user}} / {{char}} / "Persona" / {{other}}');
+assert.equal(currentCharacterReview('Name {{char}}','{{subject}} {{char}} {{user}}',true),'"Name {{char}}" {{user}} {{char}}','swap only template macros, not inserted names');
 assert.equal(currentCharacterReview('Actor'),DEFAULT_CHARACTER_REVIEW_PROMPT.replaceAll('{{subject}}','"Actor"'));
 console.log('Review placement passed: final user role, preserved history/memory/preset/multimodal content, merged and duplicate ownership, request isolation, cleanup, dry runs, missing placement and editable subject rendering.');

@@ -27,6 +27,14 @@ assert.match(replacementFilePrompt(f.store.characters[0].recordBank,'review'),/r
 console.log('Replacement tool passed: quiet contextual request, timeout single-flight, privacy, no chat/file mutation, full original export, lock and stale guards.');
 
 const scope=fixture();scope.store.npcs=[{...scope.store.characters[0],id:'npc',kind:'npc'}];scope.store.persona={...scope.store.characters[0],id:'persona',kind:'persona'};assert.deepEqual(scope.tool.entries().map(e=>e.id),['a','persona']);await assert.rejects(scope.tool.review('npc'),/원본/);
+const macroTemplate='Audit {{char}} with {{user}}. Target {{subject}}.';
+const scopedBefore=JSON.stringify(scope.store),scopedChat=JSON.stringify(scope.context.chat);
+for(const id of ['a','persona','a']){
+ const expected=id==='persona'?'Audit {{user}} with {{char}}. Target "Actor".':'Audit {{char}} with {{user}}. Target "Actor".';
+ assert.equal(scope.tool.reviewInstruction(id,macroTemplate),expected);
+ await scope.tool.review(id,macroTemplate);assert.equal(scope.requests.at(-1),expected);
+}
+assert.equal(JSON.stringify(scope.store),scopedBefore);assert.equal(JSON.stringify(scope.context.chat),scopedChat);
 
 let rawOptions;
 const rawClient=createCurrentChatReview({loadHost:async()=>({isGenerating:()=>false,generateRaw:async options=>{rawOptions=options;return '한국어 번역';}})});

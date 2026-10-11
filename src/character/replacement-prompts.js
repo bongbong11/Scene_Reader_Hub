@@ -14,11 +14,13 @@ Include all supported edits, old and recent. Brevity applies to each entry, NOT 
 export function validateReviewTemplate(value){
  const template=String(value||'').trim();
  if(!template)throw new Error('명령문을 입력하거나 기본값으로 되돌려 주세요.');
- if(!template.includes('{{subject}}'))throw new Error('선택한 인물을 넣을 {{subject}} 표시를 남겨 주세요.');
  return template;
 }
-export function currentCharacterReview(name,template=DEFAULT_CHARACTER_REVIEW_PROMPT){
- return validateReviewTemplate(template).replaceAll('{{subject}}',()=>JSON.stringify(String(name)));
+export function currentCharacterReview(name,template=DEFAULT_CHARACTER_REVIEW_PROMPT,persona=false){
+ const text=validateReviewTemplate(template);
+ // Swap in one pass so replacement tokens cannot be swapped a second time.
+ const scoped=persona?text.replace(/\{\{(char|user)\}\}/gi,(_match,role)=>role.toLowerCase()==='char'?'{{user}}':'{{char}}'):text;
+ return scoped.replaceAll('{{subject}}',()=>JSON.stringify(String(name)));
 }
 
 export function reviewTranslationPrompt(text){
