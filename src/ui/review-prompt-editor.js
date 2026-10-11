@@ -26,7 +26,7 @@ export function createReviewPromptEditor({container, deps, run, current, getProm
         if(current()){saved=value;note.textContent='저장 완료 · 모든 방에서 사용합니다.';status.textContent='확인 명령문을 저장했습니다.';}
     }));
     container.querySelector('[data-template-copy]').addEventListener('click', () => run(async () => {
-        await deps.copyText(getPrompt(getTemplate()));
+        await deps.copyText(await getPrompt(getTemplate()));
         if(current())note.textContent='선택한 대상에 맞춘 명령문을 복사했습니다.';
     }));
     return {getTemplate, resize, setBusy(busy){input.readOnly=busy;for(const button of container.querySelectorAll('button'))button.disabled=busy;}};

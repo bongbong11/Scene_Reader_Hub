@@ -21,7 +21,7 @@ export function createConnectionProfileClient({onDiagnostic=()=>{}}={}) {
     return (service,profileId,system,state,options={})=>requestWithConnectionProfile(service,profileId,system,state,{...options,onDiagnostic});
 }
 
-export async function requestWithConnectionProfile(service, profileId, system, state, { testing = false, maxTokens = REASONER_MAX_TOKENS, signal, timeoutMs=60000, onDiagnostic=()=>{} } = {}) {
+export async function requestWithConnectionProfile(service, profileId, system, state, { testing = false, maxTokens = REASONER_MAX_TOKENS, signal, timeoutMs=60000, onDiagnostic=()=>{},responseFormat='json' } = {}) {
     const started=Date.now();
     const report=detail=>{try{onDiagnostic({module:'src/adapters/connection-profile.js',testing,timeoutMs,...detail});}catch{/* diagnostic only */}};
     report({status:'started'});
@@ -46,8 +46,19 @@ export async function requestWithConnectionProfile(service, profileId, system, s
         throw failure;
     }
     let result;
-    try { result = parseReasonerReply(response?.content ?? response); }
-    catch { report({status:'failed',durationMs:Date.now()-started,errorKind:'PROFILE_INVALID_RESPONSE'}); throw Object.assign(new Error('연결 모델이 완전한 JSON을 반환하지 않았습니다. 출력 길이와 연결 프로필을 확인하세요.'),{code:'PROFILE_INVALID_RESPONSE'}); }
+    try {
+        if(!testing&&responseFormat==='text'){
+            const text=response?.content??response;
+            if(typeof text!=='string'||!text.trim())throw new Error('Empty text response');
+            if([response?.finish_reason,response?.finishReason].includes('length'))throw Object.assign(new Error('Truncated text response'),{code:'PROFILE_TRUNCATED_RESPONSE'});
+            result=text.trim();
+        }else result = parseReasonerReply(response?.content ?? response);
+    }
+    catch(error) {
+        const text=!testing&&responseFormat==='text',code=error?.code==='PROFILE_TRUNCATED_RESPONSE'?'PROFILE_TRUNCATED_RESPONSE':'PROFILE_INVALID_RESPONSE';
+        report({status:'failed',durationMs:Date.now()-started,errorKind:code});
+        throw Object.assign(new Error(text?(code==='PROFILE_TRUNCATED_RESPONSE'?'번역 응답이 출력 한도에서 잘렸습니다. 연결 프로필의 출력 설정을 확인하세요.':'연결 모델이 번역 내용을 반환하지 않았습니다.'):'연결 모델이 완전한 JSON을 반환하지 않았습니다. 출력 길이와 연결 프로필을 확인하세요.'),{code});
+    }
     if (testing && result?.ok !== true) { report({status:'failed',errorKind:'PROFILE_INVALID_RESPONSE'}); throw Object.assign(new Error('선택한 모델의 연결 확인 응답이 올바르지 않습니다.'),{code:'PROFILE_INVALID_RESPONSE'}); }
     report({status:'succeeded',durationMs:Date.now()-started});
     return { result, profile: { id: profile.id, name: profile.name || profile.id, model: profile.model || '모델 이름 없음' } };

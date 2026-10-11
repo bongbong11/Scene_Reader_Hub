@@ -1,21 +1,22 @@
 import {installReviewMessage} from './review-message.js';
 // Use the host's contextual quiet request; never append chat messages or change profiles.
-export function createCurrentChatReview({loadHost=()=>import('/script.js'),timeoutMs=120000}={}){
+export function createCurrentChatReview({loadHost=()=>import('/script.js'),loadPromptManager=async()=>(await import('/scripts/openai.js')).promptManager,timeoutMs=120000}={}){
  let pending=false;
  const failure=(message,code)=>Object.assign(new Error(message),{code});
- async function request(prompt,{signal,raw=false,onPlacement}={}){
+ async function request(prompt,{signal,onPlacement}={}){
   if(pending)throw failure('이전 요청이 아직 끝나지 않았습니다. 잠시 후 다시 눌러 주세요.','REVIEW_BUSY');
   pending=true;let started=false;
   try{
    signal?.throwIfAborted();const host=await loadHost();signal?.throwIfAborted();
-   if(typeof host[raw?'generateRaw':'generateQuietPrompt']!=='function'||typeof host.isGenerating!=='function')throw failure('현재 SillyTavern에서 비공개 답변 요청을 지원하지 않습니다.','REVIEW_UNSUPPORTED');
+   if(typeof host.generateQuietPrompt!=='function'||typeof host.isGenerating!=='function')throw failure('현재 SillyTavern에서 비공개 답변 요청을 지원하지 않습니다.','REVIEW_UNSUPPORTED');
    if(host.isGenerating())throw failure('현재 답변 생성이 끝난 뒤 눌러 주세요.','REVIEW_HOST_BUSY');
    // Omit responseLength: use the current model's budget, including its reasoning allowance.
    // Keep the full returned answer; brevity is requested in the prompt, never by slicing text.
    const task=Promise.resolve().then(async()=>{
     signal?.throwIfAborted();
-    if(raw)return host.generateRaw({prompt,quietToLoud:false,trimNames:false});
-    const placement=installReviewMessage(host,prompt,onPlacement);
+    const promptManager=host.promptManager||await loadPromptManager();
+    signal?.throwIfAborted();
+    const placement=installReviewMessage({...host,promptManager},prompt,onPlacement);
     try{const value=await host.generateQuietPrompt({quietPrompt:placement.quietPrompt,quietToLoud:false,skipWIAN:false,removeReasoning:true});placement.verify();return value;}
     finally{placement.dispose();}
    });
