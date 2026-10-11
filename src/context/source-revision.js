@@ -2,6 +2,7 @@ import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
 import {CORE_SHA256} from "../vendor/character-reasoner/version.js";
 import {knowledgeVaultRevision} from '../integration/knowledge-vault.js';
 import {visibilityKey} from './visibility.js';
+import {DECISION_CONTRACT_VERSION} from '../decision/policy.js';
 
 export function createSourceRevision(deps) {
 function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
@@ -14,12 +15,13 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         reasoner: deps.settings.reasonerProfileId || '',
         retrieval: [deps.settings.retrievalProvider, deps.settings.retrievalModel, deps.settings.retrievalVertexAuth, deps.settings.retrievalVertexRegion, deps.settings.retrievalVertexProject],
         memoryReferenceEnabled: MEMORY_REFERENCE_ENABLED,
-        continuityContract: 2,continuityConfig:[deps.settings.continuityEnabled],
+        decisionContract: DECISION_CONTRACT_VERSION,
+        continuityContract: 3,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 6,
-        injectionAssemblyContract: 6,
+        injectionAssemblyContract: 8,
         characterStateContract: 2,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,
-        sceneGateContract: 2,
+        sceneGateContract: 3,
         drawContract: 2,
         characterCore: CORE_SHA256,
         characterEnabled: Boolean(deps.characterStore.enabled),

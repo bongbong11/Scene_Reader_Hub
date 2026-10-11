@@ -1,11 +1,13 @@
-import {COMMON_EXECUTION,BASE_RESPONSE,COMBINE_ADDITIONS,DIRECTIONS,renderAddition,renderAdvancedEvent} from './opportunity-prompts.js';
+import {COMMON_EXECUTION,BASE_RESPONSE,COMBINE_ADDITIONS,renderAddition,renderAdvancedEvent} from './opportunity-prompts.js';
 import {COMMON_META} from './assemble.js';
+import {negativePriorityInstruction} from './priority.js';
+import {buildAntagonistExecution} from './npc-execution.js';
 
 export function additionBlocks(additions,settings,hasOngoingEvent) {
     return additions.map(item=>({id:item.id,feature:item.feature,templateId:item.templateId,
         text:item.feature==='event'&&item.candidate.element
             ?renderAdvancedEvent(item.profile||item.candidate,{move:'seed',ongoing:hasOngoingEvent,style:settings.developmentStyle,direction:settings.worldDirection})
-            :renderAddition(item.candidate,{kind:item.feature,spontaneous:item.spontaneous,style:settings.developmentStyle,direction:settings.worldDirection,ongoing:hasOngoingEvent,antagonist:item.kind==='villain'})}));
+            :[item.kind==='villain'?buildAntagonistExecution({actor:'the selected arriving antagonist',antagonist:true}):'',renderAddition(item.candidate,{kind:item.feature,spontaneous:item.spontaneous,style:settings.developmentStyle,direction:settings.worldDirection,ongoing:hasOngoingEvent,antagonist:item.kind==='villain'})].filter(Boolean).join('\n')}));
 }
 export function incorporateAdditions(payload,blocks,settings) {
     if(!blocks.length)return payload;
@@ -18,7 +20,7 @@ export function incorporateAdditions(payload,blocks,settings) {
         .replaceAll('do not introduce a separate event to fill a quota.','do not introduce an unselected event to fill a quota.')
         .replaceAll('without repetition or an unrelated new incident.','without repetition or an unselected new incident.');
     const additionText=[BASE_RESPONSE,...blocks.map(x=>x.text),blocks.length>1?COMBINE_ADDITIONS:'',
-        settings.negativePriority&&(settings.worldHostility||settings.userMisfortune)?DIRECTIONS.negativePriority:''].filter(Boolean).join('\n\n');
+        negativePriorityInstruction(settings)].filter(Boolean).join('\n\n');
     output=output.replace(/\n\)$/,'\n\n'+additionText+'\n)');
     if(!blocks.every(x=>output.includes(x.text)))throw new Error('선택한 신규 전개가 주입문에 포함되지 않았습니다.');
     return output;

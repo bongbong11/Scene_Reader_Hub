@@ -1,5 +1,4 @@
 import {validNoul} from '../adapters/answer-value.js';
-import {minorRoutingChoice} from './routing-policy.js';
 import {applyDecisionPolicy} from "./policy.js";
 export const FALLBACKS = {
     event_closure: 'unclear',
@@ -56,67 +55,8 @@ export const FALLBACKS = {
     advanced_move: 'quiet',
 };
 
-const THRESHOLDS = {
-    event_closure: 0.8,
-    basic_move: 0.55,
-    progress_need: 0.58,
-    arrival_mode: 0.55,
-    advanced_world_rules: 0.8,
-    scene_state: 0.50,
-    conflict_state: 0.55,
-    relationship_motion: 0.58,
-    trust_signal: 0.58,
-    intimacy_signal: 0.58,
-    romance_evidence: 0.62,
-    counterevidence: 0.55,
-    unresolved: 0.52,
-    context_change_source: 0.60,
-    event_state: 0.55,
-    event_valence: 0.55,
-    event_blocker: 0.55,
-    resolution_readiness: 0.60,
-    npc_presence: 0.55,
-    npc_valence: 0.55,
-    npc_role: 0.64,
-    npc_weight: 0.64,
-    npc_knowledge: 0.66,
-    npc_disclosure: 0.66,
-    npc_knowledge_fit: 0.66,
-    relationship_pacing: 0.72,
-    relationship_beat: 0.68,
-    primary_focus: 0.55,
-    event_route: 0.72,
-    villain_route: 0.78,
-    progression_move: 0.60,
-    npc_route: 0.75,
-    npc_target: 0.55,
-    hesitation_drag: 0.62,
-    refusal_stall: 0.62,
-    circularity: 0.62,
-    user_handoff: 0.62,
-    action_evasion: 0.65,
-    scene_cutoff: 0.62,
-    response_cadence: 0.58,
-    input_echo: 0.58,
-    repetitive_ending: 0.60,
-    advanced_entry: 0.62,
-    advanced_route: 0.70,
-    advanced_cause: 0.62,
-    advanced_element: 0.66,
-    advanced_move: 0.66,
-};
-
-// Creation is eligibility for a user-controlled draw; retirement and replacement
-// change stored state and retain a higher evidence requirement.
-const CHOICE_THRESHOLDS = {
-    event_route: { create: 0.58, continue: 0.56, retire: 0.88, replace: 0.90 },
-    npc_route: { create: 0.60, reuse: 0.55, retire: 0.84, replace: 0.86 },
-    villain_route: { create: 0.66, continue: 0.58, retire: 0.88, replace: 0.90 },
-    advanced_route: { create: 0.60, continue: 0.56 },
-};
-
 export function applyPolicy(key, answer, judgmentStyle = 'balanced', allowedChoices = [], progressIntensity = 1) {
-    const fallback = String(key).startsWith('verification_') ? 'not_applicable' : String(key).startsWith('continuity_candidate_') ? 'reject' : FALLBACKS[key];
+    const fallback = String(key).startsWith('verification_') ? 'unavailable' : key.endsWith('_conflict_tactic')?'character_driven':FALLBACKS[key];
     const result = applyDecisionPolicy({
         key,
         answer,
@@ -124,25 +64,20 @@ export function applyPolicy(key, answer, judgmentStyle = 'balanced', allowedChoi
         progressIntensity,
         allowedChoices,
         fallback: allowedChoices.includes(fallback) ? fallback : allowedChoices.includes('unclear') ? 'unclear' : allowedChoices.includes('not_applicable') ? 'not_applicable' : allowedChoices[0],
-        baseThreshold: THRESHOLDS[key] ?? (String(key).startsWith('verification_') ? 0.66 : 0.7),
-        choiceThreshold: CHOICE_THRESHOLDS[key],
     });
-    if(minorRoutingChoice(key,result.selected,allowedChoices))Object.assign(result,{effective:result.selected,threshold:0,adjusted:false,fallbackApplied:false,rule:'작은 표현 후보 유지 · 설정과 실제 근거의 정합성은 후처리'});
     result.policyEffective = result.effective;
     result.coordinatorFinal = result.effective;
     return result;
 }
 
 export function fixedDecision(effective) {
-    return { selected: effective, effective, policyEffective: effective, coordinatorFinal: effective, certainty: 1, threshold: 1, adjusted: false, fixed: true };
+    return { selected: effective, effective, policyEffective: effective, coordinatorFinal: effective, certainty: 1, threshold: 0, adjusted: false, fixed: true };
 }
 
 export function applyCharacterPolicy(key, answer, judgmentStyle, allowedChoices) {
-    const isAccess = /^character_\d+_(?:context_access_\d+|response_basis)$/.test(key);
     const isParticipation=key.endsWith('_participation');
-    const fallback = key === 'npc_identity_route' ? 'none' : isParticipation?'unknown':key.endsWith('_presence') ? 'absent' : 'none';
-    // Active play may change routing, never the evidence standard for information access.
-    const result = applyDecisionPolicy({ key, answer, style: isAccess || isParticipation ? 'balanced' : judgmentStyle, allowedChoices, fallback, baseThreshold: isAccess ? 0.75 : isParticipation?0.55:0.59 });
+    const fallback = key.endsWith('_conflict_tactic')?'character_driven':key === 'npc_identity_route' ? 'none' : isParticipation?'unknown':key.endsWith('_presence') ? 'absent' : 'none';
+    const result = applyDecisionPolicy({ key, answer, style: judgmentStyle, allowedChoices, fallback });
     result.policyEffective = result.effective;
     result.coordinatorFinal = result.effective;
     return result;

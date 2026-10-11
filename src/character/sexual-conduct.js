@@ -132,7 +132,7 @@ export function applySexualChoice(answer, choices = []) {
     return {
         selected: selected || '응답 없음',
         effective: valid ? selected : '',
-        certainty: Number.isFinite(Number(answer?.confidence)) ? Number(answer.confidence) : 0,
+        certainty: typeof answer?.confidence==='number'&&Number.isFinite(answer.confidence)?answer.confidence:null,
         threshold: 0,
         adjusted: false,
         fallbackApplied: !valid,
@@ -150,11 +150,8 @@ export function resolveSexualConduct(people = [], decisions = {}, pace = 'medium
         const route = decisions[`${prefix}_route`] || '';
         const selectedTarget = decisions[`${prefix}_target`] || '';
         const target = route === 'approach' ? 'scene_partner' : route === 'self_relief' ? 'self' : selectedTarget;
-        const valid = person.presence === 'active'
-            && Object.hasOwn(RESTRAINT_CRITERIA, restraint)
-            && allowedRoutes.has(route)
-            && Object.hasOwn(TARGET_CRITERIA, target);
-        return { index: person.index, id: person.id, name: person.name, kind: person.kind, pace: normalized, presence: person.presence, restraint, route, target, selectedTarget, targetAdjusted:target !== selectedTarget, valid };
+        const valid = person.presence === 'active' && allowedRoutes.has(route);
+        return { index: person.index, id: person.id, name: person.name, kind: person.kind, pace: normalized, presence: person.presence, remote:person.participationEvidence==='remote', restraint, route, target, selectedTarget, targetAdjusted:target !== selectedTarget, valid };
     });
 }
 
@@ -163,7 +160,7 @@ export function buildSexualInjection(plan = [], pace = 'medium') {
     const active = plan.filter(item => item.valid);
     if (!active.length) return { text: '', traces: plan, charCount: 0 };
     const lines = [COMMON_INJECTION, PACE_INJECTION[normalized]];
-    for (const item of active) lines.push(`${item.name}: ${RESTRAINT_INJECTION[item.restraint]} ${ROUTE_INJECTION[item.route]} ${TARGET_INJECTION[item.target]}`);
+    for (const item of active) lines.push(`${item.name}: ${item.remote?'Use only the established remote contact; do not give physical access to the other location. ':''}${[RESTRAINT_INJECTION[item.restraint],ROUTE_INJECTION[item.route],TARGET_INJECTION[item.target]].filter(Boolean).join(' ')}`);
     const text = `<SEXUAL_CONDUCT pace="${normalized}">\n${lines.join('\n')}\n</SEXUAL_CONDUCT>`;
     return { text, traces: plan, charCount: text.length };
 }

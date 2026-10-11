@@ -13,7 +13,7 @@ function setup() {
         requests.push(request);
         const answers={};
         for(const [key,question] of Object.entries(request.questions)) {
-            const choice=key==='scene_level'?scenario.level:key==='scene_phase'?scenario.phase:key==='scene_evidence'?Object.keys(question.criteria).find(value=>value!=='none')||'none':key.startsWith('scene_participant_')?scenario.participant:Object.keys(question.criteria)[0];
+            const choice=key==='scene_status'?(scenario.phase==='ended'?'ended':scenario.level==='3'?'explicit_begin':'ordinary'):key==='scene_level'?scenario.level:key==='scene_phase'?scenario.phase:key==='scene_evidence'?Object.keys(question.criteria).find(value=>value!=='none')||'none':key.startsWith('scene_participant_')?scenario.participant:Object.keys(question.criteria)[0];
             answers[key]={choice,confidence:1};
         }
         return {answers};

@@ -66,7 +66,7 @@ const accessPolicy = applyCharacterPolicy(
     `character_0_context_access_${accessSlot}`,
     { choice: 'private_access', confidence: .7 }, 'active',
     Object.keys(questions[`character_0_context_access_${accessSlot}`].criteria));
-assert.equal(accessPolicy.effective, 'none', 'active routing cannot lower information access threshold');
+assert.equal(accessPolicy.effective, 'private_access', 'valid access classification survives without a confidence veto');
 const selected = resolveLiveCharacterPlan(plan, {
     character_0_presence: 'active',
     character_0_profile_slot_1: plan[0].profileCandidates[0].id,
@@ -82,7 +82,9 @@ const castPayload = buildInjection({
     npcProfile: { name: 'Wade', role: 'father', mode: 'natural', status: 'active' }, sheetCastNames: ['Wade'],
 });
 assert.match(castPayload, /NPC_CAST_SCOPE/);
-assert.doesNotMatch(castPayload, /<RP_NPC_ROUTING|<NPC_SCENE_EXECUTION/);
+assert.doesNotMatch(castPayload, /<RP_NPC_ROUTING/,'registered identity is not regenerated');
+assert.match(castPayload, /<NPC_SCENE_EXECUTION/,'registered people receive their role guidance');
+assert.doesNotMatch(castPayload, /<NPC_CONFLICT_ACTION/,'ordinary registered people are not converted to antagonists');
 const castOffPayload = buildInjection({
     settings: { worldDirection: 'natural', relationshipDirection: 'dynamic', progressionMode: 'off', roleplayPace: 'medium', npcToUser: true },
     decisions: { response_cadence: 'natural', npc_route: 'none', npc_autonomy: 'no' }, sheetCastNames: ['Wade'],

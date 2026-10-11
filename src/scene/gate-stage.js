@@ -1,10 +1,11 @@
+import {DECISION_CONTRACT_VERSION} from '../decision/policy.js';
 import {sceneDisplayState} from './display-state.js';
 import {inheritedStates, CONTINUATION_POLICY, storylineInjection, storylineRetrievalCue} from '../context/storyline-reference.js';
 import {bankIdentity} from '../retrieval/bank-identity.js';
 import {notifySceneReaderToast} from "../ui/toasts.js";
 import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
 import {visibilityKey} from '../context/visibility.js';
-import {sceneGateRequest, resolveSceneGate, sceneGateAnswersConflict, sceneGateConflictRequest, resolveSceneGateConflict} from "./intimacy-gate.js";
+import {sceneGateRequest, resolveSceneGate} from "./intimacy-gate.js";
 import {recordBankIsCurrent} from "../characters/records.js";
 import {addWorldQuestions, selectedWorldRecords, worldPayload as buildWorldPayload} from "../world/advanced.js";
 import {seasonalWorldNote} from "../world/seasonal.js";
@@ -20,7 +21,8 @@ async function prepareGate(run,frame) {
     (frame.previousParticipantIds = frame.previousSceneRoute==='paused' ? frame.rec.sceneIntimacy?.participantIds||[] : []);
     (frame.carriedGateIds = [...new Set([...frame.previousParticipantIds,...(frame.rec.lastJudgment?.characterTrace || []).filter(item=>(item?.presence||item?.final?.presence)==='active').map(item=>item.id)])]);
     (frame.gatePeople = deps.characterStore.enabled ? deps.selectActiveEntries(deps.characterStore, frame.transcript, deps.getContext().name2 || '', frame.carriedGateIds, {allowUserImpersonation:frame.prefs.allowUserImpersonation}).slice(0,6) : []);
-    (frame.gateRequest = sceneGateRequest({model:deps.JEV_MODEL,transcript: frame.transcript,previous:frame.previousSceneRoute,people:frame.gatePeople,previousParticipantIds: frame.previousParticipantIds}));
+    if (deps.characterStore.characters?.length===1 && !deps.characterStore.characters[0].cardCast) frame.gatePeople=frame.gatePeople.map(person=>person.id===deps.characterStore.characters[0].id?{...person,mainSillyTavernName:deps.getContext().name2||''}:person);
+    (frame.gateRequest = sceneGateRequest({model:deps.JEV_MODEL,transcript: frame.transcript,previous:frame.previousSceneRoute,previousScene:frame.rec.sceneIntimacy,people:frame.gatePeople,previousParticipantIds: frame.previousParticipantIds}));
     (frame.rawPriorStates = new Map(inheritedStates(frame.rec,deps.latestStateForChat(frame.rec, deps.getContext().chat, deps.stableFingerprint)).map(item => [item.id, item])));
     if(frame.storylineReference) {
         frame.gateRequest.state.continuation_reference=frame.storylineReference;
@@ -56,19 +58,7 @@ async function prepareGate(run,frame) {
         frame.worldInvalidCount = frame.worldRecordCandidates.filter((_, index) => !['yes', 'no'].includes(frame.worldRecordAnswers[`world_record_${index}`]?.choice)).length;
         frame.worldSelectionFailed = frame.worldRecordCandidates.length > 0 && frame.worldInvalidCount === frame.worldRecordCandidates.length;
         frame.sceneGate=resolveSceneGate(gateData.answers,frame.gateRequest,frame.previousSceneRoute);
-        if(sceneGateAnswersConflict(gateData.answers)) {
-            try {
-                const confirmation=await deps.callJev(sceneGateConflictRequest(frame.gateRequest,gateData.answers),15000,run.controller.signal);
-                run.assert();
-                frame.assertCurrentSnapshot();
-                frame.sceneGate=resolveSceneGateConflict(frame.sceneGate,confirmation.answers,frame.gateRequest,frame.previousSceneRoute);
-                if(frame.sceneGate.confirmation!=='resolved')frame.sceneGateError='서로 다른 장면 답변을 확인하지 못했습니다.';
-            } catch(error) {
-                if(error instanceof deps.StaleRunError || !run.valid())throw error;
-                frame.sceneGateError=`장면 답변 재확인 실패: ${String(error?.message||error)}`;
-                frame.sceneGate={...frame.sceneGate,confirmation:'unresolved'};
-            }
-        }
+        frame.sceneAnswerDiagnostics=gateData.answerDiagnostics;
     } catch(error) {
         if(error instanceof deps.StaleRunError || !run.valid())throw error;
         frame.sceneGateError = String(error?.message || error);
@@ -84,7 +74,7 @@ async function prepareGate(run,frame) {
         }
     }
     (frame.sceneContextEndIndex = Math.max(-1,...frame.context.selected.map(message=>(deps.getContext().chat||[]).indexOf(message)),String(frame.pendingUserText||'').trim()?(deps.getContext().chat||[]).length:-1));
-    frame.rec.sceneIntimacy={route:frame.sceneGate.route,level:frame.sceneGate.level,phase:frame.sceneGate.phase,evidence:frame.sceneGate.evidence,participantIds:frame.sceneGate.participantIds,inputKey: frame.inputKey,contextEndIndex:frame.sceneContextEndIndex,...(frame.sceneGate.confirmation?{confirmation:frame.sceneGate.confirmation}:{}),...(frame.sceneGateError?{error:frame.sceneGateError}:{})};
+    frame.rec.sceneIntimacy={route:frame.sceneGate.route,level:frame.sceneGate.level??frame.rec.sceneIntimacy?.level??null,phase:frame.sceneGate.phase,evidence:frame.sceneGate.evidence,participantIds:frame.sceneGate.participantIds,inputKey: frame.inputKey,contextEndIndex:frame.sceneContextEndIndex,...(frame.sceneGate.confirmation?{confirmation:frame.sceneGate.confirmation}:{}),...(frame.sceneGateError?{error:frame.sceneGateError}:{})};
     deps.noteDiagnostic?.('scene_gate',{displayStage:sceneDisplayState(frame.rec.sceneIntimacy).stage,route:frame.sceneGate.route,transition:frame.sceneGate.transition||'',phase:frame.sceneGate.phase||'',confirmation:frame.sceneGate.confirmation||'',error:frame.sceneGateError||''});
     (frame.seasonalContext = seasonalWorldNote(frame.prefs, frame.transcript, frame.world));
     (frame.appliedWorldRecords = selectedWorldRecords(frame.world, frame.worldRecordCandidates, frame.worldRecordAnswers, frame.worldSelectionFailed));
@@ -102,7 +92,7 @@ async function prepareGate(run,frame) {
         }
         (frame.payload = deps.buildPausedInjection({settings:frame.prefs,privatePrompt:frame.prefs.privatePromptEnabled?deps.ownerPrompt():'',referenceLines,activeWorldName:frame.world?.name||''}));
         const carry=storylineInjection(frame.rec);if(carry)frame.payload=carry+'\n\n'+frame.payload;
-        frame.rec.lastJudgment={details:{},decisions:{},payload: frame.payload,worldSelection: frame.worldSelection,worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}),worldPayload:frame.selectedWorldPayload,inputKey: frame.inputKey,contextKey:frame.context.contextKey,sourceKey: frame.sourceKey,continuityCacheKey: frame.continuityCacheKey,memoryKey: frame.memoryKey,characterTrace:[],sceneIntimacy:frame.rec.sceneIntimacy,judgedAt:new Date().toISOString(),model:deps.JEV_MODEL};
+        frame.rec.lastJudgment={decisionContract:DECISION_CONTRACT_VERSION,details:{},decisions:{},rawChoices:Object.fromEntries(Object.entries(frame.worldRecordAnswers).map(([key,answer])=>[key,{choice:answer.choice,confidence:answer.confidence,noul:answer.noul}])),jevDiagnostics:frame.sceneAnswerDiagnostics||null,payload: frame.payload,worldSelection: frame.worldSelection,worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}),worldPayload:frame.selectedWorldPayload,inputKey: frame.inputKey,contextKey:frame.context.contextKey,sourceKey: frame.sourceKey,continuityCacheKey: frame.continuityCacheKey,memoryKey: frame.memoryKey,characterTrace:[],sceneIntimacy:frame.rec.sceneIntimacy,judgedAt:new Date().toISOString(),model:deps.JEV_MODEL};
         frame.rec.lastJudgment.visibilityKeyV1=visibilityKey(deps.getContext().chat||[]);
         run.assert();
         if(deps.storageVersion>=2)await deps.queueWrite('session:'+run.identity,()=>{run.assert();return deps.storagePost('transaction',{chatKey:run.identity,chat:structuredClone(frame.rec),history:run.history.slice(-deps.STATE_HISTORY_LIMIT)});});

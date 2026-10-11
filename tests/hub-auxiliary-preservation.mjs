@@ -4,7 +4,7 @@ import {createSessionTransaction} from '../src/storage/session-transaction.js';
 const f=auxiliaryFixture();await f.turn();await f.turn();assert.equal(f.requests.length,0);
 f.deps.requestWithConnectionProfile=async(...args)=>{f.requests.push(args);return {result:{...emptyResponse().result,new_items:[{kind:'commitment',label:'Meet at noon',lifecycle:'active',owners:['Actor'],source_type:'promise',evidence:'I will meet you at noon.'}]}};};
 await f.turn('I will meet you at noon.');assert.equal(f.requests.length,1);
-const rec=f.records.get('room-A');assert.equal(rec.pendingContinuityCandidates.length,1);assert.equal(rec.pendingContinuityCandidates[0].sourceIdentity.sourceRevision,'source');
+const rec=f.records.get('room-A');assert.equal(rec.continuity.items.length,1);assert.equal(rec.continuity.items[0].sourceRefs.length,6);assert.equal(rec.lastContinuityTrace.status,'verified');assert.equal(rec.lastContinuityTrace.groupCount,3);assert.equal(rec.pendingContinuityCandidates,undefined);
 assert.equal(rec.characterEvolutionV1,undefined);assert.equal(rec.analysisRuntimeV1,undefined);
 assert.doesNotMatch(f.requests[0][2],/character_changes|baseline_records|record_reviews/);
 await f.analysis.queue(5);assert.equal(f.requests.length,1,'duplicate completion is not billed twice');

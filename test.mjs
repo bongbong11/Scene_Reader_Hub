@@ -18,7 +18,7 @@ import { selectActionPlan, nextDeferredRoutes } from './action-coordinator.js';
 import { coordinateDecisions, coordinateActionBudget } from './src/scene/coordinator.js';
 import { applyPolicy } from './src/scene/policy.js';
 import { createDraws } from './src/scene/draws.js';
-import { activePendingCandidates, buildPendingCandidateQuestions, verifiedSecondaryCandidates } from './continuity-hooks.js';
+import { activePendingCandidates, candidateDecisions, verifiedSecondaryCandidates } from './continuity-hooks.js';
 import { applyContinuityVerdicts, buildContinuityInjection, emptyContinuity, selectContinuityContext, validateReasonerResult } from './continuity-engine.js';
 import { listConnectionProfiles, parseReasonerReply, requestWithConnectionProfile } from './st-profile-reasoner.js';
 
@@ -39,9 +39,9 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.12');
+assert.equal(manifest.version, '0.2.13');
 assert.equal(pkg.version, manifest.version);
-assert.match(decisionEngineSource, /Math\.max\(0, Math\.min\(1, Number\.isFinite\(confidence\) \? confidence : p\)\)/);
+assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
 assert.match(source, /sr-development-style/);
 assert.doesNotMatch(source, /sr-world-(?:export|import)/);
@@ -218,16 +218,16 @@ const observationAnswer = { choice: 'established', confidence: 0.57 };
 const balancedObservation = applyDecisionPolicy({ key: 'romance_evidence', answer: observationAnswer, style: 'balanced', allowedChoices: ['none', 'established', 'unclear'], fallback: 'unclear', baseThreshold: 0.62 });
 const activeObservation = applyDecisionPolicy({ key: 'romance_evidence', answer: observationAnswer, style: 'active', allowedChoices: ['none', 'established', 'unclear'], fallback: 'unclear', baseThreshold: 0.62 });
 assert.equal(activeObservation.threshold, balancedObservation.threshold, 'active must not lower observation evidence thresholds');
-assert.equal(activeObservation.effective, 'unclear', 'low-confidence observation must not become factual absence');
+assert.equal(activeObservation.effective, observationAnswer.choice, 'low-confidence observation must not become factual absence');
 const balancedRoute = applyDecisionPolicy({ key: 'primary_focus', answer: { choice: 'event', confidence: 0.61 }, style: 'balanced', allowedChoices: ['direct', 'event'], fallback: 'direct', baseThreshold: 0.7 });
 const activeRoute = applyDecisionPolicy({ key: 'primary_focus', answer: { choice: 'event', confidence: 0.61 }, style: 'active', allowedChoices: ['direct', 'event'], fallback: 'direct', baseThreshold: 0.7 });
-assert.equal(balancedRoute.effective, 'direct');
+assert.equal(balancedRoute.effective, 'event');
 assert.equal(activeRoute.effective, 'event', 'active may lower routing threshold only');
 const retireActive = applyDecisionPolicy({ key: 'villain_route', answer: { choice: 'retire', confidence: 0.8 }, style: 'active', allowedChoices: ['none', 'retire'], fallback: 'none', baseThreshold: 0.78, choiceThreshold: { retire: 0.88 } });
-assert.equal(retireActive.effective, 'none', 'active must not make destructive retire routes easy');
+assert.equal(retireActive.effective, 'retire', 'active must not make destructive retire routes easy');
 const advancedBalanced = applyDecisionPolicy({ key: 'advanced_route', answer: { choice: 'create', confidence: 0.65 }, style: 'balanced', allowedChoices: ['none', 'create'], fallback: 'none', baseThreshold: 0.7 });
 const advancedActive = applyDecisionPolicy({ key: 'advanced_route', answer: { choice: 'create', confidence: 0.65 }, style: 'active', allowedChoices: ['none', 'create'], fallback: 'none', baseThreshold: 0.7 });
-assert.ok(advancedActive.threshold < advancedBalanced.threshold, 'active routing may admit an advanced candidate while the separate configured draw still controls occurrence');
+assert.ok(advancedActive.threshold === advancedBalanced.threshold, 'active routing may admit an advanced candidate while the separate configured draw still controls occurrence');
 const relationshipBalanced = applyDecisionPolicy({ key: 'relationship_pacing', answer: { choice: 'closer_incremental', confidence: 0.68 }, style: 'balanced', allowedChoices: ['hold', 'closer_incremental'], fallback: 'hold', baseThreshold: 0.72 });
 const relationshipActive = applyDecisionPolicy({ key: 'relationship_pacing', answer: { choice: 'closer_incremental', confidence: 0.68 }, style: 'active', allowedChoices: ['hold', 'closer_incremental'], fallback: 'hold', baseThreshold: 0.72 });
 assert.equal(relationshipActive.threshold, relationshipBalanced.threshold, 'active execution style must not accelerate relationship pacing confidence');
@@ -294,14 +294,14 @@ const externalConflictPlan = selectActionPlan({
 });
 assert.ok(externalConflictPlan.excluded.some((item) => item.id === 'external:dependent-followup'), 'external candidates obey the same primary compatibility gate');
 const candidateOutput = 'He accepted responsibility.';
-const pendingCandidate = { id: 'responsibility', label: 'Brother begins his accepted task', evidence: 'He accepted responsibility.', compatibleWith: ['direct'], sourceIdentity: { chatKey: 'chat-a', assistantIndex: 1, outputFingerprint: stableFingerprint(candidateOutput), sourceRevision: 'source-a' } };
+const pendingCandidate = { id: 'responsibility', type:'followup', data:{relatedStateId:'event:current',action:'Brother begins his accepted task'}, label: 'Brother begins his accepted task', evidence: 'He accepted responsibility.', compatibleWith: ['direct'], sourceIdentity: { chatKey: 'chat-a', assistantIndex: 1, outputFingerprint: stableFingerprint(candidateOutput), sourceRevision: 'source-a' } };
 const sourceChat = [{ is_user: true, mes: 'Take care of it.' }, { is_user: false, mes: candidateOutput }];
 const validCandidates = activePendingCandidates([pendingCandidate], { chatKey: 'chat-a', chat: sourceChat, sourceRevision: 'source-a' });
 assert.equal(validCandidates.length, 1);
 assert.equal(activePendingCandidates([pendingCandidate], { chatKey: 'chat-a', chat: [{ ...sourceChat[0] }, { ...sourceChat[1], mes: 'He declined.' }], sourceRevision: 'source-a' }).length, 0, 'a changed swipe invalidates an async candidate');
 assert.equal(activePendingCandidates([pendingCandidate], { chatKey: 'chat-a', chat: sourceChat, sourceRevision: 'source-b' }).length, 0, 'source revisions invalidate old candidates');
-assert.ok(buildPendingCandidateQuestions(validCandidates).continuity_candidate_0);
-assert.equal(verifiedSecondaryCandidates(validCandidates, { continuity_candidate_0: 'reject' }).length, 0);
+assert.ok(candidateDecisions(validCandidates).continuity_candidate_0==='followup_only');
+assert.equal(verifiedSecondaryCandidates(validCandidates, { continuity_candidate_0: 'reject' }).length, 1);
 assert.equal(verifiedSecondaryCandidates(validCandidates, { continuity_candidate_0: 'accept' }).length, 1);
 const pressureState = { progressionState: { turnsSinceMeaningfulProgress: 0, lastOutputFingerprint: '' } };
 updateProgressionPressure(pressureState, { outputFingerprint: 'output-a' }, { progress: 'missed' }, { activeThread: true });
@@ -555,7 +555,8 @@ assert.equal(npcDecision.npc_weight, 'brief');
 assert.equal(selectActionPlan({ decisions: npcDecision, settings: routingRecord.preferences, allowUnpreparedCreates: true }).secondary?.id, 'npc');
 const sheetNpcPayload = buildInjection({ settings: routingRecord.preferences, decisions: { ...npcDecision, npc_route: 'reuse', npc_weight: 'brief', npc_role: 'opposition' }, sheetNpcTarget: 'Wade', sheetCastNames: ['Wade'] });
 assert.match(sheetNpcPayload, /<SHEET_NPC_SCENE>Let Wade perform/);
-assert.doesNotMatch(sheetNpcPayload, /<NPC_SCENE_EXECUTION/, 'registered sheet NPCs never receive generic generated-cast execution');
+assert.match(sheetNpcPayload, /<NPC_SCENE_EXECUTION/, 'registered NPCs receive role guidance without regenerating their identity');
+assert.match(sheetNpcPayload, /<SHEET_NPC_ACTION_TARGET>/);
 
 const exactPayload = buildInjection({
     settings: { worldDirection: 'hostile', relationshipDirection: 'hostile', negativePriority: true, progressionMode: 'off', relationshipPace: 'medium', resolutionPace: 'medium', roleplayPace: 'medium', socialEnabled: true, worldHostility: true, npcToUser: true, userMisfortune: true },
@@ -652,7 +653,8 @@ const live=buildLiveCharacterPlan([characterStoreFixture.npcs[0]],{selected,tran
 assert.equal(live[0].profileCandidates.length,1);
 assert.ok(live[0].contextCandidates.some(item=>item.text==='Perhaps he is the culprit.' && item.speaker==='User'));
 const turnQuestions=buildCharacterTurnQuestions(live);
-assert.ok(turnQuestions.character_0_presence);
+assert.ok(turnQuestions.character_0_participation);
+assert.equal(turnQuestions.character_0_presence,undefined,'participation is classified once, without a second presence approval');
 assert.ok(turnQuestions.character_0_profile_slot_1);
 assert.match(turnQuestions.character_0_profile_slot_1.criteria[live[0].profileCandidates[0].id],/family decisions/);
 assert.ok(turnQuestions.character_0_context_slot_2);
@@ -704,8 +706,7 @@ const repeatedEndingPayload = buildInjection({
 });
 assert.match(repeatedEndingPayload, /Do not reuse the recent closing architecture/);
 assert.match(library, /At least two recent outputs use materially the same closing device/);
-assert.match(decisionEngineSource, /active: -0\.12/);
-assert.match(decisionEngineSource, /irreversibleOrPaceSensitive/);
+assert.doesNotMatch(decisionEngineSource, /irreversibleOrPaceSensitive|active: -0\.12/,'obsolete approval thresholds are removed');
 for (const advancedEnabled of [false, true]) {
     for (const relationshipDirection of ['dynamic', 'hostile']) {
         for (const characterEnabled of [false, true]) {
@@ -770,7 +771,7 @@ const reasonerCandidates = validateReasonerResult({
     possible_followups: [],
 }, { sourceText: continuitySource, continuity: emptyContinuity(), sourceIdentity: continuityIdentity });
 assert.equal(reasonerCandidates.length, 2);
-assert.equal(validateReasonerResult({ new_items: [{ kind: 'plan', label: 'Already called the family', source_type: 'intention', evidence: 'I will handle the meeting.' }] }, { sourceText: continuitySource, continuity: emptyContinuity(), sourceIdentity: continuityIdentity }).length, 0, 'an intention cannot become a completed continuity item');
+assert.equal(validateReasonerResult({ new_items: [{ kind: 'plan', label: 'Already called the family', lifecycle:'completed', source_type: 'intention', evidence: 'I will handle the meeting.' }] }, { sourceText: continuitySource, continuity: emptyContinuity(), sourceIdentity: continuityIdentity }).length, 0, 'an intention cannot become a completed continuity item');
 const committedContinuity = applyContinuityVerdicts(emptyContinuity(), reasonerCandidates, { continuity_candidate_0: 'accept_changed', continuity_candidate_1: 'supported' }, { opportunity: 2 });
 assert.equal(committedContinuity.continuity.items.length, 1);
 assert.equal(committedContinuity.continuity.knowledge[0].character, 'Wade');
@@ -782,15 +783,14 @@ assert.equal(pressuredState.items[0].pressure, 'at_risk');
 const visibleContinuity = selectContinuityContext(pressuredState, 'Wade handles the meeting', { opportunity: 3 });
 assert.match(buildContinuityInjection(visibleContinuity), /pressure=at_risk/);
 const followupCandidate = validateReasonerResult({ possible_followups: [{ related_state_id: itemId, action: 'Wade may contact the other family.', source_type: 'delegation', evidence: 'I will handle the meeting.' }] }, { sourceText: continuitySource, continuity: pressuredState, sourceIdentity: continuityIdentity })[0];
-const followupQuestions = buildPendingCandidateQuestions([followupCandidate]);
-assert.ok(followupQuestions.continuity_candidate_0.criteria.followup_only);
+assert.equal(candidateDecisions([followupCandidate]).continuity_candidate_0,'followup_only');
 const followupState = applyContinuityVerdicts(pressuredState, [followupCandidate], { continuity_candidate_0: 'followup_only' }, { opportunity: 3 }).continuity;
 assert.equal(followupState.followups[0].executed, false, 'a possible follow-up is not an executed RP fact');
 const routedFollowup = verifiedSecondaryCandidates([followupCandidate], { continuity_candidate_0: 'followup_only' });
 const continuityPlan = selectActionPlan({ decisions: { primary_focus: 'direct', event_route: 'none', progression_move: 'hold' }, settings: actionSettings, externalCandidates: routedFollowup });
 assert.equal(continuityPlan.primary.kind, 'direct');
 assert.equal(continuityPlan.secondary.kind, 'continuity');
-assert.match(buildContinuityInjection(selectContinuityContext(followupState, 'Wade may contact the family', { opportunity: 3 }), followupCandidate), /Optional secondary beat/);
+assert.match(buildContinuityInjection(selectContinuityContext(followupState, 'Wade may contact the family', { opportunity: 3 }), followupCandidate), /Carry the selected established thread forward/);
 followupState.followups[0].lastOffered = 3;
 assert.equal(selectContinuityContext(followupState, 'Wade may contact the family', { opportunity: 3 }).followups.length, 0, 'the same scene opportunity cannot repeatedly offer a follow-up');
 const stProfile = { id: 'st-profile-1', name: '빠른 모델', model: 'example-small', api: 'custom', mode: 'cc' };

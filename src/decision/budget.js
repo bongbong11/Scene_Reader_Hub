@@ -28,7 +28,7 @@ export function activeEventCandidate(decisions, settings, hasEventProfile, allow
             isNew: false, transition: true, executable: true,
         };
     }
-    if (!((continuing && (hasEventProfile || observedEvent)) || (create && profileReady) || movingObservedEvent)) {
+    if (!(continuing || (create && profileReady) || movingObservedEvent)) {
         const sceneMove = String(decisions.advanced_move || '');
         if (settings.advancedEnabled && ['latent', 'open'].includes(decisions.advanced_entry)
             && decisions.advanced_element && decisions.advanced_element !== 'none'
@@ -76,7 +76,6 @@ export function collectActionCandidates({
         candidates.push({ id: 'conflict', kind: 'conflict', focus: 'conflict', label: ROUTE_LABELS.conflict, executable: true, isNew: false, transition: false });
     }
     if (['create', 'reuse', 'replace'].includes(decisions.npc_route)
-        && decisions.npc_role !== 'none' && decisions.npc_weight !== 'none'
         && (allowUnpreparedCreates || !['create', 'replace'].includes(decisions.npc_route) || hasNpcProfile)) {
         candidates.push({ id: 'npc', kind: 'npc', focus: 'npc', label: ROUTE_LABELS.npc, executable: true, isNew: ['create', 'replace'].includes(decisions.npc_route), transition: false, weight: decisions.npc_weight });
     }
@@ -128,10 +127,8 @@ export function selectActionPlan({
     // The direct response is part of the selected scene, not an extra plot beat.
     // A supported relationship expression can color that same event/NPC exchange
     // without consuming the single independent secondary route.
-    const relationship=candidates.find(candidate=>candidate.kind==='relationship');
-    const sharedInteraction=['event','npc','villain','conflict'].includes(primary?.kind)
-        || ['event','npc','villain','conflict'].includes(secondary?.kind);
-    const overlays=[candidates.find(candidate=>candidate.kind==='direct'),...(relationship && sharedInteraction?[relationship]:[])].filter(candidate=>candidate && candidate.id!==primary?.id && candidate.id!==secondary?.id);
+    const overlays=candidates.filter(candidate=>candidate.kind==='direct'||!candidate.isNew&&!candidate.transition&&(['relationship','npc','villain','conflict'].includes(candidate.kind)||candidate.kind==='event'&&candidate.id!=='advanced_scene'))
+        .filter(candidate=>candidate.id!==primary?.id&&candidate.id!==secondary?.id);
     const kept = new Set([primary?.id, secondary?.id,...overlays.map(candidate=>candidate.id)].filter(Boolean));
     const excluded = candidates.filter((candidate) => !kept.has(candidate.id)).map((candidate) => ({
         id: candidate.id,
@@ -168,7 +165,7 @@ export function actionPlanSummary(plan) {
 export function nextDeferredRoutes(previous = {}, plan = {}) {
     const eligible = new Set((plan.candidates || []).map((candidate) => candidate.id));
     const selected = new Set([plan.primary?.id, plan.secondary?.id,...(plan.overlays||[]).map(item=>item.id)].filter(Boolean));
-    return Object.fromEntries(['event', 'advanced_event', 'advanced_scene', 'npc', 'villain']
+    return Object.fromEntries([...new Set(['event', 'advanced_event', 'advanced_scene', 'npc', 'villain',...(plan.candidates||[]).filter(item=>item.external).map(item=>item.id)])]
         .filter((id) => eligible.has(id) && !selected.has(id))
         .map((id) => [id, Math.min(3, (Number(previous[id]) || 0) + 1)]));
 }

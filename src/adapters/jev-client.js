@@ -1,4 +1,4 @@
-import {validNoul} from './answer-value.js';
+import {normalizeJevAnswers} from './jev-answer-normalizer.js';
 import {withRequestLifetime} from './request-lifetime.js';
 import {requestFailure} from './failure-info.js';
 import {jevProvider, browserJevKey, JEV_PROVIDERS} from './jev-providers.js';
@@ -26,7 +26,7 @@ async function callJev(body, timeoutMs = 30000, signal = null, connection = null
     timeoutMs=Math.min(timeoutMs,direct?60000:30000);
     const started = Date.now();
     const requestBody = JSON.stringify(direct ? { ...body, model:config.model } : body);
-    const report = detail => { try { deps.noteDiagnostic?.('jev_request',{module:'src/adapters/jev-client.js',provider,requestChars:requestBody.length,timeoutMs,questionCount:Object.keys(body?.questions || {}).length,requestKind:body?.questions?.scene_level?'scene':'decision',...detail}); } catch { /* diagnostic only */ } };
+    const report = detail => { try { deps.noteDiagnostic?.('jev_request',{module:'src/adapters/jev-client.js',provider,requestChars:requestBody.length,timeoutMs,questionCount:Object.keys(body?.questions || {}).length,requestKind:body?.questions?.scene_status||body?.questions?.scene_level?'scene':'decision',...detail}); } catch { /* diagnostic only */ } };
     report({status:'started'});
     try {
         const {response,data} = await withRequestLifetime(async requestSignal => {
@@ -47,19 +47,9 @@ async function callJev(body, timeoutMs = 30000, signal = null, connection = null
             throw requestFailure({httpStatus:response.status},'JEV',`${config.label} Jev 연결`);
         }
         if (!data?.answers || typeof data.answers !== 'object' || Array.isArray(data.answers) || !Object.keys(data.answers).length) throw new Error('Jev 응답에 판정 결과가 없습니다.');
-        if (body?.questions?.scene_level) {
-            for (const key of ['scene_level','scene_phase','scene_evidence']) {
-                const selected=String(data.answers[key]?.choice ?? '');
-                if (!Object.hasOwn(body.questions[key]?.criteria || {},selected)) throw new Error(`Jev 장면 판정 형식 오류: ${key}`);
-            }
-        }
         const requested=Object.entries(body?.questions||{});
-        const invalidKeys=requested.filter(([name,question])=>{
-            const answer=data.answers[name];
-            if(!answer || typeof answer!=='object' || Array.isArray(answer))return true;
-            if(question?.type==='noul')return !validNoul(answer.noul) && !Object.hasOwn(question?.criteria||{},String(answer.choice??''));
-            return !Object.hasOwn(question?.criteria||{},String(answer.choice??''));
-        }).map(([name])=>name);
+        data.answers=normalizeJevAnswers(data.answers,body?.questions||{});
+        const invalidKeys=requested.filter(([name])=>data.answers[name].responseState!=='valid').map(([name])=>name);
         if(requested.length && invalidKeys.length===requested.length)throw new Error('Jev가 요청한 판정 항목에 유효하게 답하지 않았습니다.');
         data.answerDiagnostics={requested:requested.length,valid:requested.length-invalidKeys.length,invalidKeys};
         report({status:invalidKeys.length?'degraded':'succeeded',durationMs:Date.now()-started,validCount:requested.length-invalidKeys.length,invalidCount:invalidKeys.length});

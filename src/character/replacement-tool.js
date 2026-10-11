@@ -5,13 +5,12 @@ import {createCurrentChatReview} from '../adapters/current-chat-review.js';
 export function createReplacementTool(deps,{client=createCurrentChatReview(),expand=expandBank}={}){
  let controller=null,epoch=0;
  const entries=()=>[...(deps.characterStore.characters||[]),...[deps.characterStore.persona].filter(Boolean)].filter(e=>e.recordBank&&(e.recordBank.pagedRecords?.count||e.recordBank.records?.length));
- const assertOwner=()=>{if(!deps.ownerUnlocked())throw new Error('개발자 모드를 먼저 열어 주세요.');};
  const renderReview=(entry,template)=>currentCharacterReview(entry.name,template,entry===deps.characterStore.persona);
- function reviewInstruction(id,template){assertOwner();const entry=entries().find(e=>e.id===id);if(!entry)throw new Error('인물을 먼저 선택하세요.');return renderReview(entry,template);}
+ function reviewInstruction(id,template){const entry=entries().find(e=>e.id===id);if(!entry)throw new Error('인물을 먼저 선택하세요.');return renderReview(entry,template);}
  const signature=()=>deps.stableFingerprint((deps.getContext().chat||[]).map(m=>[m.is_user,m.mes,m.swipe_id,m.is_system,m.is_hidden,m.hidden,m.extra?.hidden,m.extra?.exclude_from_prompt,m.extra?.ooc_chat]));
  function cancel(){epoch++;controller?.abort();controller=null;}
- function capture(id){assertOwner();if(!deps.getContext().chatId)throw new Error('채팅방을 먼저 열어 주세요.');const entry=entries().find(e=>e.id===id);if(!entry)throw new Error('현재 방의 원본 인물 파일을 선택하세요.');const key=deps.stateChatKey(),bank=deps.stableFingerprint(entry.recordBank),chat=signature(),revision=epoch;
-  return {entry,key,valid:()=>revision===epoch&&deps.ownerUnlocked()&&key===deps.stateChatKey()&&chat===signature()&&bank===deps.stableFingerprint(entries().find(e=>e.id===id)?.recordBank)};
+ function capture(id){if(!deps.getContext().chatId)throw new Error('채팅방을 먼저 열어 주세요.');const entry=entries().find(e=>e.id===id);if(!entry)throw new Error('현재 방의 원본 인물 파일을 선택하세요.');const key=deps.stateChatKey(),bank=deps.stableFingerprint(entry.recordBank),chat=signature(),revision=epoch;
+  return {entry,key,valid:()=>revision===epoch&&key===deps.stateChatKey()&&chat===signature()&&bank===deps.stableFingerprint(entries().find(e=>e.id===id)?.recordBank)};
  }
  const report=(code,status,extra={})=>deps.noteDiagnostic?.('replacement_review',{module:'src/character/replacement-tool.js',code,status,...extra});
  async function review(id,template){

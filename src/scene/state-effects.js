@@ -30,9 +30,9 @@ export function commitObservedState(rec, decisions, evidenceKey) {
     };
     const changed = ['closer', 'distant', 'mixed'].includes(decisions.relationship_motion);
     if (changed) relationship.motion = decisions.relationship_motion;
-    if (changed && ['positive', 'negative', 'mixed'].includes(decisions.trust_signal)) relationship.trust = decisions.trust_signal;
-    if (changed && ['positive', 'negative', 'mixed'].includes(decisions.intimacy_signal)) relationship.intimacy = decisions.intimacy_signal;
-    if (decisions.romance_evidence === 'established' || (changed && ['attraction', 'counter', 'mixed'].includes(decisions.romance_evidence))) relationship.romance = decisions.romance_evidence;
+    if (['positive', 'negative', 'mixed'].includes(decisions.trust_signal)) relationship.trust = decisions.trust_signal;
+    if (['positive', 'negative', 'mixed'].includes(decisions.intimacy_signal)) relationship.intimacy = decisions.intimacy_signal;
+    if (['established', 'attraction', 'counter', 'mixed'].includes(decisions.romance_evidence)) relationship.romance = decisions.romance_evidence;
     if (decisions.unresolved && !['none', 'unclear'].includes(decisions.unresolved)) rec.sceneState.unresolved = decisions.unresolved;
     if (changed && evidenceKey && ['closer', 'distant'].includes(decisions.relationship_motion)) {
         addQualifiedEvidence(rec.pacingState.relationship, decisions.relationship_motion, evidenceKey, 1);

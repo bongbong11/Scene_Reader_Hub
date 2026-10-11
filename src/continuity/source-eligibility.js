@@ -5,7 +5,14 @@ export function sourceEligibility(refs,{record,chatRef,chat,fingerprint,inherite
   if(ref.sourceKind&&ref.sourceKind!=='chat'){
    return 'source_unverified';
   }
-  if(ref.originChatRef!==chatRef){if(inherited)continue;return 'source_unavailable';}
+  const origin=ref.originChatRef??ref.chatKey;
+  if(origin!==chatRef){if(inherited&&origin)continue;return 'source_unavailable';}
+  if(ref.chatKey&&ref.assistantIndex!==undefined){
+   const message=chat?.[ref.assistantIndex];
+   if(message?.is_system||message?.is_hidden||message?.hidden||message?.extra?.hidden||message?.extra?.exclude_from_prompt)return 'source_hidden';
+   if(!message||message.is_user||ref.outputFingerprint!==fingerprint(String(message.mes||'')))return 'source_changed';
+   continue;
+  }
   const message=chat?.[ref.messageIndex];
   if(message?.is_system||message?.is_hidden||message?.hidden||message?.extra?.hidden||message?.extra?.exclude_from_prompt)return 'source_hidden';
   if(!validateSourceRefs([ref],{chatRef,chat:chat||[],fingerprint}))return 'source_changed';

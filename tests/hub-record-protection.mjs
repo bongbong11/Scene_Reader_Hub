@@ -48,9 +48,10 @@ for(const volume of ['basic','generous','detailed']) for(const indices of [[],Ar
         const a=answer(plan,count,presence), before=buildCharacterInjection(resolveLiveCharacterPlan(base,a.decisions,a.details),{volume});
         const after=buildCharacterInjection(resolveLiveCharacterPlan(plan,a.decisions,a.details),{volume});
         const baselineIds=new Set(base[0].profileCandidates.map(r=>r.id));
-        assert.deepEqual(after.traces[0].profileIds.filter(id=>baselineIds.has(id)),before.traces[0].profileIds);
-        assert.deepEqual(after.traces[0].injectedRuleIds.filter(id=>baselineIds.has(id)),before.traces[0].injectedRuleIds);
-        if(before.text)assert.ok(after.text.replace('\n</CHARACTER_EXECUTION>','').startsWith(before.text.replace('\n</CHARACTER_EXECUTION>','')),'baseline injection text remains a prefix');
+        for(const id of after.traces[0].profileIds.filter(id=>baselineIds.has(id)))assert.ok(before.traces[0].profileIds.includes(id),'no unselected baseline record is introduced');
+        for(const id of after.traces[0].injectedRuleIds.filter(id=>baselineIds.has(id)))assert.ok(before.traces[0].injectedRuleIds.includes(id),'no unselected baseline content is injected');
+        for(const id of after.traces[0].injectedRuleIds.filter(id=>baselineIds.has(id)))assert.ok(after.text.includes(base[0].profileCandidates.find(record=>record.id===id).rule),'selected record content remains intact');
+        assert.ok(after.traces[0].profileIds.length<=plan[0].profileSlotLimit,'protected and baseline records share the same slot budget');
         if(presence!=='active')assert.equal(after.text,'');
         assert.ok(after.charCount<=after.charLimit); comparisons++;
     }
@@ -79,7 +80,10 @@ for(let i=0;i<6;i++) {
     const ids=new Set(sixBase[i].profileCandidates.map(r=>r.id));
     assert.deepEqual(sixAfter.traces[i].injectedRuleIds.filter(id=>ids.has(id)),sixBefore.traces[i].injectedRuleIds,'early actor extras cannot displace later baseline');
 }
-assert.ok(sixAfter.text.replace('\n</CHARACTER_EXECUTION>','').startsWith(sixBefore.text.replace('\n</CHARACTER_EXECUTION>','')));
+for(let i=0;i<6;i++) for(const id of sixAfter.traces[i].injectedRuleIds) {
+    assert.ok(sixAfter.text.includes(sixPlan[i].profileCandidates.find(record=>record.id===id).rule),'each injected record remains whole after priority packing');
+}
+assert.ok(sixAfter.charCount<=sixAfter.charLimit,'all six actors share the existing whole-injection cap');
 
 // Several knowledge limits are independent candidates, not one per type.
 const twoKnowledge=entry('k','character',[guard('knowledge','Does not know the vault code.'),guard('knowledge','Misunderstands the archive seal.','misunderstands')]);
@@ -89,7 +93,8 @@ for(const slots of [2,3,4]) {
     const npc=buildLiveCharacterPlan([entry('n','npc')],{...options,npcSlots:slots});buildCharacterTurnQuestions(npc);
     const a=answer(npc,20), resolved=resolveLiveCharacterPlan(npc,a.decisions,a.details), injection=buildCharacterInjection(resolved);
     assert.equal(resolved[0].profileIds.length,slots);
-    assert.equal(injection.traces[0].protection.omittedBySlots,2,'full NPC slots keep baseline choices');
+    assert.equal(injection.traces[0].protection.omittedBySlots,0,'approved knowledge and boundary records take priority within the same NPC slot cap');
+    assert.ok(resolved[0].protectedCandidateIds.every(id=>resolved[0].profileIds.includes(id)));
 }
 
 // Oversized records are omitted whole at each distinct budget stage.
@@ -105,8 +110,22 @@ const baseRecords=Array.from({length:6},(_,i)=>({...ordinary(i),rule:'B'.repeat(
 const custom=entry('packed'); custom.recordBank=createRecordBank({entity_type:'character',entity_name:custom.name,records:[...baseRecords,...Array.from({length:20},(_,i)=>ordinary(i+6)),guard('knowledge','PROTECTED WHOLE LINE '.repeat(60))]},custom,'large');
 const packed=buildLiveCharacterPlan([custom],{...options,volume:'generous'});buildCharacterTurnQuestions(packed);
 const pa=answer(packed,5), packedInjection=buildCharacterInjection(resolveLiveCharacterPlan(packed,pa.decisions,pa.details));
-assert.equal(packedInjection.traces[0].protection.omittedByInjectionChars,1);
-assert.ok(!packedInjection.text.includes('PROTECTED WHOLE LINE'),'never truncate a constraint');
+const protectedRecord=packed[0].profileCandidates.find(item=>packed[0].protectedCandidateIds.includes(item.id));
+assert.equal(packedInjection.text.includes(protectedRecord.rule),packedInjection.traces[0].injectedRuleIds.includes(protectedRecord.id),'a protected constraint is either whole or omitted');
+assert.ok(packedInjection.charCount<=packedInjection.charLimit);
+
+// Identity shortening must not turn uncertain background presence into an entrance.
+const uncertainPlan=buildLiveCharacterPlan([entry('uncertain','npc')],options);
+uncertainPlan[0].sourceVisibleToMain=false;
+uncertainPlan[0].profileCandidates=[{...uncertainPlan[0].profileCandidates[0],rule:'Stored identity '.repeat(200)}];
+uncertainPlan[0].protectedCandidateIds=[];
+const uncertainAnswers=answer(uncertainPlan,0,'background');
+uncertainAnswers.details.character_0_presence={presenceUncertain:true,participationEvidence:'unknown'};
+const conditional=buildCharacterInjection(resolveLiveCharacterPlan(uncertainPlan,uncertainAnswers.decisions,uncertainAnswers.details),{maxChars:700});
+assert.ok(conditional.charCount<=700);
+assert.equal(conditional.traces[0].identityFallback,true);
+assert.match(conditional.text,/If Actoruncertain participates/);
+assert.match(conditional.text,/does not introduce or summon/);
 
 // A supplement-only preparation failure leaves the established path usable.
 const brokenHints=[];brokenHints.includes=()=>{throw Error('supplement-only failure');};

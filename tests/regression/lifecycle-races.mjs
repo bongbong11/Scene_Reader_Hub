@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fixture } from './audit-v012.mjs';
 import { parseReasonerReply } from '../../st-profile-reasoner.js';
-import { sceneGateRequest, resolveSceneGate, sceneGateAnswersConflict, sceneGateConflictRequest, resolveSceneGateConflict } from '../../src/scene/intimacy-gate.js';
+import { sceneGateRequest, resolveSceneGate } from '../../src/scene/intimacy-gate.js';
 
 function setup() {
     const f=fixture(), calls=[], activities=[];
@@ -19,34 +19,19 @@ function setup() {
 }
 
 {
-    const request=sceneGateRequest({model:'jev',transcript:'[1] CHARACTER: The prior interaction pauses.\n[2] USER: They move on to ordinary business.\n[3] CHARACTER: They begin another conversation.'});
-    const answers={scene_level:{choice:'0'},scene_phase:{choice:'normal'},scene_evidence:{choice:'3'}};
+    const request=sceneGateRequest({model:'jev',transcript:'[1] CHARACTER: A scene.\n[2] USER: Ordinary business.\n[3] CHARACTER: A conversation.'});
+    const answers={scene_status:{choice:'ended'},scene_evidence:{choice:'3'}};
     assert.equal(resolveSceneGate(answers,request,'paused').transition,'exited');
-    answers.scene_evidence.choice='1';
-    assert.equal(resolveSceneGate(answers,request,'paused').route,'paused','old evidence cannot end a current scene');
-    const conflicting={scene_level:{choice:'4'},scene_phase:{choice:'ended'},scene_evidence:{choice:'3'}};
-    assert.equal(sceneGateAnswersConflict(conflicting),true);
-    const confirmationRequest=sceneGateConflictRequest(request,conflicting);
-    assert.equal(Object.keys(confirmationRequest.questions).length,2,'conflict confirmation is bounded');
-    const initial=resolveSceneGate(conflicting,request,'paused');
-    assert.equal(resolveSceneGateConflict(initial,{scene_resolution:{choice:'ended'},scene_evidence:{choice:'3'}},request,'paused').transition,'exited');
-    assert.equal(resolveSceneGateConflict(initial,{scene_resolution:{choice:'ended'},scene_evidence:{choice:'1'}},request,'paused').route,'paused');
+    answers.scene_evidence.choice='99';assert.equal(resolveSceneGate(answers,request,'paused').route,'paused','invented sources cannot establish exit');
 }
 {
-    const {f,calls}=setup();
-    f.run('record().sceneIntimacy={route:"paused",participantIds:[]};');
+    const {f,calls}=setup();f.run('record().sceneIntimacy={route:"paused",participantIds:[]};');
     const original=f.sandbox.auditJev;
-    f.sandbox.conflictingJev=async request=>{
-        if(request.questions.scene_resolution){calls.push(request);return {answers:{scene_resolution:{choice:'ended'},scene_evidence:{choice:Object.keys(request.questions.scene_evidence.criteria).filter(id=>id!=='none').at(-1)}}};}
-        const result=await original(request);
-        if(request.questions.scene_level){result.answers.scene_level.choice='4';result.answers.scene_phase.choice='ended';}
-        return result;
-    };
-    f.run('callJev=conflictingJev;');
-    await f.run('runJudge({force:true})');
-    assert.equal(calls.length,3,'only conflicting gate answers add a second small check');
+    f.sandbox.endingJev=async request=>{const result=await original(request);if(request.questions.scene_status)result.answers.scene_status={choice:'ended'};return result;};
+    f.run('callJev=endingJev;');await f.run('runJudge({force:true})');
+    assert.equal(calls.length,2,'one scene classification and one main request; no repeated permission request');
     assert.equal(f.run('record().sceneIntimacy.route'),'normal');
-    assert.equal(f.run('record().lastJudgment.sceneIntimacy.confirmation'),'resolved');
+    assert.ok(!calls.some(request=>request.questions.scene_resolution));
 }
 {
     const {f,calls}=setup();

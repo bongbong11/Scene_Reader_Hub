@@ -94,7 +94,7 @@ assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS
     const quiet=buildInjection({settings,decisions:{...FALLBACKS,primary_focus:'direct'}});
     assert.match(quiet,/<WORLD_HOSTILITY>/);assert.doesNotMatch(quiet,/<CONFLICT_PROGRESSION>/,'ongoing bias is not mislabeled as a current conflict');
     const paused=buildPausedInjection({settings,referenceLines:['<CHARACTER_REFERENCE>Stored reference.</CHARACTER_REFERENCE>']});
-    assert.match(paused,/Enabled negative-bias constraints take priority/);
+    assert.match(paused,/enabled original negative-bias directives with priority/);
     assert.ok(paused.indexOf('</FIXED_SCENE_SETTINGS>')<paused.indexOf('<CHARACTER_REFERENCE>'));
     assert.doesNotMatch(paused,/<SCENE_FOCUS>|<BASIC_DEVELOPMENT|<CONFLICT_PROGRESSION>|<EXECUTION_CORRECTION>/,'paused scenes retain no dynamic execution categories');
 }

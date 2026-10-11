@@ -43,15 +43,13 @@ function renderJudgment() {
         const targetLabel = (choice) => key === 'npc_target' ? choice === 'none' ? '이번 턴 지정 없음' : choice === 'stored_generated' ? '저장된 생성 NPC' : choice === 'scene_existing' ? '기존 RP 인물' : /^sheet_\d+$/.test(choice || '') ? (judgment.npcTargetName || '등록 인물') : resultLabel(key, choice) : resultLabel(key, choice);
         const label = targetLabel(value.effective);
         const selectedLabel = targetLabel(value.selected);
-        const policyLabel = resultLabel(key, value.policyEffective || value.effective);
-        const score = Math.round((Number(value.certainty) || 0) * 100);
-        const threshold = Math.round((Number(value.threshold) || 0) * 100);
+        const score = value.certainty != null && Number.isFinite(Number(value.certainty)) ? Math.round(Number(value.certainty) * 100) : null;
         const policy = { observation: '관찰', routing: '라우팅', diagnostic: '진단', verification: '이행 검증' }[value.policy] || '확장 계산';
-        const reason = value.rule || (value.fallbackApplied ? '확신도 부족·안전 기본값' : 'Jev 선택 유지');
+        const reason = value.rule || (value.fallbackApplied ? '응답 누락·형식 오류 · 항목별 기본값' : 'Jev 분류 유지');
         const rollKey = key === 'event_route' || key === 'advanced_route' ? 'event' : key === 'npc_route' ? 'npc' : key === 'villain_route' ? 'villain' : '';
         const roll = rollKey ? judgment.rolls?.[rollKey] : null;
         const rollText = roll ? ` · 추첨 ${Number(roll.roll)} / ${Number(roll.chance)}% → ${Number(roll.roll) <= Number(roll.chance) ? '통과' : '미통과'}` : '';
-        const extra = value.fixed ? `<small>확장 계산/사용자 고정${value.rule ? ` · ${deps.escapeHtml(value.rule)}` : ''}</small>` : value.conditional ? '<small>NPC 존재·등장 조건 자동 연결</small>' : (settings.showConfidence ? `<small>Jev ${deps.escapeHtml(selectedLabel || '응답 없음')} → 확신 ${score}% / 기준 ${threshold}%${value.progressIntensity && value.progressIntensity !== 1 ? ` (기본 ${Math.round(value.baseAcceptanceThreshold * 100)}% · 적극성 ${value.progressIntensity.toFixed(1)})` : ''} → 기준 적용 ${deps.escapeHtml(policyLabel)} → 최종 적용 ${deps.escapeHtml(label)} · ${deps.escapeHtml(reason)}${deps.escapeHtml(rollText)}</small>` : '');
+        const extra = value.fixed ? `<small>확장 계산/사용자 고정${value.rule ? ` · ${deps.escapeHtml(value.rule)}` : ''}</small>` : value.conditional ? '<small>NPC 존재·등장 조건 자동 연결</small>' : (settings.showConfidence ? `<small>${policy} · Jev ${deps.escapeHtml(selectedLabel || '응답 없음')} · ${score===null?'확신도 미제공':`확신 ${score}%`} → 최종 적용 ${deps.escapeHtml(label)} · ${deps.escapeHtml(reason)}${deps.escapeHtml(rollText)}</small>` : '');
         return `<div class="sr-decision-row"><span>${deps.escapeHtml(decisionTitle(key))}</span><strong>${deps.escapeHtml(label)}</strong>${extra ? `<details class="sr-trace"><summary>적용 이유·확신도</summary>${extra}</details>` : ''}</div>`;
     };
     for (const [id, keys] of Object.entries(deps.RESULT_GROUPS)) roots[id].innerHTML = keys.filter((key) => judgment.details[key]).map((key) => card([key, judgment.details[key]])).join('') || '<div class="sr-empty-small">이번 판독에 해당 항목이 없습니다.</div>';

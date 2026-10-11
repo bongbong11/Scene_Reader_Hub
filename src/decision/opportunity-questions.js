@@ -20,13 +20,15 @@ export function opportunityQuestion(kind, candidates) {
 }
 
 export const VERIFICATION = {
-  event:`Compare only the targeted completed assistant output with the exact selected event action and expected effect. fulfilled means the selected action or change materially began and had its immediate effect; the whole event need not be resolved. partial means a concrete part happened but the expected immediate effect is incomplete. missed means only intention, a vague sign, atmosphere, a hypothetical, or an unrelated substitute appeared. not_applicable means no matching output can be assessed. Do not use the user's later reply as proof.`,
-  person:`Compare only the targeted completed assistant output with the selected arrival and first interaction. fulfilled means the selected person actually made the specified accessible contact or participated, with a material first interaction; physical entrance is not necessary for a selected remote contact or doorway interaction. partial means a concrete approach began but the interaction did not. missed means the person was only mentioned, vaguely anticipated, replaced or omitted. not_applicable means no matching output can be assessed. Do not use later user input as proof of this output.`,
+  event:`Compare only the targeted completed assistant output with the exact selected event action and expected effect. fulfilled means the selected action or change materially began and had its immediate effect; the whole event need not be resolved. partial means a concrete part happened but the expected immediate effect is incomplete. missed means only intention, a vague sign, atmosphere, a hypothetical, or an unrelated substitute appeared. Use uncertain for ambiguous execution, unavailable for a missing matching output or source, and not_applicable only when this plan did not require the action. Do not use the user's later reply as proof.`,
+  person:`Compare only the targeted completed assistant output with the selected arrival and first interaction. fulfilled means the selected person actually made the specified accessible contact or participated, with a material first interaction; physical entrance is not necessary for a selected remote contact or doorway interaction. partial means a concrete approach began but the interaction did not. missed means the person was only mentioned, vaguely anticipated, replaced or omitted. Use uncertain for ambiguous execution, unavailable for a missing matching output or source, and not_applicable only when this plan did not require the action. Do not use later user input as proof of this output.`,
   closure:`Judge only whether the stored central event's concrete objective has been completed, explicitly abandoned or ended by an applicable user instruction in the actual output. An atmosphere of calm or a generic aftermath label is insufficient. Choose completed only when a concrete result is established; otherwise choose ongoing or unclear. Do not erase remaining consequences.`,
 };
 export const VERIFICATION_CHOICES = {
   fulfilled:'The selected first action and immediate effect materially occurred.',
   partial:'A concrete part occurred, but the selected immediate effect is incomplete.',
   missed:'The selected action was absent, only anticipated, or replaced.',
-  not_applicable:'No matching completed output can be assessed.',
+  uncertain:'The matching output exists but execution is ambiguous.',
+  unavailable:'The matching output or source cannot be assessed.',
+  not_applicable:'This plan did not require this action.',
 };

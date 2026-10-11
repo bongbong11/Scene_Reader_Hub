@@ -8,6 +8,7 @@ import {generatedActorCandidates} from '../scene/generated-cast.js';
 import {stateForEntry} from "../characters/state-contract.js";
 import {buildSexualQuestions, sexualEligible} from "../characters/sexual-conduct.js";
 import {prepareKnowledgeVault} from '../integration/knowledge-vault.js';
+import {conflictTacticQuestion} from './npc-tactics.js';
 
 export function createDecisionPreparation(deps) {
 async function prepareQuestions(run,frame) {
@@ -38,13 +39,13 @@ if (frame.prefs.settingsContract >= 3) {
     if (frame.prefs.advancedEnabled) frame.questions.advanced_world_rules = {type:'choice',instructions:'From explicit current world rules, recent RP and supplied memory only: are supernatural mechanisms established? A horror label alone does not establish ghosts, curses or exorcism. This is world evidence, never an invitation to invent.',criteria:{mundane:'No supported supernatural mechanics.',supernatural:'Supernatural mechanics are established and compatible with this setting.',unclear:'Insufficient world evidence.'}};
     Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan));
     frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1);
+    frame.continuityActors=[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[])].filter(actor=>frame.transcript.toLowerCase().includes(actor.name.toLowerCase())||frame.sceneGate.participantIds.includes(actor.id)).flatMap(actor=>[actor.id,actor.name,...(actor.aliases||[])]);
     frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
-    (frame.continuityContext = deps.settings.continuityEnabled ? selectActiveContinuity(frame.confirmedContinuity, frame.transcript, { opportunity: frame.rec.sceneOpportunity,actorIds:[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[])].filter(a=>frame.transcript.toLowerCase().includes(a.name.toLowerCase())||frame.sceneGate.participantIds.includes(a.id)).map(a=>a.id) }) : { items: [], knowledge: [], followups: [] });
-    (frame.storedFollowupCandidates = frame.continuityContext.followups.map((item) => ({ id: item.id, type: 'followup', label: item.action, evidence: item.reason, data: { relatedStateId: item.relatedStateId, action: item.action, reason: item.reason }, sourceIdentity: item.sourceRefs?.[0] })));
+    (frame.continuityContext = deps.settings.continuityEnabled ? selectActiveContinuity(frame.confirmedContinuity, frame.transcript, { opportunity: frame.rec.sceneOpportunity,actorIds:frame.continuityActors }) : { items: [], knowledge: [], followups: [] });
+    (frame.storedFollowupCandidates = frame.continuityContext.followups.map((item) => ({ id: item.id, type: 'followup', label: item.action, evidence: item.reason, data: { relatedStateId: item.relatedStateId, action: item.action, reason: item.reason }, sourceIdentity: {refs:item.sourceRefs} })));
     (frame.pendingCandidates = deps.settings.continuityEnabled
         ? [...deps.pendingExternalCandidates(frame.rec, frame.sourceKey), ...frame.storedFollowupCandidates.filter((item) => !(frame.rec.pendingContinuityCandidates || []).some((pending) => pending.id === item.id))].slice(0, 5)
         : []);
-    Object.assign(frame.questions, deps.buildPendingCandidateQuestions(frame.pendingCandidates));
     (frame.carriedCharacterIds = [...new Set([...frame.sceneGate.participantIds,...(frame.rec.lastJudgment?.characterTrace || [])
         .filter((item) => (item?.presence || item?.final?.presence) && (item.presence || item.final.presence) !== 'absent')
         .map((item) => item.id)])]);
@@ -73,6 +74,13 @@ if (frame.prefs.settingsContract >= 3) {
         unreviewedCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.prefilterStats?.protectedOmittedByChars || 0)+(p.prefilterStats?.protectedOmittedByLimit || 0)+(p.prefilterStats?.protectedOmittedByRequest || 0),0),
         fallbackCount:frame.liveCharacters.filter(p=>p.prefilterStats?.protectionFallback).length });
     Object.assign(frame.questions, buildSexualQuestions(frame.liveCharacters, frame.prefs.physicalIntimacyPace));
+    if (frame.prefs.socialEnabled) {
+        if(frame.generatedVillainTargets.length||frame.rec.villainProfile||frame.npcTargets.length||frame.rec.npcProfile)frame.questions.npc_conflict_tactic=conflictTacticQuestion();
+        for(const person of frame.liveCharacters.filter(person=>person.kind==='npc'&&(person.antagonist||person.npcRole==='villain'))){
+            frame.questions[`character_${person.index}_conflict_tactic`]=conflictTacticQuestion();
+            frame.questions[`character_${person.index}_conflict_tactic`].instructions+=` This question is specifically for ${person.name}; do not copy another NPC's tactic.`;
+        }
+    }
 
     frame.questions.npc_target = {
         type: 'choice',

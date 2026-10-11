@@ -2,7 +2,7 @@
 export function sceneDisplayState(scene) {
     if(!scene)return {stage:null,status:'unavailable',route:'normal'};
     const route=scene.route==='paused'?'paused':'normal';
-    if(scene.error||scene.phase==='unclear'||scene.level==='unclear')return {stage:null,status:'unclear',route};
+    if(scene.error||scene.confirmation==='unresolved'||scene.phase==='unclear'||scene.level==='unclear'||scene.level==null)return {stage:null,status:'unclear',route};
     if(route==='normal'&&(scene.phase==='ended'||scene.transition==='exited'))return {stage:6,status:'ended',route};
     if(scene.phase==='paused'&&route==='paused')return {stage:5,status:'paused',route};
     const level=Number(scene.level);

@@ -3,7 +3,7 @@ import {currentRecords, recordBankIsCurrent} from "./records.js";
 import {splitOocText} from "../context/messages.js";
 import {currentProfileItems, profileIsCurrent, buildCore} from "./profile.js";
 import {selectRelevantChunks} from "./selection.js";
-import {CHARACTER_LIVE_SYSTEM, PROFILE_SELECT, CONTEXT_SELECT, DIRECTION_SELECT, ACCESS_INSTRUCTION, ACCESS_CHOICES, PRESENCE_CHOICES} from "./prompts.js";
+import {CHARACTER_LIVE_SYSTEM, PROFILE_SELECT, CONTEXT_SELECT, DIRECTION_SELECT, ACCESS_INSTRUCTION, ACCESS_CHOICES} from "./prompts.js";
 import {characterVolume, npcRecordLimit} from "./volume.js";
 import {supplementRecordCandidates} from './record-protection.js';
 import {prepareProtectionQuestions, characterRecordQuestion} from './record-questions.js';
@@ -118,9 +118,6 @@ export function buildCharacterTurnQuestions(plan = [], observed = {}) {
     for (const person of plan) {
         const prefix = `character_${person.index}`;
         if(!Object.hasOwn(observed,person.id))questions[`${prefix}_participation`]=participationQuestion(person);
-        if(!person.recordMode) {
-        questions[`${prefix}_presence`] = { type: 'choice', instructions: `Judge ${person.name}'s role in the next response from actual RP. Physical co-location is not required: the author of current incoming texts or call replies is participating, while a name in memories, speculation, an old quoted message or someone else's thoughts is not current participation. Do not give a remote sender access to unsent thoughts or unseen surroundings. A previously active person may remain present without being named again, but registration or model visibility alone does not make someone a participant. In an NPC-only exchange, mark an uninvolved main character absent or background.${person.cardCast ? ` This card represents several separate people. The shared card title or message author label does not prove ${person.name} participated. Decide this person's presence separately from all other card members, using the latest actual RP; an earlier appearance does not override a later departure.` : ''}${person.mainSillyTavernName ? ` This is the registered main character for SillyTavern character ${person.mainSillyTavernName}; differing sheet language or spelling alone is not evidence of absence.` : ''}`, criteria: PRESENCE_CHOICES };
-        }
         for (const field of affectFields(person.priorState, { includeArousal: !person.sexualConductManaged })) questions[`${prefix}_affect_${field}`] = {
             type: 'choice',
             instructions: `${person.name}'s prior completed RP output carried ${affectSummary(person.priorState, [field])}. Choose its expression in the NEXT response, or none if no longer relevant. Use the new input, current scene, and this person's stored limits. Ordinary conversation and other feelings may coexist with it; no new event or relationship milestone is required. It is not proof of an action, consent, relationship change, or another person's knowledge. Answer independently of presence and record choices; code will suppress this if the person is not active.`,
@@ -156,7 +153,8 @@ export function resolveLiveCharacterPlan(plan, decisions, details = {}) {
     return plan.map(person => {
         const prefix = `character_${person.index}`;
         const presence = decisions[`${prefix}_presence`] || 'absent';
-        const profileIds = presence === 'active' ? selectedIds(person, decisions, 'profile', details) : [];
+        const conditional = presence === 'background' && Boolean(details[`${prefix}_presence`]?.presenceUncertain);
+        const profileIds = presence === 'active' || conditional ? selectedIds(person, decisions, 'profile', details) : [];
         const jevSelectedRuleIds = person.recordMode ? person.profileCandidates.filter((item,ordinal)=>decisions[`${prefix}_record_${ordinal}`]==='yes').map(item=>item.id) : profileIds;
         const contextIds = presence === 'active' ? selectedIds(person, decisions, 'context') : [];
         const denied = [], accepted = [];
@@ -200,9 +198,11 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
             profileIds: person.profileIds, contextIds: person.contextIds, deniedIds: person.denied.map(item => item.id), direction: person.direction, affectSelections: person.affectSelections || [], priorAffect: person.priorState || null, recordMode:person.recordMode,
             recordStatus:person.recordStatus, storedRecordCount:person.storedRecordCount || 0, candidateCount:person.profileCandidates?.length || 0, prefilterStats:person.prefilterStats || {},
             recordSelections:person.profileItems.map(item=>({id:item.id,type:item.type,rule:item.rule,source_ids:item.source_ids,knowledge_state:item.knowledge_state})), excludedReason: person.excludedReason });
-        if (person.presence !== 'active') continue;
+        if (person.presence !== 'active' && !(person.presence === 'background' && person.presenceUncertain)) continue;
         // Continuing actors retain constraints without being forced to speak or act.
         const chosen = [];
+        if(person.participationEvidence==='remote')chosen.push({priority:95,mandatory:true,text:`${person.name}: Apply stored characterization through the established remote contact; do not grant physical access or information they did not receive.`});
+        else if(person.participationEvidence==='continuing')chosen.push({priority:95,mandatory:true,text:`${person.name}: Preserve established presence, constraints and unfinished intent; silence does not remove them or require a new speech or action.`});
         if (!person.sourceVisibleToMain && person.kind === 'npc') {
             const excerpt = person.core.excerpts.map(item => item.text).filter(text => !/[가-힣]/u.test(text)).join(' · ');
             const recordCore = person.recordMode ? person.profileCandidates.filter(item=>!person.profileIds.includes(item.id) && ['fact','core'].includes(item.type) && (!item.when?.length || item.when.every(value=>['none','always','unconditional',''].includes(String(value).toLowerCase())))).slice(0,1).map(item=>scopedRecordLine(person.name,item)).join(' ') : '';
@@ -231,18 +231,16 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         }
         if (!person.recordMode && person.direction !== 'none') chosen.push({ priority: 50, text: `${person.name} · Direction: ${DIRECTIONS[person.direction]}` });
         chosen.sort((a,b)=>b.priority-a.priority);
-        selections.push(...chosen.map(item => ({ ...item, personIndex: person.index })));
+        selections.push(...chosen.map(item => ({ ...item, personIndex: person.index,
+            ...(person.presenceUncertain ? {
+                text:`If ${person.name} participates, apply the following stored constraint; this does not introduce or summon them. ${item.text}`,
+                fallbackText:item.fallbackText ? `If ${person.name} participates, apply the following stored constraint; this does not introduce or summon them. ${item.fallbackText}` : '',
+            } : {}) })));
     }
     const groups=new Map();
-    for(const item of selections.filter(item=>!item.supplemental)){if(!groups.has(item.personIndex))groups.set(item.personIndex,[]);groups.get(item.personIndex).push(item);}
+    for(const item of selections){if(!groups.has(item.personIndex))groups.set(item.personIndex,[]);groups.get(item.personIndex).push(item);}
     const selected=[];
     for(let round=0;[...groups.values()].some(items=>items.length>round);round++)for(const items of groups.values())if(items[round])selected.push(items[round]);
-    const supplementalGroups = new Map();
-    for (const item of selections.filter(item=>item.supplemental)) {
-        if (!supplementalGroups.has(item.personIndex)) supplementalGroups.set(item.personIndex, []);
-        supplementalGroups.get(item.personIndex).push(item);
-    }
-    for(let round=0;[...supplementalGroups.values()].some(items=>items.length>round);round++)for(const items of supplementalGroups.values())if(items[round])selected.push(items[round]);
     const lines = [], includedItems = [], includedRules = new Set(), injectedPeople = new Set();
     const mandatory = selected.filter(item => item.mandatory);
     const wrappedSize = items => `<CHARACTER_EXECUTION>\n${CHARACTER_INJECTION_PREAMBLE}\n${items.map(item=>item.text).join('\n')}\n</CHARACTER_EXECUTION>`.length;

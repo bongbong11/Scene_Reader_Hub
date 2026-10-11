@@ -1,4 +1,6 @@
 import {sourceRp} from './source-refs.js';
+import {candidateDecisions} from './candidates.js';
+import {canUpdatePendingSnapshot} from './commit-analysis.js';
 export function createContinuityRuntime(deps) {
 function pendingExternalCandidates(rec, sourceRevision) {
     return deps.activePendingCandidates(rec?.pendingContinuityCandidates, {
@@ -21,16 +23,16 @@ async function commitContinuityCandidates(rec, candidates, decisions, details, r
     run?.assert();
     const chatKey = run?.identity || deps.stateChatKey();
     if (!deps.settings.continuityEnabled || !candidates.length) return [];
+    decisions=candidateDecisions(candidates);
     const result = deps.applyContinuityVerdicts(deps.continuityView(rec), candidates, decisions, { opportunity: rec.sceneOpportunity });
-    const processed = new Set(candidates.map((item) => item.id));
+    const processed = new Set(result.accepted.map((item) => item.id));
     rec.pendingContinuityCandidates = (rec.pendingContinuityCandidates || []).filter((item) => !processed.has(item.id));
-    rec.lastContinuityTrace = { ...(rec.lastContinuityTrace || {}), status: 'verified', verdicts: candidates.map((item, index) => {
-        const detail = details[`continuity_candidate_${index}`] || {};
-        return { label: item.label, type: item.type, selected: detail.selected || '응답 없음', certainty: detail.certainty || 0, threshold: detail.threshold || 0, verdict: decisions[`continuity_candidate_${index}`] || 'reject', reason: detail.fallbackApplied ? '확신도 부족·기본값 적용' : 'Jev 선택 유지' };
+    rec.lastContinuityTrace = { ...(rec.lastContinuityTrace || {}), status: result.accepted.length?'verified':'empty', verdicts: candidates.map((item, index) => {
+        return { type: item.type, verdict: decisions[`continuity_candidate_${index}`] || 'reject', reason: '연결모델 분석 · 형식과 가시 근거 확인' };
     }) };
     if (!result.accepted.length) return [];
     deps.assignContinuity(rec, result.continuity);
-    const sourceIndex = Math.min(...result.accepted.map((item) => Number(item.sourceIdentity?.assistantIndex)));
+    const sourceIndex = Math.max(...result.accepted.map((item) => Number(item.sourceIdentity?.assistantIndex)));
     const history = [...(run?.history || await deps.loadStateHistory(chatKey))];
     run?.assert();
     const applyToSnapshot = (snapshot) => {
@@ -47,7 +49,7 @@ async function commitContinuityCandidates(rec, candidates, decisions, details, r
             applyToSnapshot(entry.after);
         }
     }
-    applyToSnapshot(rec.pendingPlan?.stateSnapshot);
+    if(canUpdatePendingSnapshot(rec.pendingPlan,sourceIndex))applyToSnapshot(rec.pendingPlan.stateSnapshot);
     if (run) run.history = history; else await deps.saveStateHistory(history, chatKey);
     run?.assert();
     return result.accepted;

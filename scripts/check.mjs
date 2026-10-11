@@ -20,6 +20,8 @@ for(const test of ['tests/hub-review-message.mjs','tests/hub-replacement-tool.mj
     const result=spawnSync(process.execPath,[test],{cwd:root,stdio:'inherit'});
     if(result.status!==0)process.exit(result.status||1);
 }
+const classificationChecks=spawnSync(process.execPath,['tests/hub-classification-routing.mjs'],{cwd:root,stdio:'inherit'});
+if(classificationChecks.status!==0)process.exit(classificationChecks.status||1);
 const stopChecks=spawnSync(process.execPath,['tests/hub-stop-boundaries.mjs'],{cwd:root,stdio:'inherit'});
 if(stopChecks.status!==0)process.exit(stopChecks.status||1);
 const opportunityChecks=spawnSync(process.execPath,['tests/hub-opportunity-upgrade.mjs'],{cwd:root,stdio:'inherit'});

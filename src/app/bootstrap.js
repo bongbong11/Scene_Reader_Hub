@@ -67,8 +67,8 @@ import {buildInputKey, buildRecentContext, filterNonRpHistory, generationCycleSa
 import {buildVerificationQuestions, pendingPlanEffects, stableFingerprint, verificationSummary} from "../decision/policy.js";
 import {archiveCurrentEvent, commitObservedState, commitVerifiedPlan, updateProgressionPressure} from "../scene/state-effects.js";
 import {actionPlanSummary, selectActionPlan, nextDeferredRoutes} from "../decision/action-budget.js";
-import {activePendingCandidates, buildPendingCandidateQuestions, verifiedSecondaryCandidates} from "../continuity/candidates.js";
-import {applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity, selectContinuityContext} from "../continuity/engine.js";
+import {activePendingCandidates, verifiedSecondaryCandidates} from "../continuity/candidates.js";
+import {applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity} from "../continuity/engine.js";
 import {listConnectionProfiles, createConnectionProfileClient} from "../adapters/connection-profile.js";
 import {sha256Hex} from "../shared/security.js";
 import {profileStatus, normalizeCharacterStore, selectActiveEntries, addCharacterNeedsQuestions, characterCategoryHints, buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection} from "../character/index.js";
@@ -719,7 +719,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     get buildContinuityInjection() { return buildContinuityInjection; },
     get buildInjection() { return buildInjection; },
     get buildPausedInjection() { return buildPausedInjection; },
-    get buildPendingCandidateQuestions() { return buildPendingCandidateQuestions; },
     get buildQuestions() { return buildQuestions; },
     get buildVerificationQuestions() { return buildVerificationQuestions; },
     get callJev() { return callJev; },
@@ -770,7 +769,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     get selectActionPlan() { return selectActionPlan; },
     get nextDeferredRoutes() { return nextDeferredRoutes; },
     get selectActiveEntries() { return selectActiveEntries; },
-    get selectContinuityContext() { return selectContinuityContext; },
     get selectedWorld() { return selectedWorld; },
     get setBusy() { return setBusy; },
     get settings() { return runtime.settings; }, set settings(value) { runtime.settings = value; },
@@ -944,7 +942,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.12',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.13',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.jevProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

@@ -3,8 +3,8 @@ import path from 'node:path';
 export async function checkReplacementTool(page,store,requests,setViewportSize,root){
  const saved=structuredClone(store),reload=async()=>{await page.reload();await page.locator('#scene-reader-quick-button').waitFor();await page.locator('#scene-reader-quick-button').click();await page.locator('[data-sr-tab="characters"]').click();};
  try{
-  store.settings.global.ownerUnlocked=false;if(store.settings.owner)store.settings.owner.unlocked=false;await page.evaluate(()=>localStorage.removeItem('scene-reader-owner-unlocked-v1'));await reload();assert.equal(await page.locator('#sr-replacement-open').isVisible(),false);
-  store.settings.global.ownerUnlocked=true;
+  store.settings.global.ownerUnlocked=false;if(store.settings.owner)store.settings.owner.unlocked=false;await page.evaluate(()=>localStorage.removeItem('scene-reader-owner-unlocked-v1'));await reload();assert.equal(await page.locator('#sr-replacement-open').isVisible(),true,'character update is available without developer unlock');
+  assert.equal(await page.locator('#sr-owner-card').isHidden(),true,'other developer tools remain locked');assert.equal(await page.locator('#sr-hub-trace-panel').isHidden(),true,'developer execution trace remains locked');
   store.characters={enabled:true,characters:[{id:'review-actor',kind:'character',name:'Review Actor',aliases:[],source:'A guarded adult.',recordBank:{entity_type:'character',entity_name:'Review Actor',analysisId:'review-original',intimacy_reference:{text:'',source_ids:[]},records:Array.from({length:12},(_,i)=>({id:'r'+i,type:'core',target:'',when:[],rule:'Original guarded disposition '+i,modality:'tendency',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}))}}],npcs:[],persona:null,recordGroups:[]};
   store.characters.persona={...structuredClone(store.characters.characters[0]),id:'review-persona',kind:'persona',name:'Review Persona'};
   await reload();await page.locator('#sr-replacement-open').click();const modal=page.locator('.sr-replacement-dialog');await modal.waitFor();
@@ -58,6 +58,7 @@ export async function checkReplacementTool(page,store,requests,setViewportSize,r
   await modal.locator('[data-template-default]').click();assert.equal(await template.inputValue(),defaultTemplate);assert.equal(store.settings.global.characterReviewPrompt,custom,'loading defaults remains an unsaved edit until save');
   await setViewportSize({width:320,height:640});await page.waitForFunction(()=>{const t=document.querySelector('[data-review-template]');return t.scrollHeight<=t.clientHeight+2;});assert.equal(await modal.evaluate(el=>el.scrollWidth>el.clientWidth+1),false);await page.screenshot({path:path.join(root,'artifacts','review-prompt-editor-mobile.png')});
   await modal.locator('[data-template-save]').click();await modal.locator('[data-template-status]').filter({hasText:'저장 완료'}).waitFor();assert.equal(store.settings.global.characterReviewPrompt,'');await modal.locator('[data-close]').click();
-  console.log('Review editor passed: final user input, unchanged preset/memory/history, custom edit/save/copy/reload, failed save rollback, default restore and 320px editor fit.');
+  assert.equal(store.settings.global.ownerUnlocked,false,'public review never unlocks other developer tools');assert.equal(await page.locator('#sr-owner-card').isHidden(),true);assert.equal(await page.locator('#sr-hub-trace-panel').isHidden(),true);
+  console.log('Review editor passed: public access with other developer tools locked, final user input, unchanged preset/memory/history, custom edit/save/copy/reload, failed save rollback, default restore and 320px editor fit.');
  }finally{Object.assign(store,saved);await reload();}
 }

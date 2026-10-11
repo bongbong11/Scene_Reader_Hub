@@ -17,7 +17,7 @@ function setup(){
         const body=JSON.parse(options.body||'{}');
         if(url.endsWith('/systemone')){
             calls.push(body);
-            const gate=Boolean(body.questions.scene_level);
+            const gate=Boolean(body.questions.scene_status);
             if(!gate&&control.mainFailure){
                 if(control.mainFailure==='network')throw new TypeError('offline');
                 if(control.mainFailure==='timeout')throw Object.assign(new Error('timeout'),{name:'AbortError'});
@@ -25,7 +25,7 @@ function setup(){
                 if(control.mainFailure==='empty')return {ok:true,json:async()=>({answers:{}})};
                 if(control.mainFailure==='invalid')return {ok:true,json:async()=>({answers:{wrong:{choice:'wrong'}}})};
             }
-            const answers=Object.fromEntries(Object.entries(body.questions).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:key==='scene_level'?(control.scene==='paused'?'4':'0'):key==='scene_phase'?(control.scene==='paused'?'active':'ended'):key==='scene_evidence'?Object.keys(q.criteria).filter(x=>x!=='none').at(-1)||'none':key.startsWith('scene_participant_')?'yes':Object.keys(q.criteria)[0],confidence:1}]));
+            const answers=Object.fromEntries(Object.entries(body.questions).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:key==='scene_status'?(control.scene==='paused'?'explicit_ongoing':'ended'):key==='scene_level'?(control.scene==='paused'?'4':'0'):key==='scene_phase'?(control.scene==='paused'?'active':'ended'):key==='scene_evidence'?Object.keys(q.criteria).filter(x=>x!=='none').at(-1)||'none':key.startsWith('scene_participant_')?'yes':Object.keys(q.criteria)[0],confidence:1}]));
             return {ok:true,json:async()=>({model:'audit-jev',answers})};
         }
         if(url.endsWith('/transaction'))server.set(body.chatKey,{chat:structuredClone(body.chat),history:structuredClone(body.history)});
@@ -132,7 +132,7 @@ await scenario('auto disabled cannot reuse changed input',async()=>{
 });
 await scenario('old chat response cannot block or overwrite a new chat',async()=>{
  const t=setup(),fetch=t.f.sandbox.fetch;let release,started;const entered=new Promise(r=>started=r),held=new Promise(r=>release=r);let delayed=false;
- t.f.sandbox.fetch=async(url,options)=>{const body=JSON.parse(options?.body||'{}');if(!delayed&&url.endsWith('/systemone')&&!body.questions.scene_level){delayed=true;started();await held;}return fetch(url,options);};
+ t.f.sandbox.fetch=async(url,options)=>{const body=JSON.parse(options?.body||'{}');if(!delayed&&url.endsWith('/systemone')&&!body.questions.scene_status){delayed=true;started();await held;}return fetch(url,options);};
  const old=t.generate();await entered;t.f.sandbox.currentContext={...t.f.ctx,chatId:'room-B',chat:[{is_user:true,mes:'Discuss the lake.'}]};t.f.run("hub.invalidate('chat_changed');record(true)");
  try{await t.generate();const current=t.active();assert.ok(current);release();await old;assert.equal(t.active(),current);assert.equal(t.f.run('record().lastJudgment.payload'),current);}finally{release();await old;}
 });

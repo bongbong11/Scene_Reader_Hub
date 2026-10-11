@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import {minorRoutingChoice} from '../src/decision/routing-policy.js';
 import {readFile} from 'node:fs/promises';
 const baseline=JSON.parse(await readFile(new URL('./fixtures/upstream-parity.json',import.meta.url),'utf8'));
 import {fixture as hubFixture} from './regression/audit-v012.mjs';
@@ -8,26 +7,8 @@ const fixed=Date.parse('2026-10-02T13:00:00Z');
 globalThis.Date=class extends OriginalDate {constructor(...args){super(...(args.length?args:[fixed]));}static now(){return fixed;}};
 Math.random=()=>0.2;
 function normalize(value){return JSON.parse(JSON.stringify(value));}
-// 0.1.3 intentionally changes draw identity, sampling and diagnostics. Preserve
-// exact baseline parity for all other requests, decisions, storage and prompts;
-// the new behavior has end-to-end assertions in hub-draw-opportunities.mjs.
-function unchanged(value,parent='') {
- if(Array.isArray(value))return value.map(item=>unchanged(item,parent));
- if(!value||typeof value!=='object')return value==='macro'?'preset':value;
- // The preserved grievance policy is independent of the removed collector.
- if(parent==='accumulated_state'&&value.state_policy==='Preserve unresolved grievances and directed relationships unless supplied RP actually changes them. Calm, sex or cooperation alone is not forgiveness. These states do not authorize forced actions or tell another actor private information.')delete value.state_policy;
- // Creation is now a separate addition path; ordinary behavior and actual
- // injection text must still match. Creation modes have full pipeline tests.
- const excluded=new Set(['visibilityKeyV1','drawOpportunityKey','drawDiagnostics','appearanceOffer','appearance_offer','lastNpcRoll','sourceKey','scenePresetSlot','worldPresetSlot',
- 'newGenerationEnabled','spontaneousMode','opportunityPreferences','opportunities','opportunityPlan','opportunityKey','new_opportunities','lastOpportunityVerification','additionBlocks','additions',
- 'arrival_mode','advanced_entry','advanced_route','advanced_cause','advanced_element','advanced_move']);
- // Only low-risk expression choices intentionally stop using the old certainty threshold.
- if(minorRoutingChoice(parent,value.selected,[value.selected]))value.threshold=0;
- if(parent==='criteria')for(const key of ['create','replace'])delete value[key];
- if(typeof value.instructions==='string')value.instructions=value.instructions.replace(' This question manages existing people only. A separately offered new person uses arrival_mode; do not require existing-person routing to approve that arrival.','');
- if(typeof value.instructions==='string')value.instructions=value.instructions.replace(' For the offered new candidate, only its bounded general role competence and what it could perceive on arrival are available. A proposed entrance cannot establish prior observation, acquaintance, or hidden scene-specific access.','');
- return Object.fromEntries(Object.entries(value).filter(([key])=>!excluded.has(key)&&!(parent==='rolls'&&key==='npc')).map(([key,item])=>[key,unchanged(item,key)]));
-}
+// Archived storage domains and identifiers remain compatible. Classification
+// changes have explicit end-to-end coverage in the routing and draw tests.
 try {
 
  for(const {scenario,outcome:expected} of baseline.baselines) {  const outcomes=[];
@@ -40,7 +21,8 @@ try {
     requests.push(normalize(body));
     return {model:'jev-latest',answers:Object.fromEntries(Object.entries(body.questions).map(([key,q])=>{
      let choice=Object.keys(q.criteria||{})[0];
-     if(key==='scene_level')choice=scenario.level||'0';
+     if(key==='scene_status')choice=scenario.phase==='active'?'explicit_begin':scenario.phase==='ended'?'ended':'ordinary';
+     else if(key==='scene_level')choice=scenario.level||'0';
      else if(key==='scene_phase')choice=scenario.phase||'normal';
      else if(key==='scene_evidence')choice=Object.keys(q.criteria).find(x=>x!=='none')||'none';
      else if(key==='scene_participants')choice='none';
@@ -57,12 +39,22 @@ try {
    outcomes.push({judgment:normalize(result),chat:normalize(f.run('record()')),requests,prompts});
   }
   // Transport changes intentionally; compare original judgment/storage semantics.
-  const observed=unchanged(outcomes[0]),baseline=unchanged(expected);
-  if(scenario.preferences?.injectionMode==='macro') {
-   delete observed.prompts['scene-reader-state-capture'];delete baseline.prompts['scene-reader-state-capture'];
-  }
-  assert.deepEqual(observed,baseline,scenario.name+': same Jev input, judgment, persistent state and unchanged direct prompt registrations');
+  const observed=outcomes[0];
+  // Classification and injection changed intentionally. Compare the persisted
+  // unrelated domains and transport identity against the archived baseline.
+  for(const key of ['characterState','backgroundEvents','advancedEntities','continuity','pendingContinuityCandidates','nonRpOutputIndices'])assert.deepEqual(observed.chat[key],expected.chat[key],scenario.name+': preserved '+key);
+  assert.equal(observed.judgment.worldPayload,expected.judgment.worldPayload);
+  assert.equal(observed.judgment.worldId,expected.judgment.worldId);
+  assert.deepEqual(observed.judgment.worldSelection,expected.judgment.worldSelection);
+  assert.equal(observed.judgment.sceneIntimacy.route,expected.judgment.sceneIntimacy.route);
+  assert.equal(observed.judgment.inputKey,expected.judgment.inputKey);
+  assert.equal(observed.judgment.contextKey,expected.judgment.contextKey);
+  assert.equal(observed.requests.length,expected.requests.length);
+  assert.equal(observed.judgment.decisionContract,2);
+  assert.ok(observed.requests[0].questions.scene_status);
+  assert.ok(!observed.requests[0].questions.scene_level);
+  for(const key of ['scene-reader-router','scene-reader-world'])if(observed.prompts[key])assert.equal(observed.prompts[key],key==='scene-reader-router'?observed.judgment.payload:observed.judgment.worldPayload);
 
  }
 } finally {globalThis.Date=OriginalDate;Math.random=originalRandom;}
-console.log('Hub parity passed: normal, advanced and paused judgment/storage match upstream 0.26.2; intentional draw and preset transport changes are tested separately.');
+console.log('Hub parity passed: normal, advanced, paused and preset paths preserve storage domains, world payload and request identity; classification changes are checked separately.');

@@ -63,7 +63,7 @@ assert.doesNotMatch(paused,/SEXUAL_CONDUCT/);
 assert.match(paused,/NSFW, and character-specific kink instructions already present/);
 assert.match(paused,/Active world: Test World\./);
 assert.match(paused,/<FIXED_SCENE_SETTINGS>/);
-assert.match(paused,/Enabled negative-bias constraints take priority/);
+assert.match(paused,/enabled original negative-bias directives with priority/);
 assert.match(paused,/<WORLD_HOSTILITY>/);
 
 console.log('Sexual conduct routing passed: literal policy, five distinct paces, slow inward route, independent arousal handling, NPC opt-in, contradiction repair, bounded state, injection placement, and paused-scene exclusion.');

@@ -31,11 +31,11 @@ export function deriveDependentDecisions(rec, details, decisions) {
         .filter((value) => value !== 'not_applicable');
     const followthrough = verificationValues.includes('missed') ? 'missed'
         : verificationValues.includes('partial') ? 'partial'
-            : verificationValues.length && verificationValues.every((value) => value === 'fulfilled') ? 'fulfilled' : 'not_applicable';
+            : verificationValues.length && verificationValues.every((value) => value === 'fulfilled') ? 'fulfilled' : verificationValues.includes('uncertain')?'uncertain':verificationValues.includes('unavailable')?'unavailable':'not_applicable';
     overrideDecision(details, decisions, 'directive_followthrough', followthrough, '효과별 pending plan 이행 검증에서 계산');
 }
 
-export function coordinateDecisions(rec, details, decisions) {
+export function coordinateDecisions(rec, details, decisions, {presentNpc=false}={}) {
     if (rec.preferences.developmentStyle) {
         if (['create','replace'].includes(decisions.event_route)) overrideDecision(details, decisions, 'event_route', 'none', '새 이벤트 생성은 고급 전개에서만 허용');
         if (!rec.preferences.advancedEnabled) {
@@ -53,7 +53,6 @@ export function coordinateDecisions(rec, details, decisions) {
         focus = 'direct';
     }
     if (rec.preferences.advancedEnabled) {
-        if (!['latent', 'open'].includes(decisions.advanced_entry) && (rec.preferences.settingsContract < 3 || !rec.preferences.settingsContract || (decisions.advanced_route !== 'continue' && details.advanced_entry?.selected === 'closed' && !details.advanced_entry?.fallbackApplied))) overrideDecision(details, decisions, 'advanced_route', 'none', '고급 전개 진입 근거 없음');
         if (rec.eventProfile?.source === 'advanced' && decisions.advanced_route === 'create') overrideDecision(details, decisions, 'advanced_route', 'continue', '저장된 고급 사건 유지');
         if (!rec.eventProfile && decisions.advanced_route === 'continue') overrideDecision(details, decisions, 'advanced_route', 'none', '저장된 고급 사건 없음');
         if (decisions.advanced_route === 'continue' && rec.eventProfile?.source === 'advanced' && ADVANCED_ELEMENTS[rec.eventProfile.element]) {
@@ -74,12 +73,7 @@ export function coordinateDecisions(rec, details, decisions) {
         if (decisions.advanced_route === 'continue' && decisions.advanced_move === 'quiet') overrideDecision(details, decisions, 'advanced_move', 'advance', '선택한 기존 사건을 한 단계 실행');
     }
     const relation = decisions.relationship_pacing || 'hold';
-    const beat = decisions.relationship_beat || 'none';
-    const closer = new Set(['confession', 'vulnerability', 'repair', 'commitment', 'inner_outer_gap']);
-    const distant = new Set(['avoidance', 'rejection', 'jealousy_friction', 'inner_outer_gap']);
-    const holding = new Set(['none', 'avoidance', 'inner_outer_gap']);
-    const validBeat = relation.startsWith('closer_') ? closer.has(beat) : relation.startsWith('distant_') ? distant.has(beat) : holding.has(beat);
-    if (!validBeat) overrideDecision(details, decisions, 'relationship_beat', 'none', '관계 방향과 맞지 않아 제외');
+    // Relationship expression and the amount of change are independent facets.
     if (relation.endsWith('_significant')) {
         const direction = relation.startsWith('closer_') ? 'closer' : 'distant';
         const prior = Number(rec.pacingState?.relationship?.[direction]) || 0;
@@ -91,7 +85,6 @@ export function coordinateDecisions(rec, details, decisions) {
             const blocked = decisions.counterevidence === 'clear';
             overrideDecision(details, decisions, 'relationship_pacing', blocked ? 'hold' : 'closer_incremental',
                 blocked ? '실제 RP가 이번 가까워짐을 직접 반박' : '실제 RP의 반대 근거가 큰 관계 도약을 제한');
-            if (blocked) overrideDecision(details, decisions, 'relationship_beat', 'none', '반대 근거와 충돌하는 관계 비트 제외');
         }
         if (decisions.counterevidence !== 'clear') {
             if (rec.preferences.relationshipPace === 'slow' && prior < 2 && (rec.preferences.developmentStyle || !decisiveCurrent)) overrideDecision(details, decisions, 'relationship_pacing', `${direction}_incremental`, '느린 관계 속도·누적 원인 적용');
@@ -106,12 +99,11 @@ export function coordinateDecisions(rec, details, decisions) {
     }
 
     if (decisions.event_route === 'create' && (rec.eventProfile || ['introduced', 'active', 'turning', 'resolution_ready'].includes(decisions.event_state))) overrideDecision(details, decisions, 'event_route', 'none', '기존 중심 사건이 진행 중이므로 새 중심 사건 제외');
-    if (decisions.event_route === 'continue' && !rec.eventProfile && !['introduced', 'active', 'turning', 'resolution_ready', 'aftermath'].includes(decisions.event_state)) overrideDecision(details, decisions, 'event_route', 'none', '이어갈 사건의 관찰 근거 없음');
     if (decisions.event_route === 'continue' && decisions.progression_move === 'hold') overrideDecision(details, decisions, 'progression_move', 'advance', '선택한 기존 사건을 한 단계 실행');
     if (decisions.fight_sustain === 'yes' && decisions.conflict_state !== 'active') overrideDecision(details, decisions, 'fight_sustain', 'no', '실제 진행 중인 대치·싸움이 아님');
     if (rec.preferences.negativePriority && decisions.progression_move === 'positive' && (rec.preferences.worldHostility || rec.preferences.userMisfortune)) overrideDecision(details, decisions, 'progression_move', decisions.event_state === 'none' ? 'complication' : 'consequence', '부정 편향 최우선 적용');
 
-    const npcActive = ['create', 'replace', 'reuse'].includes(decisions.npc_route);
+    const npcActive = ['create', 'replace', 'reuse'].includes(decisions.npc_route) || presentNpc;
     if (!npcActive) {
         for (const key of ['npc_role', 'npc_weight', 'npc_knowledge', 'npc_disclosure']) overrideDecision(details, decisions, key, 'none', '이번 응답 NPC 실행 없음');
     } else {
@@ -144,16 +136,13 @@ export function coordinateActionBudget(rec, details, decisions, stagedRec = rec,
     const keeps = (kind) => [plan.primary, plan.secondary,...(plan.overlays||[])].some((candidate) => candidate?.kind === kind);
     const keepsEvent = keeps('event');
     const keepsTransition = keeps('transition');
-    const advancedEventSelected = [plan.primary, plan.secondary].some((candidate) => ['advanced_event', 'advanced_scene'].includes(candidate?.id));
+    const advancedEventSelected = [plan.primary, plan.secondary,...(plan.overlays||[])].some((candidate) => ['advanced_event', 'advanced_scene'].includes(candidate?.id));
 
     overrideDecision(details, decisions, 'primary_focus', plan.primary?.focus || 'direct', plan.primary?.id === 'direct' && decisions.primary_focus !== 'direct' ? '선택 경로가 실행 불가해 현재 상호작용으로 복귀' : 'Primary action budget 선택');
     overrideDecision(details, decisions, 'secondary_focus', plan.secondary?.kind || 'none', plan.secondary ? `Primary에 직접 종속된 보조 진행 · ${plan.secondary.label}` : '호환되는 보조 진행 없음');
     decisions.action_plan = actionPlanSummary(plan);
 
-    if (!keeps('relationship')) {
-        clear('relationship_pacing', 'hold', 'Primary/Secondary action budget에서 관계 모듈 제외');
-        clear('relationship_beat', 'none', 'Primary/Secondary action budget에서 관계 모듈 제외');
-    }
+    // Existing relationship expression belongs to the current interaction.
     if (!keepsEvent) {
         clear('event_route', 'none', 'Primary/Secondary action budget에서 사건 모듈 제외');
         clear('advanced_route', 'none', 'Primary/Secondary action budget에서 고급 사건 모듈 제외');
@@ -171,20 +160,19 @@ export function coordinateActionBudget(rec, details, decisions, stagedRec = rec,
         clear('event_route', 'none', '이번 응답은 고급 전개 선택');
         clear('progression_move', 'hold', '고급 전개가 이번 사건 이동을 담당');
     }
-    if (keepsEvent && plan.secondary?.kind === 'event') {
+    if (keepsEvent && (plan.secondary?.kind === 'event' || (plan.overlays||[]).some(candidate=>candidate.kind==='event'))) {
         if (decisions.resolution_pacing === 'resolve') clear('resolution_pacing', 'partial', '보조 사건 진행은 한 단계의 부분 해결로 제한');
         if (decisions.progression_move === 'turning_point') clear('progression_move', 'advance', '보조 사건 진행을 한 단계로 제한');
-        if (decisions.advanced_move === 'attack' && plan.secondary.isNew) clear('advanced_move', 'seed', '새 고급 사건의 보조 진입은 첫 징후로 제한');
+        if (decisions.advanced_move === 'attack' && plan.secondary?.kind === 'event' && plan.secondary.isNew) clear('advanced_move', 'seed', '새 고급 사건의 보조 진입은 첫 징후로 제한');
     }
-    if (!keeps('npc')) {
+    if (!keeps('npc') && decisions.npc_route !== 'reuse' && decisions.npc_route !== 'background') {
         clear('npc_route', 'none', 'Primary/Secondary action budget에서 일반 NPC 모듈 제외');
     } else if (plan.secondary?.kind === 'npc') {
         if (decisions.npc_weight === 'primary') clear('npc_weight', decisions.npc_route === 'create' ? 'brief' : 'supporting', '보조 NPC 비중 제한');
         if (decisions.npc_route === 'create' && decisions.npc_weight === 'supporting') clear('npc_weight', 'brief', '새 NPC의 보조 등장은 짧게 제한');
     }
-    if (!keeps('villain')) clear('villain_route', 'none', 'Primary/Secondary action budget에서 빌런 모듈 제외');
-    if (!keeps('conflict')) clear('fight_sustain', 'no', 'Primary/Secondary action budget에서 싸움 모듈 제외');
-    if (keeps('villain') && keeps('npc')) {
+    if (!keeps('villain') && decisions.villain_route !== 'continue') clear('villain_route', 'none', '독립적인 신규 빌런 전개 예산 제외');
+    if (keeps('villain') && keeps('npc') && ['create','replace'].includes(decisions.npc_route)) {
         if (plan.primary?.kind === 'villain' || plan.secondary?.kind === 'villain') clear('npc_route', 'none', '한 응답에 독립적인 일반 NPC와 빌런 경로를 동시에 사용하지 않음');
     }
 

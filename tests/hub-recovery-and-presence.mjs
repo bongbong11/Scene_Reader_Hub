@@ -51,12 +51,12 @@ function presence(answer,evidence){
 }
 assert.equal(presence({choice:'active',confidence:0.07},{choice:'direct',confidence:0.9}).effective,'active');
 const weak=presence({choice:'absent',confidence:0.1},null);
-assert.equal(weak.effective,'background');assert.equal(weak.presenceUncertain,true);
+assert.equal(weak.effective,'absent');assert.equal(weak.presenceUncertain,false);
 assert.equal(presence({choice:'active',confidence:0.1},{choice:'remote',confidence:0.9}).effective,'active');
 assert.equal(presence({choice:'active',confidence:0.8},{choice:'departed',confidence:0.9}).effective,'absent');
 assert.equal(presence({choice:'active',confidence:0.1},{choice:'reference',confidence:0.9}).effective,'absent');
 assert.equal(presence({choice:'absent',confidence:0.95},null).effective,'absent','clear absence is preserved');
-assert.equal(applyCharacterPolicy('character_0_context_access_0',{choice:'observed',confidence:0.4},'active',['observed','none']).effective,'none','participation repair does not loosen private knowledge access');
+assert.equal(applyCharacterPolicy('character_0_context_access_0',{choice:'observed',confidence:0.4},'active',['observed','none']).effective,'observed','a valid observed access classification is preserved; unsupported choices remain denied');
 const store={enabled:true,characters:[{id:'a',kind:'character',name:'Aster'}],npcs:[{id:'b',kind:'npc',name:'Briar',trackArousal:false}]};
 const malformedCapture=await collectProfileOutputState({request:async()=>({result:{}}),service:{},profileId:'synthetic',output:'A short synthetic reply.',roster:stateRoster(store,{},null,{recheckOutput:true})});
 assert.equal(malformedCapture.error,'format','missing JSON states is a response format error, not a transport failure');

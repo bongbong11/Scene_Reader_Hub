@@ -2,6 +2,7 @@ import {opportunityDetail, resolveOpportunities} from '../scene/opportunity-poli
 import {opportunitySummary, reportOpportunities} from '../debug/opportunity-events.js';
 import {archiveCurrentEvent} from '../scene/state-effects.js';
 import {drawDiagnostics} from './draw-diagnostics.js';
+import {selectActiveContinuity,confirmedContinuity} from '../continuity/selection.js';
 import {resolveCharacterPresence} from '../character/presence.js';
 import {applyAppearanceOffer} from "../scene/appearance.js";
 import {applySexualChoice} from "../characters/sexual-conduct.js";
@@ -24,16 +25,18 @@ async function resolveDecision(run,frame) {
         resolveCharacterPresence(frame.liveCharacters,frame.details,frame.data.answers,frame.sceneGate?.participationObservations||{});
         (frame.decisions = deps.effectiveMap(frame.details));
         (frame.priorVerification = await deps.commitPriorVerification(frame.rec, frame.decisions, run));
-        (frame.verifiedExternalCandidates = deps.verifiedSecondaryCandidates(frame.pendingCandidates, frame.decisions));
+        (frame.verifiedExternalCandidates = deps.verifiedSecondaryCandidates(frame.pendingCandidates));
         await deps.commitContinuityCandidates(frame.rec, frame.pendingCandidates, frame.decisions, frame.details, run);
         run.assert();
+        frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
+        frame.continuityContext=deps.settings.continuityEnabled?selectActiveContinuity(frame.confirmedContinuity,frame.transcript,{opportunity:frame.rec.sceneOpportunity,actorIds:frame.continuityActors}):{items:[],knowledge:[],dependencies:[],followups:[]};
         deps.deriveDependentDecisions(frame.rec, frame.details, frame.decisions);
         (frame.stateBefore = deps.reversibleStateSnapshot(frame.rec));
         deps.commitObservedState(frame.rec, frame.decisions, frame.context.observationKey);
         if (['user_established', 'both'].includes(frame.decisions.context_change_source)) deps.registerSceneOpportunity(frame.rec, `user:${frame.context.contextKey}`);
         if(frame.decisions.event_closure==='completed'&&frame.rec.eventProfile?.phase==='aftermath'){archiveCurrentEvent(frame.rec,'completed');frame.rec.eventProfile=null;}
         if(!frame.opportunityOffers)applyAppearanceOffer(frame.rec, frame.details, frame.decisions);
-        deps.coordinateDecisions(frame.rec, frame.details, frame.decisions);
+        deps.coordinateDecisions(frame.rec, frame.details, frame.decisions,{presentNpc:frame.liveCharacters.some(person=>person.kind==='npc'&&frame.details[`character_${person.index}_presence`]?.effective==='active')});
         if (frame.prefs.settingsContract < 3 && ['create', 'replace'].includes(frame.decisions.npc_route) && frame.decisions.npc_identity_route === 'reuse_existing') {
             deps.overrideDecision(frame.details, frame.decisions, 'npc_route', 'reuse', `인물 판정 경로: ${frame.decisions.npc_identity_route}`);
         }
@@ -119,7 +122,7 @@ async function resolveDecision(run,frame) {
         if (frame.chosenContinuity) frame.decisions.selected_continuity_id = frame.chosenContinuity.id;
         // Canonical records are constraints, not extra independent action beats.
         if (frame.decisions.npc_route !== 'reuse') deps.overrideDecision(frame.details, frame.decisions, 'npc_target', 'none', '이번 응답에 기존 NPC 재사용 없음');
-        if (!['create', 'replace', 'reuse'].includes(frame.decisions.npc_route)) {
+        if (!['create', 'replace', 'reuse'].includes(frame.decisions.npc_route) && !frame.liveCharacters.some(person=>person.kind==='npc'&&frame.details[`character_${person.index}_presence`]?.effective==='active')) {
             for (const key of ['npc_role', 'npc_weight', 'npc_knowledge', 'npc_disclosure']) deps.overrideDecision(frame.details, frame.decisions, key, 'none', frame.decisions.npc_route === 'waiting' ? '인물 등장 추첨 대기' : '이번 응답 NPC 실행 없음');
         }
         

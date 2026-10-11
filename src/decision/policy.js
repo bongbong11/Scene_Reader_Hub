@@ -1,4 +1,6 @@
 import {additionVerificationQuestions} from '../scene/opportunity-policy.js';
+import {optionalProbability} from '../adapters/jev-answer-normalizer.js';
+export const DECISION_CONTRACT_VERSION = 2;
 export const OBSERVATION_KEYS = new Set([
     'event_closure', 'advanced_world_rules', 'scene_state', 'conflict_state', 'relationship_motion', 'trust_signal',
     'intimacy_signal', 'romance_evidence', 'counterevidence',
@@ -13,7 +15,7 @@ export const DIAGNOSTIC_KEYS = new Set([
 ]);
 
 export function decisionPolicyKind(key) {
-    if (String(key).startsWith('verification_') || String(key).startsWith('continuity_candidate_')) return 'verification';
+    if (String(key).startsWith('verification_')) return 'verification';
     if (OBSERVATION_KEYS.has(key) || /_knowledge$|_competence$|_access$|_certainty$|^character_\d+_context_access_\d+$/.test(key)) return 'observation';
     if (DIAGNOSTIC_KEYS.has(key)) return 'diagnostic';
     return 'routing';
@@ -21,54 +23,27 @@ export function decisionPolicyKind(key) {
 
 export function certainty(answer) {
     const choice = String(answer?.choice || '');
-    const probability = Number(answer?.probabilities?.[choice]);
-    const confidence = Number(answer?.confidence);
-    const p = Number.isFinite(probability) ? probability : 0;
-    return Math.max(0, Math.min(1, Number.isFinite(confidence) ? confidence : p));
+    return optionalProbability(answer?.confidence) ?? optionalProbability(answer?.probabilities?.[choice]);
 }
 
-// Explicit allowlist: this control cannot weaken evidence, access, pacing,
-// creation eligibility, retirement, or output-verification decisions.
-const ADJUSTABLE_PROGRESS = {
-    basic_move: ['dialogue', 'emotion', 'movement', 'action', 'choice', 'consequence'],
-    primary_focus: ['direct', 'event', 'relationship', 'conflict', 'npc', 'transition'],
-    progression_move: ['advance', 'complication', 'positive', 'consequence'],
-    event_route: ['continue'],
-    advanced_route: ['continue'],
-    advanced_move: ['advance'],
-    npc_route: ['reuse'],
-    villain_route: ['continue'],
-};
-
-export function applyDecisionPolicy({ key, answer, style = 'balanced', allowedChoices = [], fallback, baseThreshold = 0.7, choiceThreshold, progressIntensity = 1 }) {
+export function applyDecisionPolicy({ key, answer, allowedChoices = [], fallback }) {
     const candidate = String(answer?.choice || '');
-    const selected = !allowedChoices.length || allowedChoices.includes(candidate) ? candidate : '';
+    const selected = candidate && (!allowedChoices.length || allowedChoices.includes(candidate)) && !['invalid','missing'].includes(answer?.responseState) ? candidate : '';
     const score = certainty(answer);
     const kind = decisionPolicyKind(key);
-    const irreversibleOrPaceSensitive = ['retire', 'replace'].includes(selected)
-        || selected.endsWith('_significant')
-        || key === 'relationship_pacing'
-        || (key === 'advanced_entry' && selected === 'closed');
-    const deltas = kind === 'routing' && !irreversibleOrPaceSensitive
-        ? { conservative: 0.08, balanced: 0, active: -0.12 }
-        : { conservative: 0, balanced: 0, active: 0 };
-    const rawThreshold = Number(choiceThreshold?.[selected] ?? baseThreshold);
-    const baseAcceptanceThreshold = Math.max(0.4, Math.min(0.95, rawThreshold + (deltas[style] ?? 0)));
-    const parsedIntensity = Number(progressIntensity);
-    const intensity = Number.isFinite(parsedIntensity) && parsedIntensity > 0 ? Math.max(0.5, Math.min(1.5, parsedIntensity)) : 1;
-    const adjustable = ADJUSTABLE_PROGRESS[key]?.includes(selected) === true;
-    const threshold = adjustable ? Math.max(0.4, Math.min(0.78, baseAcceptanceThreshold / intensity)) : baseAcceptanceThreshold;
-    const effective = selected && score >= threshold ? selected : fallback;
+    const effective = selected || fallback;
     return {
         selected,
         effective,
         certainty: score,
-        threshold,
-        baseAcceptanceThreshold,
-        progressIntensity: adjustable ? intensity : 1,
-        adjusted: selected !== effective,
+        threshold:0,
+        baseAcceptanceThreshold:0,
+        progressIntensity:1,
+        adjusted: !selected,
         policy: kind,
-        fallbackApplied: !(selected && score >= threshold),
+        fallbackApplied: !selected,
+        responseState: selected ? 'valid' : answer?.responseState || (answer ? 'invalid' : 'missing'),
+        rule: selected ? '유효한 분류 유지 · 확신도는 진단값' : '응답 누락·형식 오류 · 항목별 기본 처리',
     };
 }
 
@@ -111,14 +86,16 @@ export function buildVerificationQuestions(pendingPlan) {
             fulfilled: 'The prior CHARACTER output materially executed the planned effect.',
             partial: 'The prior CHARACTER output executed a real but incomplete part of the planned effect.',
             missed: 'The prior CHARACTER output omitted, evaded, or replaced the planned effect.',
-            not_applicable: 'The pending plan did not actually require this effect or the output cannot be evaluated.',
+            uncertain: 'The output is available but whether this effect occurred is ambiguous.',
+            unavailable: 'The matching output or required source is missing and cannot be assessed.',
+            not_applicable: 'The pending plan did not require this effect.',
         },
     }]))};
 }
 
 export function verificationSummary(pendingPlan, decisions = {}) {
     const result = {};
-    for (const effect of pendingPlan?.effects || []) result[effect] = decisions[`verification_${effect}`] || 'not_applicable';
+    for (const effect of pendingPlan?.effects || []) result[effect] = decisions[`verification_${effect}`] || 'unavailable';
     return result;
 }
 

@@ -1,4 +1,5 @@
 import {BLOCK_CHOICES,opportunityQuestion,VERIFICATION,VERIFICATION_CHOICES} from '../decision/opportunity-questions.js';
+import {optionalProbability} from '../adapters/jev-answer-normalizer.js';
 
 export function addOpportunityQuestions(questions,offers,rec) {
     for(const key of ['event_route','npc_route','villain_route','advanced_route']) {
@@ -19,7 +20,7 @@ export function addOpportunityQuestions(questions,offers,rec) {
 export function opportunityDetail(answer,offer) {
     const choice=answer?.choice,valid=Object.hasOwn(BLOCK_CHOICES,choice)||/^candidate_[1-3]$/.test(choice||'')&&Boolean(offer?.candidates[Number(choice.slice(-1))-1]);
     const effective=valid?choice:'invalid_selection';
-    return {selected:effective,effective,policyEffective:effective,coordinatorFinal:effective,adjusted:!valid,certainty:Number(answer?.confidence)||0,threshold:0,policy:'routing',fallbackApplied:!valid,rule:'신규 전개 재료 선택 · 추가 확신도 탈락 없음'};
+    return {selected:effective,effective,policyEffective:effective,coordinatorFinal:effective,adjusted:!valid,certainty:optionalProbability(answer?.confidence),threshold:0,policy:'routing',fallbackApplied:!valid,rule:'신규 전개 재료 선택 · 추가 확신도 탈락 없음'};
 }
 export function resolveOpportunities(offers,answers) {
     const additions=[];
@@ -58,5 +59,5 @@ export function additionVerificationQuestions(pending) {
     return Object.fromEntries((pending.additions||[]).map((item,i)=>[`verification_addition_${i}`,{type:'choice',instructions:`${VERIFICATION[item.feature]} Selected action: ${item.candidate.action} Required effect: ${item.candidate.effect}`,criteria:VERIFICATION_CHOICES}]));
 }
 export function additionVerdicts(pending,decisions) {
-    return (pending?.additions||[]).map((addition,i)=>({...addition,verification:decisions[`verification_addition_${i}`]||'not_applicable'}));
+    return (pending?.additions||[]).map((addition,i)=>({...addition,verification:decisions[`verification_addition_${i}`]||'unavailable'}));
 }

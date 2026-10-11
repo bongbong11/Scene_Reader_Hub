@@ -29,13 +29,13 @@ for(const basis of ['direct','remote','continuing','reference','departed','unkno
  assert.equal(details.character_0_presence.effective,['direct','remote','continuing'].includes(basis)?'active':basis==='unknown'?'background':'absent');
 }
 const splitParticipation={choice:'direct',confidence:.53,probabilities:{unknown:0,direct:.61,remote:.03,continuing:.35,departed:0,reference:.01}};
-assert.equal(participationBasis(splitParticipation),'participating');
+assert.equal(participationBasis(splitParticipation),'direct');
 assert.deepEqual(resolveSceneGate({scene_participant_0:splitParticipation},sceneGateRequest({model:'test',transcript:'[0] USER: Synthetic scene.',people:[person]})).participantIds,['a']);
-const splitDetails={};resolveCharacterPresence([person],splitDetails,{}, {a:splitParticipation});assert.equal(splitDetails.character_0_presence.effective,'active');assert.equal(splitDetails.character_0_presence.presenceResolution,'participation_group');
-for(const bad of [{choice:'direct',confidence:.1},{...splitParticipation,probabilities:{...splitParticipation.probabilities,unknown:1}},{choice:'reference',confidence:.4,probabilities:splitParticipation.probabilities},{choice:'direct',confidence:.4,probabilities:{unknown:.25,direct:.4,remote:.05,continuing:.05,departed:.05,reference:.2}}])assert.equal(participationBasis(bad),'unknown');
+const splitDetails={};resolveCharacterPresence([person],splitDetails,{}, {a:splitParticipation});assert.equal(splitDetails.character_0_presence.effective,'active');assert.equal(splitDetails.character_0_presence.presenceResolution,'observed_participation');
+for(const answer of [{choice:'direct',confidence:.1},{...splitParticipation,probabilities:{...splitParticipation.probabilities,unknown:1}},{choice:'reference',confidence:.4,probabilities:splitParticipation.probabilities},{choice:'direct',confidence:.4,probabilities:{unknown:.25,direct:.4,remote:.05,continuing:.05,departed:.05,reference:.2}}])assert.equal(participationBasis(answer),answer.choice,'probability spread does not revoke a valid classification');
 assert.equal(applyPolicy('relationship_pacing',{choice:'closer_incremental',confidence:.7},'balanced',['hold','closer_incremental']).effective,'closer_incremental');
-assert.equal(applyPolicy('relationship_pacing',{choice:'closer_significant',confidence:.7},'balanced',['hold','closer_significant']).effective,'hold');
-assert.equal(applyPolicy('event_route',{choice:'retire',confidence:.7},'balanced',['none','retire']).effective,'none');
+assert.equal(applyPolicy('relationship_pacing',{choice:'closer_significant',confidence:.7},'balanced',['hold','closer_significant']).effective,'closer_significant');
+assert.equal(applyPolicy('event_route',{choice:'retire',confidence:.7},'balanced',['none','retire']).effective,'retire');
 assert.equal(applyPolicy('basic_move',{choice:'invented',confidence:1},'balanced',['continue','action']).effective,'continue');
 
 let clock=0,calls=0;const durations=[];const limited=analysisRequestBudget(async(...args)=>{calls++;durations.push(args[4].timeoutMs);},{maxRequests:2,totalMs:150,now:()=>clock});
