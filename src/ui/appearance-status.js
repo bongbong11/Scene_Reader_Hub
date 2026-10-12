@@ -1,4 +1,5 @@
 export function appearanceRollText(roll) {
+    if(roll?.reasonCode==='chance_zero')return '인물 확률이 0%라 새 생성은 꺼져 있습니다. 기존 인물의 행동은 유지됩니다.';
     if(roll?.reasonCode==='generation_disabled')return '새 생성이 꺼져 있습니다. 기존 인물의 행동은 유지됩니다.';
     if(roll?.status==='selected')return '새 인물 주입 준비 · 실제 등장은 본문 확인 후 확정됩니다.';
     if(roll?.reasonCode?.startsWith('blocked_'))return '장면의 구체적 제약으로 이번 제안이 제외되었습니다. 전체 로그에서 원인을 확인할 수 있습니다.';

@@ -20,6 +20,7 @@ function choosePackages(pool,key,feature,history) {
 }
 function ticket(key,feature,chance,enabled,reasonCode) {
     if(!enabled)return {key,feature,chance,roll:null,passed:false,status:'skipped',reasonCode,candidates:[]};
+    if(chance===0)return {key,feature,chance,roll:null,passed:false,status:'skipped',reasonCode:'chance_zero',candidates:[]};
     const roll=1+Math.floor(drawRandom(key,feature==='person'?'appearance':'event')()*100);
     return {key,feature,chance,roll,passed:roll<=chance,status:roll<=chance?'offered':'skipped',reasonCode:roll<=chance?'draw_passed':'chance_failed',candidates:[]};
 }

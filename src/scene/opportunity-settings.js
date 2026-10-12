@@ -1,3 +1,10 @@
+import {advancedChance} from '../world/advanced-library.js';
+
+export function normalizeChance(value,fallback=10) {
+    const number=typeof value==='number'||typeof value==='string'&&value.trim()?Number(value):NaN;
+    return Number.isFinite(number)?Math.max(0,Math.min(100,number)):fallback;
+}
+
 // Older releases rebuild known preferences but retain extension fields on the
 // chat record. Keep only the two new choices here so a downgrade/re-upgrade
 // cannot silently turn a user's disabled generation setting back on.
@@ -17,6 +24,6 @@ export function opportunitySettings(preferences={}) {
     const personSpontaneous=['person','both'].includes(spontaneousMode);
     return {enabled,spontaneousMode,eventSpontaneous,personSpontaneous,
         eventEnabled:enabled&&(Boolean(preferences.advancedEnabled)||eventSpontaneous),
-        personEnabled:enabled,eventChance:({conservative:18,balanced:35,active:58,very_active:75})[preferences.advancedStyle]??35,
-        personChance:Math.max(1,Math.min(100,Number(preferences.appearanceChance)||10)),villainAllowed:Boolean(preferences.villainEnabled)};
+        personEnabled:enabled,eventChance:advancedChance(preferences.advancedStyle),
+        personChance:normalizeChance(preferences.appearanceChance),villainAllowed:Boolean(preferences.villainEnabled)};
 }

@@ -11,7 +11,10 @@ import {buildInjection} from '../prompt-library.js';
 import {FALLBACKS} from '../src/decision/answers.js';
 import {selectActionPlan} from '../src/decision/action-budget.js';
 import {fixture} from './regression/audit-v012.mjs';
-import {restoreOpportunityPreferences} from '../src/scene/opportunity-settings.js';
+import {restoreOpportunityPreferences,normalizeChance} from '../src/scene/opportunity-settings.js';
+import {advancedChance} from '../src/world/advanced-library.js';
+import {makeAppearanceOffer} from '../src/scene/appearance.js';
+import {drawStatusText} from '../src/decision/draw-diagnostics.js';
 
 {
     const rec={preferences:{},opportunityPreferences:{newGenerationEnabled:false,spontaneousMode:'both'}};
@@ -65,6 +68,25 @@ const b=makeOpportunities(JSON.parse(JSON.stringify(retry)),'fixed-ticket');
 assert.deepEqual(b.person.candidates,a.person.candidates);assert.equal(b.person.roll,a.person.roll);
 const disabled=makeOpportunities(makeRecord({newGenerationEnabled:false}),'off');
 assert.equal(choose(disabled).length,0);assert.equal(disabled.event.roll,null);assert.equal(disabled.person.roll,null);
+assert.equal(advancedChance('off'),0);
+for(const value of [0,'0'])assert.equal(normalizeChance(value),0);
+for(const value of [undefined,null,'',false,NaN,Infinity,'invalid'])assert.equal(normalizeChance(value),10);
+assert.equal(normalizeChance(75),75);assert.equal(normalizeChance(200),100);
+for(const mode of ['off','event','person','both']) {
+    const zero=makeRecord({advancedEnabled:true,advancedElements:['objective'],advancedStyle:'off',appearanceChance:0,spontaneousMode:mode});
+    for(let i=0;i<30;i++){
+        const offers=makeOpportunities(zero,`zero-${i}`);assert.equal(choose(offers).length,0);
+        const summary=safeOpportunityPlan(opportunitySummary(offers));
+        for(const feature of ['event','person']){assert.equal(offers[feature].roll,null);assert.equal(offers[feature].reasonCode,'chance_zero');assert.equal(summary[feature].reasonCode,'chance_zero');assert.equal(summary[feature].chance,0);}
+    }
+    assert.equal(makeAppearanceOffer(zero,'zero-legacy',()=>{throw new Error('Zero must not draw');}).candidate,null);
+}
+assert.match(drawStatusText({status:'chance_zero',chance:0,roll:null}),/0%.*꺼짐/);
+const changed=makeRecord({appearanceChance:100}),priorOffer=makeOpportunities(changed,'same-response');
+assert.equal(priorOffer.person.passed,true);changed.preferences.appearanceChance=0;
+assert.equal(makeOpportunities(changed,'same-response').person.reasonCode,'chance_zero');
+changed.preferences.appearanceChance=100;
+assert.equal(makeOpportunities(changed,'same-response').person.roll,priorOffer.person.roll,'re-enabling keeps the same response draw');
 const ongoing=makeRecord({spontaneousMode:'both'});ongoing.eventProfile={id:'original',phase:'active'};
 for(let i=0;i<100;i++) {
     const o=makeOpportunities(ongoing,`ongoing-${i}`);assert.equal(o.event.scope,'local');
@@ -134,10 +156,23 @@ function setup(overrides={}) {
     f.sandbox.testJev=async request=>{calls.push(request);return {answers:Object.fromEntries(Object.entries(request.questions).map(([key,q])=>[key,q.type==='noul'?{type:'noul',noul:0.9}:{choice:key.startsWith('verification_addition_')?'fulfilled':Object.hasOwn(q.criteria,picks[key])?picks[key]:Object.hasOwn(q.criteria,FALLBACKS[key])?FALLBACKS[key]:Object.keys(q.criteria)[0],confidence:key.endsWith('_opportunity')?0.01:1}]))};};
     f.run('callJev=testJev');return {f,calls,picks};
 }
+// Zero survives normal loading and JSON round trips, and never sends creation
+// questions or addition instructions for that channel in any spontaneous mode.
+for(const mode of ['off','event','person','both'])for(const channel of ['event','person','both']){
+    const {f,calls}=setup({spontaneousMode:mode,advancedEnabled:true,advancedElements:['objective'],advancedStyle:channel==='person'?'very_active':'off',appearanceChance:channel==='event'?100:0});
+    f.run('record(true);chatRecords.set(stateChatKey(),JSON.parse(JSON.stringify(record())));record(true);');
+    await f.run('runJudge({force:true})');
+    for(const feature of channel==='both'?['event','person']:[channel]){
+        assert.equal(Object.hasOwn(calls.at(-1).questions,feature+'_opportunity'),false);
+        assert.equal(f.run('record().lastJudgment.opportunityPlan.'+feature+'.reasonCode'),'chance_zero');
+        assert.equal(f.run('record().pendingPlan.additions.some(x=>x.feature==="'+feature+'")'),false);
+    }
+    if(channel==='event')assert.equal(f.run('record().pendingPlan.additions.filter(x=>x.feature==="person").length'),1,'event zero does not disable person');
+}
 // Creation off preserves existing execution, including ongoing events, NPCs
 // and supported relationship movement rather than shutting down the story.
-for(const kind of ['event','npc','relationship']) {
-    const {f,calls,picks}=setup({newGenerationEnabled:false,advancedEnabled:kind==='event'});
+for(const zero of [false,true])for(const kind of ['event','npc','relationship']) {
+    const {f,calls,picks}=setup({newGenerationEnabled:zero,advancedEnabled:kind==='event',...(zero?{advancedStyle:'off',appearanceChance:0}:{})});
     if(kind==='event'){
         f.run('record().eventProfile={id:"established-event",source:"advanced",element:"objective",title:"A shared task",goal:"Finish the task",trigger:"A present activity",pressure:"Limited resources",phase:"active",prompt:"Take one practical step.",worldId:"current"};');
         Object.assign(picks,{primary_focus:'event',event_state:'active',advanced_entry:'open',advanced_route:'continue',advanced_cause:'existing',advanced_element:'objective',advanced_move:'advance'});

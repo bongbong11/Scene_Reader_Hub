@@ -23,6 +23,15 @@ export async function checkOpportunitySettings(page,store,requests,setViewportSi
     assert.equal(await page.locator('#sr-relationship-pace').isDisabled(),false,'relationship settings remain usable');
     await page.locator('#sr-new-generation-enabled').check();
     await page.waitForFunction(()=>!document.getElementById('sr-spontaneous-mode').disabled);
+    await page.locator('#sr-advanced-style').selectOption('off');await page.locator('#sr-appearance-chance').selectOption('0');await page.waitForLoadState('networkidle');
+    assert.equal(store.chat.preferences.advancedStyle,'off');assert.equal(store.chat.preferences.appearanceChance,0);
+    await page.reload();await page.locator('#scene-reader-quick-button').waitFor();await page.locator('#scene-reader-quick-button').click();await page.locator('[data-sr-tab="flow"]').click();
+    for(const mode of ['off','event','person','both']){
+        await page.locator('#sr-spontaneous-mode').selectOption(mode);await page.waitForLoadState('networkidle');
+        assert.equal(await page.locator('#sr-advanced-style').inputValue(),'off');assert.equal(await page.locator('#sr-appearance-chance').inputValue(),'0');
+    }
+    assert.equal(await page.locator('#sr-advanced-style').isDisabled(),false,'zero can be changed back without switching generation off/on');
+    assert.match(await page.locator('#sr-generation-help').textContent(),/선택하지 않은 쪽/);assert.match(await page.locator('#sr-generation-help').textContent(),/0%.*돌발/);
     for(const size of [{width:320,height:700},{width:360,height:740},{width:390,height:844},{width:1280,height:900}]) {
         await setViewportSize(size);await page.locator('.sr-opportunity-controls').scrollIntoViewIfNeeded();
         const fit=await page.locator('.sr-opportunity-controls').evaluate(card=>{
@@ -34,9 +43,9 @@ export async function checkOpportunitySettings(page,store,requests,setViewportSi
     }
     assert.equal(count(),before,'changing settings performs no inference, embedding or generation');
     assert.equal(await page.locator('.sr-tabs [data-sr-tab]').count(),4);
-    await page.locator('#sr-spontaneous-mode').selectOption(saved.spontaneousMode||'off');
-    if(saved.advancedEnabled)await page.locator('#sr-advanced-style').selectOption(saved.advancedStyle);
+    await page.locator('#sr-advanced-style').selectOption(saved.advancedStyle);
     await page.locator('#sr-appearance-chance').selectOption(String(saved.appearanceChance));
+    await page.locator('#sr-spontaneous-mode').selectOption(saved.spontaneousMode||'off');
     if(saved.newGenerationEnabled===false)await page.locator('#sr-new-generation-enabled').uncheck();
-    console.log('Browser opportunities passed: compact controls, saved values, independent off switch, ordinary settings remain usable, zero inference from settings, 320/360/390/1280px fit.');
+    console.log('Browser opportunities passed: zero probabilities survive reload and all modes, compact controls, independent off switch, ordinary settings remain usable, zero inference from settings, 320/360/390/1280px fit.');
 }

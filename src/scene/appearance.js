@@ -1,5 +1,6 @@
 import { rollNpcProfile, rollVillainProfile } from '../../prompt-library.js';
 import { overrideDecision } from './coordinator.js';
+import {normalizeChance} from './opportunity-settings.js';
 
 export const ARRIVALS = {
     none: 'No offered arrival can naturally fit this scene now; preserve existing interaction.',
@@ -10,8 +11,9 @@ export const ARRIVALS = {
     contact: 'A plausible remote contact fits; do not default to calls/messages just because the scene is quiet.',
 };
 export function makeAppearanceOffer(rec, key, random = Math.random) {
-    if (rec.appearanceOffer?.key === key && rec.appearanceOffer.chance === (Number(rec.preferences.appearanceChance)||10) && rec.appearanceOffer.villainAllowed === Boolean(rec.preferences.villainEnabled)) return rec.appearanceOffer;
-    const chance = Number(rec.preferences.appearanceChance) || 10;
+    const chance = normalizeChance(rec.preferences.appearanceChance);
+    if(chance===0)return {key,roll:null,chance,passed:false,kind:'npc',candidate:null,villainAllowed:Boolean(rec.preferences.villainEnabled),reasonCode:'chance_zero'};
+    if (rec.appearanceOffer?.key === key && rec.appearanceOffer.chance === chance && rec.appearanceOffer.villainAllowed === Boolean(rec.preferences.villainEnabled)) return rec.appearanceOffer;
     const roll = 1 + Math.floor(random() * 100);
     const availableNpc = true;
     const availableVillain = rec.preferences.villainEnabled;

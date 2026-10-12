@@ -1,4 +1,5 @@
 export const ADVANCED_STYLES = {
+    off: '새 사건 생성 끄기',
     conservative: '보수적',
     balanced: '균형',
     active: '적극적',
@@ -206,7 +207,7 @@ function pick(list, random = Math.random) {
 }
 
 export function advancedChance(style) {
-    return { conservative: 18, balanced: 35, active: 58, very_active: 75 }[style] || 35;
+    return { off: 0, conservative: 18, balanced: 35, active: 58, very_active: 75 }[style] ?? 35;
 }
 
 export function rollAdvancedEvent(element, { random = Math.random, worldId = 'current', worldName = '현재 설정 따름', supernatural = false } = {}) {

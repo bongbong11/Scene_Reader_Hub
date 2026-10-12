@@ -1,5 +1,5 @@
 import {normalizeOpportunities} from '../scene/opportunities.js';
-import {restoreOpportunityPreferences} from '../scene/opportunity-settings.js';
+import {restoreOpportunityPreferences,normalizeChance} from '../scene/opportunity-settings.js';
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
 import { effectivePreferences } from './common-preferences.js';
 import {retireCollection} from './retired-collection.js';
@@ -32,7 +32,7 @@ function record(create = false) {
         value.preferences.advancedElements = [...new Set((Array.isArray(value.preferences.advancedElements) ? value.preferences.advancedElements : []).filter((key) => deps.ADVANCED_ELEMENTS[key]))];
         if (!value.preferences.advancedElements.length) value.preferences.advancedElements = [...deps.ADVANCED_DEFAULT_ELEMENTS];
         for (const key of ['charmMemory', 'lorebookMemory', 'advancedEnabled', 'negativePriority', 'fightSustain', 'villainEnabled', 'socialEnabled', 'worldHostility', 'privatePromptEnabled', 'npcToUser', 'userMisfortune', 'allowUserImpersonation', 'profileEmotionJudgment']) value.preferences[key] = Boolean(value.preferences[key]);
-        for (const key of ['appearanceChance']) value.preferences[key] = Math.max(1, Math.min(100, Number(value.preferences[key]) || deps.CHAT_DEFAULTS[key]));
+        value.preferences.appearanceChance = normalizeChance(value.preferences.appearanceChance,deps.CHAT_DEFAULTS.appearanceChance);
         restoreOpportunityPreferences(value,saved);
         value.opportunities=normalizeOpportunities(value.opportunities);
         const pacing = value.pacingState && typeof value.pacingState === 'object' ? value.pacingState : {};

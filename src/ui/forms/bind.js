@@ -1,4 +1,5 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
+import {normalizeChance} from '../../scene/opportunity-settings.js';
 import {bindReplacementTool} from '../replacement-tool.js';
 import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
 import {backupSource, backupFilename} from '../../storage/backup-label.js';
@@ -151,7 +152,7 @@ function bindForm() {
         await deps.savePreference('villainEnabled', event.target.checked);
         if (!event.target.checked) { const rec = deps.record(true); rec.villainProfile = null; rec.lastVillainRoll = null; await deps.persistChat(); deps.renderProfiles(); }
     })()));
-    deps.document.getElementById('sr-appearance-chance')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('appearanceChance', Number(event.target.value) || 10)));
+    deps.document.getElementById('sr-appearance-chance')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('appearanceChance', normalizeChance(event.target.value))));
     for (const id of ['sr-enabled', 'sr-extension-enabled']) deps.document.getElementById(id)?.addEventListener('change', (event) => deps.runUiTask((async () => {
         const enabled = event.target.checked;
         await deps.saveGlobal('enabled', enabled);

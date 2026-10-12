@@ -9,7 +9,7 @@ export const UI = {
   chance:'응답 기회마다 한 번 추첨합니다. 같은 응답의 재판독·리롤은 재추첨하지 않습니다. 실제 반영은 답변 후 확인합니다.',
   frequencyLabel:'사건 확률',frequencyHelp:'돌발 사건과 고급 사건이 공유하는 확률입니다. 중복 추첨하지 않습니다.',
   advancedFrequencyHelp:'발생 확률은 자동 전개 탭의 새 사건·인물 생성에서 조절합니다.',
-  compactHelp:'꺼도 현재 대화·관계와 진행 중인 사건·인물은 유지됩니다. 돌발은 복선 없이 가능한 새 사건·등장을 허용합니다.',
+  compactHelp:'돌발은 복선 없는 사건·등장을 허용하며, 선택하지 않은 쪽의 생성은 끄지 않습니다. 발생 빈도는 각각의 확률 설정을 따릅니다. 0%는 돌발 포함 새 생성만 끄며, 기존 인물·사건은 유지됩니다.',
   base:'기본 응답: 현재 상호작용에 반응',none:'추가 전개: 없음',
 };
 export function opportunityFailureMessage(plan) {

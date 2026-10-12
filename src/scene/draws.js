@@ -1,4 +1,5 @@
 import {drawRandom} from './draw-opportunity.js';
+import {normalizeChance} from './opportunity-settings.js';
 import { rollAdvancedEvent, rollAdvancedEntity, advancedChance } from "../world/advanced-library.js";
 import { rollEventProfile, rollNpcProfile, rollVillainProfile } from '../../prompt-library.js';
 import { archiveCurrentEvent } from "./state-effects.js";
@@ -63,7 +64,7 @@ function prepareStandardProfiles(rec, decisions, details) {
             } else {
                 const random=rec.drawOpportunityKey?drawRandom(rec.drawOpportunityKey,'event'):Math.random;
                 const roll = 1 + Math.floor(random() * 100);
-                rec.lastEventRoll = { roll, chance: Number(rec.preferences.eventChance) || 35, opportunity: rec.sceneOpportunity, at: new Date().toISOString() };
+                rec.lastEventRoll = { roll, chance: normalizeChance(rec.preferences.eventChance,35), opportunity: rec.sceneOpportunity, at: new Date().toISOString() };
                 if (roll <= rec.lastEventRoll.chance) rec.eventProfile = rollEventProfile(rec.preferences.progressionMode);
                 else {
                     overrideDecision(details, decisions, 'event_route', 'waiting', '새 사건 확률 추첨 미통과');
@@ -96,7 +97,7 @@ function prepareStandardProfiles(rec, decisions, details) {
             } else {
                 const random=rec.drawOpportunityKey?drawRandom(rec.drawOpportunityKey,'event'):Math.random;
                 const roll = 1 + Math.floor(random() * 100);
-                rec.lastVillainRoll = { roll, chance: Number(rec.preferences.appearanceChance) || 10, opportunity: rec.sceneOpportunity, at: new Date().toISOString() };
+                rec.lastVillainRoll = { roll, chance: normalizeChance(rec.preferences.appearanceChance), opportunity: rec.sceneOpportunity, at: new Date().toISOString() };
                 if (roll <= rec.lastVillainRoll.chance) rec.villainProfile = { ...rollVillainProfile(), status: 'active', createdAt: new Date().toISOString() };
                 else {
                     overrideDecision(details, decisions, 'villain_route', 'waiting', '새 빌런 확률 추첨 미통과');
@@ -120,7 +121,7 @@ function prepareStandardProfiles(rec, decisions, details) {
             } else {
                 const random=rec.drawOpportunityKey?drawRandom(rec.drawOpportunityKey,'event'):Math.random;
                 const roll = 1 + Math.floor(random() * 100);
-                rec.lastNpcRoll = { roll, chance: Number(rec.preferences.appearanceChance) || 10, opportunity: rec.sceneOpportunity, at: new Date().toISOString() };
+                rec.lastNpcRoll = { roll, chance: normalizeChance(rec.preferences.appearanceChance), opportunity: rec.sceneOpportunity, at: new Date().toISOString() };
                 if (roll <= rec.lastNpcRoll.chance) rec.npcProfile = rollNpcProfile(rec.preferences.progressionMode);
                 else {
                     overrideDecision(details, decisions, 'npc_route', 'waiting', '새 NPC 확률 추첨 미통과');

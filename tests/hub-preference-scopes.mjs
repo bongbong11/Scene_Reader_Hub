@@ -5,7 +5,7 @@ import {createRecordRepository} from '../src/storage/record.js';
 import {confirmedStory,resolveRecord} from '../src/storyline/projector.js';
 import {SHARED_LINK,chatRef} from '../src/storage/shared-document.js';
 
-const old={injectionMode:'preset',scenePresetSlot:{identifier:'custom-slot',side:'before'},worldInjectionMode:'depth',worldPresetSlot:{identifier:'world-slot',side:'after'},progressIntensity:1.3,developmentStyle:'dynamic',newGenerationEnabled:false};
+const old={injectionMode:'preset',scenePresetSlot:{identifier:'custom-slot',side:'before'},worldInjectionMode:'depth',worldPresetSlot:{identifier:'world-slot',side:'after'},progressIntensity:1.3,developmentStyle:'dynamic',newGenerationEnabled:false,advancedStyle:'off',appearanceChance:0};
 const settings={};
 assert.equal(migrateCommonPreferences(settings,undefined),null);
 settings.commonPreferences=migrateCommonPreferences(settings,old);
@@ -36,6 +36,7 @@ await assert.rejects(preferencesForConnection({...params,post:async()=>({chat:{[
 story.checkpoints.head.state=confirmedStory({preferences:old});
 assert.equal(story.checkpoints.head.state.continuationPreferences.injectionMode,undefined);
 assert.equal((await preferencesForConnection(params)).newGenerationEnabled,false);
+assert.equal((await preferencesForConnection(params)).advancedStyle,'off');assert.equal((await preferencesForConnection(params)).appearanceChance,0);
 assert.equal(calls,1,'current checkpoints need no source lookup');
 assert.equal((await preferencesForConnection({...params,mode:'new'})).developmentStyle,'balanced');
 assert.equal((await preferencesForConnection({...params,mode:'branch',currentRecord:{preferences:old}})).developmentStyle,'dynamic');
