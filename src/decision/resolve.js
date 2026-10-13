@@ -20,7 +20,7 @@ async function resolveDecision(run,frame) {
                 ? deps.applyRecordRelevance(frame.data.answers[key])
                 : key.startsWith('character_') || key === 'npc_identity_route'
                 ? deps.applyCharacterPolicy(key, frame.data.answers[key], frame.prefs.judgmentStyle, choices)
-                : deps.applyPolicy(key, frame.data.answers[key], frame.prefs.judgmentStyle, choices, frame.prefs.progressIntensity);
+                : deps.applyPolicy(key, frame.data.answers[key], frame.prefs.judgmentStyle, choices);
         }
         resolveCharacterPresence(frame.liveCharacters,frame.details,frame.data.answers,frame.sceneGate?.participationObservations||{});
         (frame.decisions = deps.effectiveMap(frame.details));

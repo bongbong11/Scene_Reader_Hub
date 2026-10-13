@@ -1,3 +1,6 @@
+import {applyItemUpdate} from './state-updates.js';
+export {selectActiveContinuity as selectContinuityContext} from './selection.js';
+
 const SOURCE_TYPES = new Set(['world_fact', 'claim', 'belief', 'intention', 'promise', 'delegation', 'completed_action']);
 const ITEM_KINDS = new Set(['commitment', 'plan', 'schedule', 'obligation', 'delegation', 'status']);
 const KNOWLEDGE_SOURCES = new Set(['direct', 'observed', 'told', 'reported', 'public', 'role_based', 'privileged']);
@@ -9,6 +12,8 @@ You are a continuity dependency reasoner, not a story writer. Identify direct ef
 Distinguish world_fact, claim, belief, intention, promise, delegation and completed_action. A claim or promise is not a completed action or objective world fact. CHANGED means the verified RP itself changed a state. PRESSURED means an existing state's viability changed but its lifecycle did not. POSSIBLE_FOLLOWUP is only a future candidate, never a fact.
 Prefer existing state IDs. Create a new item only for an explicit persistent promise, plan, schedule, obligation or delegation. Never duplicate event, relationship or NPC authoritative state. Do not invent people, secrets, institutions, actions, conflicts or information paths. Unknown knowledge remains unknown. Select only direct causal dependencies. Return one strict JSON object with arrays new_items (max 2), affected (max 3), knowledge_updates (max 4), possible_followups (max 2). Every entry must include a short verbatim evidence excerpt from the supplied RP source and a source_type. Use empty arrays when none apply.
 Fields: new_items[{kind,label,lifecycle,owners,source_type,evidence}], affected[{state_id,relation,lifecycle,pressure,reason,source_type,evidence}], knowledge_updates[{fact_id,character,source,summary,source_type,evidence}], possible_followups[{related_state_id,action,reason,source_type,evidence}]. relation is changed or pressured. source_type is one of world_fact, claim, belief, intention, promise, delegation, completed_action. Never label an intention as completed_action.
+Allowed kind: commitment, plan, schedule, obligation, delegation, status. Allowed lifecycle: active, confirmed, delegated, contested, cancel_pending, resolved, cancelled, completed. Allowed pressure: none, strained, at_risk, blocked. knowledge_updates.source: direct, observed, told, reported, public, role_based, privileged. Use names from actor_names for owners/character when identifiable; never require a spoken name when the speaker is clear from the provided cast and source.
+Read every supplied USER and ASSISTANT passage, including narration and actions in the finished reply. source_rp alone establishes new evidence; active_continuity and existing_state_refs supply prior states and their exact IDs. Match a changed commitment to its existing ID even if the RP uses different wording or pronouns. A resolved obstacle sets pressure to none; an obstacle alone must not cancel the commitment. Do not create a second copy of an existing promise. Private thoughts or metadata alone do not establish another person's knowledge. Followups must refer to supplied existing IDs, never guessed IDs. Do not return prose outside JSON.
 Write concise English labels, summaries, reasons and actions. Preserve names and verbatim evidence in their original language. Registered people are references, not an exhaustive cast list; a person explicitly established in the supplied RP may also have a knowledge update.
 </CONTINUITY_REASONER>`;
 
@@ -41,7 +46,7 @@ function supportedActor(character, actors, sourceText) {
     return false;
 }
 
-export function validateReasonerResult(raw, { sourceText, continuity, sourceIdentity, stateRefs=null, actors=null } = {}) {
+export function validateReasonerResult(raw, { sourceText, continuity, sourceIdentity, stateRefs=null, actors=null, evidenceSources=null, diagnostics=null } = {}) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Continuity Reasoner 응답 형식이 잘못됐습니다.');
     const current = normalizeContinuity(continuity);
     const knownIds = new Set(current.items.map((item) => item.id));
@@ -53,7 +58,10 @@ export function validateReasonerResult(raw, { sourceText, continuity, sourceIden
         const sourceType = short(value.source_type, 40);
         if (!SOURCE_TYPES.has(sourceType) || !evidencePresent(evidence, sourceText)) return;
         const id = `${type}:${index}:${sourceIdentity.outputFingerprint}`;
-        const base = { id, type, evidence, sourceType, sourceIdentity, label: '', data: {} };
+        const sources=evidenceSources?.filter(source=>evidencePresent(evidence,source.text));
+        const refs=sources?.length?[...new Map(sources.flatMap(source=>source.refs).map(ref=>[ref.messageIndex,ref])).values()]:sourceIdentity.refs;
+        const identity=refs?.length?{...sourceIdentity,refs,assistantIndex:Math.max(...refs.filter(ref=>ref.role==='assistant').map(ref=>ref.messageIndex))}:sourceIdentity;
+        const base = { id, type, evidence, sourceType, sourceIdentity:identity, label: '', data: {} };
         if (type === 'new_item') {
             if (!ITEM_KINDS.has(value.kind) || !['promise', 'delegation', 'world_fact', 'intention'].includes(sourceType)) return;
             if(['promise','intention','delegation'].includes(sourceType)&&['completed','resolved'].includes(value.lifecycle))return;
@@ -68,7 +76,7 @@ export function validateReasonerResult(raw, { sourceText, continuity, sourceIden
             if (!['changed', 'pressured'].includes(relation)) return;
             if(relation==='changed'&&['completed','resolved'].includes(value.lifecycle)&&!['world_fact','completed_action'].includes(sourceType))return;
             base.label = `${stateId} · ${relation}`;
-            base.data = { stateId, relation, lifecycle: LIFECYCLES.has(value.lifecycle) ? value.lifecycle : null, pressure: PRESSURES.has(value.pressure) ? value.pressure : 'strained', reason: short(value.reason, 240) };
+            base.data = { stateId, relation, lifecycle: LIFECYCLES.has(value.lifecycle) ? value.lifecycle : null, pressure: PRESSURES.has(value.pressure) ? value.pressure : relation==='pressured'?'strained':'none', reason: short(value.reason, 240) };
         } else if (type === 'knowledge') {
             const factId = short(value.fact_id, 100);
             const character = short(value.character, 80);
@@ -87,18 +95,13 @@ export function validateReasonerResult(raw, { sourceText, continuity, sourceIden
     };
     for (const [field, type, limit] of [['new_items', 'new_item', 2], ['affected', 'affected', 3], ['knowledge_updates', 'knowledge', 4], ['possible_followups', 'followup', 2]]) {
         const entries = Array.isArray(raw[field]) ? raw[field] : [];
+        if(diagnostics)diagnostics.candidateCount=(diagnostics.candidateCount||0)+entries.length;
         entries.slice(0, limit).forEach((value, index) => add(type, value, index));
     }
-    const selected = [];
-    for (const type of ['new_item', 'affected', 'knowledge', 'followup']) {
-        const first = candidates.find((item) => item.type === type);
-        if (first) selected.push(first);
-    }
-    for (const candidate of candidates) {
-        if (selected.length >= 5) break;
-        if (!selected.includes(candidate)) selected.push(candidate);
-    }
-    return selected;
+    // These are stored facts, not competing Jev candidates. Keep every valid
+    // entry within the documented per-section limits; injection has its own cap.
+    if(diagnostics)diagnostics.invalidCount=(diagnostics.candidateCount||0)-candidates.length;
+    return candidates;
 }
 
 export function applyContinuityVerdicts(continuity, candidates, decisions, { opportunity = 0, now = new Date().toISOString() } = {}) {
@@ -121,9 +124,7 @@ export function applyContinuityVerdicts(continuity, candidates, decisions, { opp
         } else if (candidate.type === 'affected' && ((candidate.data.relation === 'changed' && verdict === 'accept_changed') || (candidate.data.relation === 'pressured' && verdict === 'accept_pressured'))) {
             const item = next.items.find((entry) => entry.id === candidate.data.stateId);
             if (item) {
-                if (verdict === 'accept_changed' && candidate.data.lifecycle) item.lifecycle = candidate.data.lifecycle;
-                if (verdict === 'accept_pressured') item.pressure = candidate.data.pressure;
-                item.updatedAt = now;
+                applyItemUpdate(item,candidate,now);
             } else {
                 const existing = next.dependencies.find((entry) => entry.stateId === candidate.data.stateId);
                 const dependency = { stateId: candidate.data.stateId, pressure: candidate.data.pressure, reason: candidate.data.reason, sourceRefs: candidate.sourceIdentity?.refs || [candidate.sourceIdentity], updatedAt: now };
@@ -145,31 +146,18 @@ export function applyContinuityVerdicts(continuity, candidates, decisions, { opp
     return { continuity: next, accepted };
 }
 
-export function selectContinuityContext(continuity, transcript, { opportunity = 0 } = {}) {
-    const current = normalizeContinuity(continuity);
-    const haystack = String(transcript || '').toLocaleLowerCase();
-    const relevant = (entry) => [entry.label, entry.factId, entry.character, entry.relatedStateId, entry.action, ...(entry.owners || [])]
-        .some((value) => String(value || '').length >= 3 && haystack.includes(String(value).toLocaleLowerCase()));
-    return {
-        items: current.items.filter(relevant).slice(-3),
-        knowledge: current.knowledge.filter(relevant).slice(-3),
-        dependencies: current.dependencies.filter((entry) => relevant(entry) || entry.stateId === 'event:current' || entry.stateId === 'relationship:current').slice(-2),
-        followups: current.followups.filter((entry) => entry.status === 'available' && !entry.executed && entry.lastOffered !== opportunity && !current.items.some(item=>item.id===entry.relatedStateId&&['resolved','completed','cancelled'].includes(item.lifecycle)) && (relevant(entry) || current.items.some((item) => item.id === entry.relatedStateId && relevant(item)))).sort((a,b)=>(a.lastOffered??-1)-(b.lastOffered??-1)).slice(0,2),
-    };
-}
-
 export function buildContinuityInjection(selected, chosenFollowup = null) {
     const lines = [];
     const usable = (value, max) => { const text = String(value || '').trim(); return text && text.length <= max ? text : ''; };
     for (const item of selected?.items || []) {
         const label = usable(item.label, 140);
-        if (label) lines.push(`${label}: ${item.lifecycle}${item.pressure && item.pressure !== 'none' ? `; pressure=${item.pressure}` : ''}.`);
+        if (label) lines.push(`${label}: ${item.lifecycle}${item.pressure && item.pressure !== 'none' ? `; pressure=${item.pressure}` : ''}${item.reason?`; ${short(item.reason,160)}`:''}.`);
     }
     for (const item of selected?.knowledge || []) {
         const summary = usable(item.summary || item.factId, 160);
         if (summary) lines.push(`${short(item.character, 80)} has ${item.source} information concerning ${summary}; source type=${SOURCE_TYPES.has(item.sourceType)?item.sourceType:'unspecified'}. Claims, beliefs, intentions and promises are not automatically verified facts or completed actions.`);
     }
-    for (const item of selected?.dependencies || []) lines.push(`${short(item.stateId, 60)} remains in its established lifecycle; pressure=${item.pressure}.`);
+    for (const item of selected?.dependencies || []) lines.push(`${short(item.stateId, 60)} remains in its established lifecycle; pressure=${item.pressure}${item.reason?`; ${short(item.reason,160)}`:''}.`);
     const action = usable(chosenFollowup?.data?.action, 180);
     if (action) lines.push(`Carry the selected established thread forward: ${action}. Perform its next supported step within the current interaction; do not claim an unseen action already happened.`);
     return lines.length ? `<CONTINUITY_CONTEXT>\n${lines.join('\n')}\nTreat pressure as context, not a completed off-screen action.\n</CONTINUITY_CONTEXT>` : '';

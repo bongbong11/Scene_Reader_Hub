@@ -1,0 +1,2 @@
+// Shared by ordinary and paused-scene references; this does not select actions.
+export const LANGUAGE_SCOPE = '<LANGUAGE_SCOPE>Scene phase and progression controls describe actions, not a vocabulary ban. In context-appropriate narration or dialogue, preserve character-consistent anatomical terms, profanity and non-graphic adult jokes without automatic euphemisms or masking. Mentioning a body part, sex or arousal alone does not establish sexual activity or authorize escalation. Do not add such words merely to satisfy this instruction.</LANGUAGE_SCOPE>';

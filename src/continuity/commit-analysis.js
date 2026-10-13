@@ -12,12 +12,14 @@ export function commitAnalyzedContinuity(record,history,candidates) {
     const result=applyContinuityVerdicts(continuityView(record),candidates,decisions,{opportunity:record.sceneOpportunity});
     if(!result.accepted.length)return result;
     assignContinuity(record,result.continuity);
-    const sourceIndex=Math.max(...result.accepted.map(item=>Number(item.sourceIdentity?.assistantIndex)));
-    const update=snapshot=>{if(snapshot)assignContinuity(snapshot,applyContinuityVerdicts(continuityView(snapshot),candidates,decisions,{opportunity:record.sceneOpportunity}).continuity);};
+    const indexOf=item=>Number(item.sourceIdentity?.assistantIndex);
+    const update=(snapshot,entries)=>{if(snapshot&&entries.length)assignContinuity(snapshot,applyContinuityVerdicts(continuityView(snapshot),entries,candidateDecisions(entries),{opportunity:record.sceneOpportunity}).continuity);};
     for(const entry of history) {
-        if(Number(entry.assistantIndex)===sourceIndex){entry.after||={};update(entry.after);}
-        else if(Number(entry.assistantIndex)>sourceIndex){entry.before||={};entry.after||={};update(entry.before);update(entry.after);}
+        const index=Number(entry.assistantIndex);
+        const before=result.accepted.filter(item=>indexOf(item)<index),after=result.accepted.filter(item=>indexOf(item)<=index);
+        if(before.length){entry.before||={};update(entry.before,before);}
+        if(after.length){entry.after||={};update(entry.after,after);}
     }
-    if(canUpdatePendingSnapshot(record.pendingPlan,sourceIndex))update(record.pendingPlan.stateSnapshot);
+    update(record.pendingPlan?.stateSnapshot,result.accepted.filter(item=>canUpdatePendingSnapshot(record.pendingPlan,indexOf(item))));
     return result;
 }

@@ -1,4 +1,5 @@
 import {selectActiveContinuity, confirmedContinuity} from '../continuity/selection.js';
+import {continuityActors} from '../continuity/actors.js';
 import {makeOpportunities} from '../scene/opportunities.js';
 import {addOpportunityQuestions} from '../scene/opportunity-policy.js';
 import {searchCharacterRecords} from '../retrieval/character-search.js';
@@ -39,7 +40,7 @@ if (frame.prefs.settingsContract >= 3) {
     if (frame.prefs.advancedEnabled) frame.questions.advanced_world_rules = {type:'choice',instructions:'From explicit current world rules, recent RP and supplied memory only: are supernatural mechanisms established? A horror label alone does not establish ghosts, curses or exorcism. This is world evidence, never an invitation to invent.',criteria:{mundane:'No supported supernatural mechanics.',supernatural:'Supernatural mechanics are established and compatible with this setting.',unclear:'Insufficient world evidence.'}};
     Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan));
     frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1);
-    frame.continuityActors=[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[])].filter(actor=>frame.transcript.toLowerCase().includes(actor.name.toLowerCase())||frame.sceneGate.participantIds.includes(actor.id)).flatMap(actor=>[actor.id,actor.name,...(actor.aliases||[])]);
+    frame.continuityActors=continuityActors(deps.characterStore,deps.getContext(),frame.transcript,frame.sceneGate.participantIds);
     frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
     (frame.continuityContext = deps.settings.continuityEnabled ? selectActiveContinuity(frame.confirmedContinuity, frame.transcript, { opportunity: frame.rec.sceneOpportunity,actorIds:frame.continuityActors }) : { items: [], knowledge: [], followups: [] });
     (frame.storedFollowupCandidates = frame.continuityContext.followups.map((item) => ({ id: item.id, type: 'followup', label: item.action, evidence: item.reason, data: { relatedStateId: item.relatedStateId, action: item.action, reason: item.reason }, sourceIdentity: {refs:item.sourceRefs} })));

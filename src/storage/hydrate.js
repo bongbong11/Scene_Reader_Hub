@@ -1,4 +1,4 @@
-import { migrateCommonPreferences } from './common-preferences.js';
+import { commonPreferences, migrateCommonPreferences } from './common-preferences.js';
 import { recentTurnCount } from '../context/turn-settings.js';
 import {retireCollection,retireHistory} from './retired-collection.js';
 export function createHydration(deps) {
@@ -25,6 +25,8 @@ async function hydrateServerState({ migrate = true } = {}) {
     }
     deps.storageVersion = Number(data.storageVersion) || 1;
     deps.serverKeyStatus = String(data.keyStatus || '저장된 키 없음');
+    // Obsolete Hub-only browser credentials are never forwarded to TypeSafe.
+    try { deps.localStorage.removeItem('sceneReader.jevBrowserKey'); } catch { /* unavailable browser storage */ }
     const legacyKey = deps.getSavedKey();
     if (migrate && !deps.serverKeyStatus.startsWith('저장됨') && legacyKey) {
         const migrated = await deps.storagePost('key', { key: legacyKey }, { allowFailure: true });
@@ -40,6 +42,8 @@ async function hydrateServerState({ migrate = true } = {}) {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
         delete deps.settings.continuityInterval;delete deps.settings.collectPersonaChanges;
         delete deps.settings.pauseOnOoc;
+        delete deps.settings.jevProvider;
+        if (deps.settings.commonPreferences) deps.settings.commonPreferences=commonPreferences(deps.settings.commonPreferences);
         for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
         deps.settings.recentTurns = recentTurnCount(deps.settings);
         deps.extension_settings[deps.MODULE] = deps.settings;

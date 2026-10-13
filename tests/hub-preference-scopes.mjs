@@ -14,7 +14,9 @@ assert.equal(effectivePreferences({injectionMode:'depth',developmentStyle:'stead
 assert.equal(effectivePreferences({developmentStyle:'steady'},settings).developmentStyle,'steady');
 assert.equal(roomPreferences(old).newGenerationEnabled,false);
 assert.equal(roomPreferences(old).injectionMode,undefined);
-assert.equal(commonPreferences({progressIntensity:999}).progressIntensity,1.5);
+assert.equal(commonPreferences({progressIntensity:999}).progressIntensity,undefined);
+assert.equal(roomPreferences(old).progressIntensity,undefined);
+assert.equal(effectivePreferences(old,settings).progressIntensity,undefined);
 let key='A';const records=new Map([['A',{preferences:{...old}}],['B',{preferences:{injectionMode:'depth',developmentStyle:'steady'}}]]);
 const repository=createRecordRepository({stateChatKey:()=>key,chatRecords:records,settings});
 assert.equal(repository.record().preferences.scenePresetSlot.identifier,'custom-slot');

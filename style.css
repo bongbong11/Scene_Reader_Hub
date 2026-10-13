@@ -280,8 +280,6 @@
     #scene-reader-dialog .sr-character-analysis-list .sr-character-view { flex: 1 1 100px; min-width: 0; width: auto; }
 }
 
-#scene-reader-dialog .sr-intensity-row { align-items: center; flex-wrap: wrap; }
-#scene-reader-dialog #sr-progress-intensity { width: 96px; flex: 0 0 96px; min-height: 42px; }
 #scene-reader-dialog .sr-record-source p { margin: 5px 0; }
 #scene-reader-dialog [hidden] { display: none !important; }
 #scene-reader-dialog .sr-character-add-row,
@@ -325,10 +323,6 @@
 #scene-reader-dialog #sr-character-lore-options label { display: flex; align-items: center; gap: 7px; padding: 7px; border-top: 1px solid var(--SmartThemeBorderColor); }
 #scene-reader-dialog #sr-character-lore-options input { flex: none; }
 #scene-reader-dialog .sr-character-final-save { margin-top: 7px; font-weight: 700; }
-#scene-reader-dialog .sr-intensity-row { display: flex; align-items: center; flex-wrap: nowrap; gap: 6px; width: fit-content; }
-#scene-reader-dialog .sr-intensity-row .sr-intensity-step.menu_button { width: 36px; min-width: 36px; min-height: 36px; padding: 0; font-size: 1.3rem; }
-#scene-reader-dialog #sr-progress-intensity-value { min-width: 38px; text-align: center; font-weight: 700; }
-#scene-reader-dialog .sr-intensity-row .sr-intensity-reset.menu_button { width: auto; min-height: 30px; padding: 4px 7px; font-size: .78rem; }
 #scene-reader-dialog .sr-developer-lock { width: min(310px,100%); padding: 6px 9px; }
 #scene-reader-dialog .sr-developer-lock .sr-owner-unlock-row { margin-top: 7px; }
 #scene-reader-dialog .sr-developer-lock .sr-owner-unlock-row .menu_button { min-height: 28px; min-width: 54px; padding: 3px 7px; }
@@ -338,8 +332,6 @@
     #scene-reader-dialog .sr-character-modal-panel { padding: 11px; max-height: 100%; }
     #scene-reader-dialog .sr-record-version { align-items: flex-start; flex-wrap: wrap; }
     #scene-reader-dialog .sr-version-actions { width: 100%; justify-content: flex-start; }
-    #scene-reader-dialog .sr-intensity-row { display: flex; width: auto; }
-    #scene-reader-dialog .sr-intensity-row .menu_button { flex: 0 0 auto; }
 }
 
 #scene-reader-dialog #sr-tab-flow.active { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 8px; }
@@ -591,8 +583,6 @@
 #scene-reader-dialog .sr-tab-panel .sr-backup-item small { font-size: 11px; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-item > div { justify-content: flex-start; }
 #scene-reader-dialog .sr-tab-panel .sr-backup-item .menu_button { flex: none; min-height: 28px; padding: 3px 6px; font-size: .75rem; }
-#scene-reader-dialog .sr-tab-panel .sr-intensity-row .sr-intensity-step { flex: none; width: 28px; min-height: 28px; padding: 0; font-size: .875rem; }
-#scene-reader-dialog .sr-tab-panel .sr-intensity-row #sr-progress-intensity-reset { min-height: 28px; padding: 3px 7px; font-size: .75rem; }
 #scene-reader-dialog .sr-tab-panel .sr-character-add-row,
 #scene-reader-dialog .sr-tab-panel .sr-character-kind-tabs { display: flex; flex-wrap: wrap; gap: 5px; }
 #scene-reader-dialog .sr-tab-panel .sr-character-kind-tabs button,

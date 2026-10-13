@@ -14,10 +14,10 @@ import {memoryStatusText} from "../context/memory.js";
 
 
 
-export function createResults({readState:readRawState, document, getContext, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, isStateCapturePending = () => true, onBeforeRender = () => {},window}) {
+export function createResults({readState:readRawState, document, getContext, stateChatKey, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, isStateCapturePending = () => true, onBeforeRender = () => {},window}) {
 const record=()=>isRoomReady()?readRecord():null;
 const readState=()=>{const state=readRawState();return isRoomReady()?state:{...state,characterStore:{enabled:false,characters:[],npcs:[],persona:null,recordGroups:[]},activeInjectionPayload:''};};
-const services={readState,document,getContext,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,onBeforeRender,window};
+const services={readState,document,getContext,stateChatKey,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,onBeforeRender,window};
 Object.defineProperty(services,'decisionTitle',{configurable:true,get:()=>decisionTitle});
 Object.defineProperty(services,'resultLabel',{configurable:true,get:()=>resultLabel});
 Object.defineProperty(services,'characterTurnLabel',{configurable:true,get:()=>characterTurnLabel});
@@ -41,14 +41,14 @@ Object.defineProperty(services,'continuityLabel',{configurable:true,get:()=>cont
 const {decisionTitle,resultLabel,renderJudgment,renderProfiles} = createJudgmentView(selectCapabilities(services,["RESULT_GROUPS","document","escapeHtml","getContext","ownerPrompt","readState","record"]));
 const {characterTurnLabel,renderCharacterTurnResults,renderCharacterStore,renderCharacterAnalysisBrowser} = createCharacterView(selectCapabilities(services,["CHARACTER_TURN_LABELS","SEXUAL_TURN_LABELS","characterCardOpen","characterCardViews","document","escapeHtml","getContext","isStateCapturePending","readState","record","selectCharacter","stableFingerprint"]));
 const {renderStoredState,renderBackups} = createStorageView(selectCapabilities(services,["document","escapeHtml","getContext","readState","record"]));
-const {renderReasonerProfiles,renderContinuity} = createContinuityView(selectCapabilities(services,["window","continuityLabel","document","escapeHtml","readState","record","resultLabel"]));
+const {renderReasonerProfiles,renderContinuity} = createContinuityView(selectCapabilities(services,["window","continuityLabel","document","escapeHtml","readState","record","resultLabel","stateChatKey","getContext","stableFingerprint"]));
 
 const characterCardViews = new Map();
 const characterCardOpen = new Map();
 
 
 const RESULT_GROUPS = {
-    'sr-scene-relation': ['scene_state', 'context_change_source', 'continuity_trigger', 'progress_need', 'basic_move', 'unresolved', 'relationship_motion', 'trust_signal', 'intimacy_signal', 'romance_evidence', 'counterevidence', 'relationship_direction', 'relationship_pacing', 'relationship_beat'],
+    'sr-scene-relation': ['scene_state', 'context_change_source', 'progress_need', 'basic_move', 'unresolved', 'relationship_motion', 'trust_signal', 'intimacy_signal', 'romance_evidence', 'counterevidence', 'relationship_direction', 'relationship_pacing', 'relationship_beat'],
     'sr-event-npc': ['primary_focus', 'secondary_focus', 'direct_execution', 'event_state', 'event_valence', 'event_blocker', 'resolution_readiness', 'event_route', 'progression_move', 'resolution_pacing', 'npc_presence', 'npc_valence', 'npc_route', 'arrival_mode', 'npc_target', 'npc_identity_route', 'npc_role', 'npc_weight', 'npc_knowledge', 'npc_disclosure', 'npc_followthrough', 'npc_knowledge_fit', 'villain_route', 'npc_autonomy'],
     'sr-advanced-judgment': ['advanced_entry', 'advanced_route', 'advanced_cause', 'advanced_element', 'advanced_move'],
     'sr-conflict-quality': ['world_direction', 'conflict_state', 'fight_sustain', 'negative_priority', 'world_hostility', 'npc_guard', 'misfortune', 'hesitation_drag', 'refusal_stall', 'circularity', 'user_handoff', 'input_echo', 'repetitive_ending', 'action_evasion', 'directive_followthrough', 'scene_cutoff'],

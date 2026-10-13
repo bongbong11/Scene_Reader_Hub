@@ -3,44 +3,51 @@ import {installReviewMessage} from '../src/adapters/review-message.js';
 import {createCurrentChatReview} from '../src/adapters/current-chat-review.js';
 import {currentCharacterReview,validateReviewTemplate} from '../src/character/replacement-prompts.js';
 import {reviewHost} from './fixtures/review-host.mjs';
-for(const merged of [false,true])for(const squashed of [false,true]){
- const f=reviewHost(),prepare=f.host.promptManager.preparePrompt,hook=installReviewMessage(f.host,'PRIVATE audit instruction',event=>f.notes.push(event));
- const built=f.assemble(hook.quietPrompt,{merged,squashed}),before=structuredClone(built.chat);
- await f.emit('prompt',{chat:built.chat,dryRun:false});
- assert.deepEqual(built.chat[3],{role:'user',content:hook.quietPrompt});
- built.chat.push({role:'system',content:'Other extension context'});
- await f.emit('request',{messages:built.chat});hook.verify();
- assert.deepEqual(built.chat[3],{role:'user',content:'PRIVATE audit instruction'});
- for(const [i,role] of ['system','user','assistant'].entries())assert.equal(built.chat[i+4].content,'Depth 0 order 0 '+role);
- assert.equal(built.chat.at(-1).content,'Other extension context');
- assert.equal(JSON.stringify(built.chat).match(/PRIVATE audit instruction/g).length,1);
- assert.ok(!JSON.stringify(built.chat).includes('<sr-review-'));
- assert.deepEqual(f.flatten()[3],{role:'user',content:'PRIVATE audit instruction'});
- assert.ok(!JSON.stringify(f.host.promptManager.messages).includes('<sr-review-'));
- for(let i=0;i<3;i++)assert.deepEqual(built.chat[i],before[i]);
- if(merged){const prefix=built.chat.find(m=>Array.isArray(m.content));assert.equal(prefix.content[0].text,'Preset before\n\nPreset after');assert.deepEqual(prefix.content[1],built.image);}
- assert.ok(!JSON.stringify(f.notes).includes('PRIVATE'));assert.ok(f.notes.every(note=>note.position==='last_chat_message'));assert.deepEqual(f.notes.map(x=>x.phase),['assembly','request']);
- const normal=[{role:'user',content:'Normal chat'}],copy=structuredClone(normal);await f.emit('request',{messages:normal});assert.deepEqual(normal,copy);
- hook.dispose();assert.equal(f.count(),0);assert.equal(f.host.promptManager.preparePrompt,prepare);
+for(const squashed of [false,true])for(const transformed of [false,true]){
+ const f=reviewHost(),original=f.host.reviewWindow.SceneReaderHubBeforeGenerate,stored=JSON.stringify(f.host.chat),hook=installReviewMessage(f.host,'PRIVATE audit',event=>f.notes.push(event));
+ const core=structuredClone(f.host.chat);
+ await f.emit('start','quiet',hook.options,false);
+ await f.host.reviewWindow.SceneReaderHubBeforeGenerate(core,10000,()=>assert.fail('unexpected abort'),'quiet');
+ assert.deepEqual(core.at(-1),{name:'User',is_user:true,is_system:false,mes:'PRIVATE audit',extra:{}});
+ await f.host.reviewWindow.SceneReaderHubBeforeGenerate(core,10000,()=>assert.fail('unexpected abort'),'quiet');
+ assert.equal(core.length,2,'one input per request');
+ const built=f.assemble(core,{squashed});if(transformed)built.chat[0].content='Rewritten memory';
+ await f.emit('prompt',{chat:built.chat,dryRun:false});hook.finish();
+ assert.deepEqual(built.chat[3],{role:'user',content:'PRIVATE audit'});assert.equal(built.chat[4].content,'Depth 0 order 0 system');assert.equal(built.chat.at(-1).content,'Late preset');
+ assert.deepEqual(f.flatten()[3],built.chat[3]);assert.ok(!JSON.stringify(f.notes).includes('PRIVATE'));assert.deepEqual(f.notes.map(x=>x.phase),['history','assembly']);
+ assert.equal(JSON.stringify(f.host.chat),stored);assert.equal(hook.options.quiet_prompt,'');
+ hook.dispose();assert.equal(f.count(),0);assert.equal(f.host.reviewWindow.SceneReaderHubBeforeGenerate,original);
 }
-for(const squashed of [false,true]){
- const f=reviewHost(),hook=installReviewMessage(f.host,'Audit after the tool result'),built=f.assemble(hook.quietPrompt,{squashed,tool:true}),before=structuredClone(built.chat);
- await f.emit('prompt',{chat:built.chat});await f.emit('request',{messages:built.chat});hook.verify();
- assert.deepEqual(built.chat.slice(0,4),before.slice(0,4),'tool call and result stay together');assert.deepEqual(built.chat[4],{role:'user',content:'Audit after the tool result'});assert.equal(built.chat[5].content,'Depth 0 order 0 system');assert.deepEqual(f.flatten(),built.chat);hook.dispose();assert.equal(f.count(),0);
+// No audit input is attached to normal generation, dry runs or another quiet job.
+for(const mode of ['normal','dry','other-quiet']){
+ const f=reviewHost(),hook=installReviewMessage(f.host,'Private audit'),core=structuredClone(f.host.chat);
+ await f.emit('start',mode==='normal'?'normal':'quiet',mode==='other-quiet'?{signal:new AbortController().signal}:hook.options,mode==='dry');
+ await f.host.reviewWindow.SceneReaderHubBeforeGenerate(core,10000,()=>assert.fail('unrelated abort'),mode==='normal'?'normal':'quiet');
+ assert.equal(core.length,f.host.chat.length);hook.dispose();
 }
-for(const mode of ['dry','missing-history','unsupported','failure']){
+// Saved chat must never be used as the request-only mutable list.
+{
+ const f=reviewHost(),hook=installReviewMessage(f.host,'Audit');let aborted=false;await f.emit('start','quiet',hook.options,false);
+ await f.host.reviewWindow.SceneReaderHubBeforeGenerate(f.host.chat,10000,()=>aborted=true,'quiet');assert.equal(aborted,true);assert.equal(f.host.chat.length,1);hook.dispose();
+}
+// Answer delivery must not depend on inspector-format confirmation.
+{
+ const f=reviewHost();f.host.skipPrompt=true;
+ const client=createCurrentChatReview({loadHost:async()=>f.host});assert.match(await client.request('Audit'),/Accepts help/);assert.equal(f.count(),0);
+}
+for(const mode of ['unsupported','failure','empty']){
  const f=reviewHost();if(mode==='unsupported')f.host.main_api='other';
- if(mode==='failure')f.host.generateQuietPrompt=async()=>{throw new Error('PRIVATE error');};
- if(['dry','missing-history'].includes(mode))f.host.generateQuietPrompt=async options=>{const built=f.assemble(options.quietPrompt);if(mode==='missing-history')f.host.promptManager.messages.collection=f.host.promptManager.messages.collection.filter(block=>block.identifier!=='chatHistory');await f.emit('prompt',{chat:built.chat,dryRun:mode==='dry'});await f.emit('request',{messages:built.chat});return 'wrongly placed result';};
- const prepare=f.host.promptManager.preparePrompt,client=createCurrentChatReview({loadHost:async()=>f.host});
- await assert.rejects(client.request('audit'),{code:mode==='unsupported'?'REVIEW_PLACEMENT_UNSUPPORTED':mode==='failure'?'REVIEW_REQUEST_FAILED':'REVIEW_PLACEMENT_UNCONFIRMED'});
- assert.equal(f.count(),0);assert.equal(client.busy,false);assert.equal(f.host.promptManager.preparePrompt,prepare);
+ if(mode==='failure')f.host.Generate=async()=>{throw new Error('PRIVATE error');};
+ if(mode==='empty')f.host.Generate=async()=>'';
+ const original=f.host.reviewWindow.SceneReaderHubBeforeGenerate,client=createCurrentChatReview({loadHost:async()=>f.host});
+ await assert.rejects(client.request('audit'),{code:mode==='unsupported'?'REVIEW_PLACEMENT_UNSUPPORTED':mode==='failure'?'REVIEW_REQUEST_FAILED':'REVIEW_EMPTY'});
+ assert.equal(f.count(),0);assert.equal(client.busy,false);assert.equal(f.host.reviewWindow.SceneReaderHubBeforeGenerate,original);
 }
-const cancelled=reviewHost();let finish;cancelled.host.generateQuietPrompt=async options=>{const built=cancelled.assemble(options.quietPrompt);await cancelled.emit('prompt',{chat:built.chat});await cancelled.emit('request',{messages:built.chat});return new Promise(r=>finish=r);};
+const cancelled=reviewHost(()=>new Promise(r=>finish=r));let finish;
 const cancelClient=createCurrentChatReview({loadHost:async()=>cancelled.host}),abort=new AbortController(),waiting=cancelClient.request('audit',{signal:abort.signal});await new Promise(r=>setImmediate(r));abort.abort();await assert.rejects(waiting,{code:'REVIEW_CANCELLED'});assert.equal(cancelClient.busy,true);finish('late');await new Promise(r=>setImmediate(r));assert.equal(cancelled.count(),0);assert.equal(cancelClient.busy,false);
 assert.throws(()=>validateReviewTemplate(''),/명령문/);
 for(const template of ['Audit {{char}} and {{user}}','Audit the character across all available history.'])assert.equal(currentCharacterReview('Selected persona',template),template);
 const quoted='A $& "quoted"';assert.equal(currentCharacterReview(quoted,'Audit {{subject}}'),`Audit ${JSON.stringify(quoted)}`);
 assert.equal(currentCharacterReview('Persona','{{char}} / {{user}} / {{CHAR}} / {{USER}} / {{subject}} / {{other}}',true),'{{user}} / {{char}} / {{user}} / {{char}} / "Persona" / {{other}}');
 assert.equal(currentCharacterReview('Name {{char}}','{{subject}} {{char}} {{user}}',true),'"Name {{char}}" {{user}} {{char}}');
-console.log('Review placement passed: native last chat USER message before ALL depth-0/order-0 roles; wire/inspector agreement, examples, memory, preset and multimodal preservation, squash/merge, source isolation and hook cleanup.');
+console.log('Review input passed: request-only user message through the native history path, depth-0 roles after input, no prompt relocation, answer delivery independent of inspector, saved chat and unrelated requests preserved.');

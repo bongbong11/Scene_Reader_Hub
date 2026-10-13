@@ -1,5 +1,6 @@
 import {continuityView} from "../../continuity/state-adapter.js";
 import {normalizeContinuity} from "../../continuity/engine.js";
+import {confirmedContinuity} from '../../continuity/selection.js';
 
 export function createContinuityView(deps) {
 function renderReasonerProfiles() {
@@ -22,13 +23,15 @@ function renderContinuity() {
     if (!settings.continuityEnabled) { root.innerHTML = '<p class="sr-help">연속성 추론이 꺼져 있습니다.</p>'; return; }
     const rec = deps.record();
     const trace = rec?.lastContinuityTrace || {};
-    const state = normalizeContinuity(rec ? continuityView(rec) : null);
-    const status = { saved: '수집 완료 · 저장된 내용 반영', needs_review: '수집 내용 확인 필요', partial: '일부 분석 대기', analyzing: '보조 모델 분석 중', pending_jev: '이전 분석 자료 반영 대기', empty: '연결할 후속 상태 없음', verified: '분석 완료 · 근거 확인', error: '보조 모델 실패 · 기본 판독은 계속 실행' }[trace.status] || '새 변화 대기';
+    const stored = normalizeContinuity(rec ? continuityView(rec) : null);
+    const state=deps.stateChatKey?.()?confirmedContinuity(stored,{record:rec,chatRef:deps.stateChatKey(),chat:deps.getContext().chat||[],fingerprint:deps.stableFingerprint,inherited:Boolean(rec?.sharedReference||rec?.legacyCarryReferenceV1)}):stored;
+    const status = { saved: '수집 완료 · 저장된 내용 반영', needs_review: '수집 내용 확인 필요', partial: '일부 항목 형식·근거 확인 실패', analyzing: '보조 모델 분석 중', pending_jev: '이전 분석 자료 반영 대기', empty: '연결할 후속 상태 없음', verified: '분석 완료 · 근거 확인', error: '보조 모델 실패 · 기본 판독은 계속 실행' }[trace.status] || '새 변화 대기';
     const profile = reasonerProfiles.find((item) => item.id === settings.reasonerProfileId);
     const profileStatus = profile?.name || (settings.reasonerProfileId ? '선택한 프로필을 찾지 못함' : '미선택');
     const rows = [`<div class="sr-decision-row"><span>상태</span><strong>${deps.escapeHtml(status)}</strong></div>`,
         `<div class="sr-decision-row"><span>선택한 연결 프로필</span><strong>${deps.escapeHtml(profileStatus)}</strong></div>`,
-        `<div class="sr-decision-row"><span>호출 근거</span><strong>${deps.escapeHtml(deps.resultLabel('continuity_trigger', trace.trigger || 'none'))}</strong></div>`];
+        `<div class="sr-decision-row"><span>호출 근거</span><strong>${deps.escapeHtml(trace.trigger==='periodic'?'완성된 답변 3개마다 확인':trace.trigger?'저장된 이전 분석':'아직 분석 전')}</strong></div>`];
+    if(trace.invalidCount)rows.push(`<p class="sr-help">모델이 보낸 ${Number(trace.candidateCount)||0}개 중 ${Number(trace.acceptedCount)||0}개를 저장했습니다. 형식·근거를 확인하지 못한 항목은 진단 로그에 개수로 표시합니다.</p>`);
     if (trace.error) rows.push(`<p class="sr-help">${deps.escapeHtml(trace.error)}</p>`);
     if(trace.repetitionStatus)rows.push(`<div class="sr-decision-row"><span>소재 편중 확인</span><strong>${deps.escapeHtml(({ready:'편중 발견 · 짧은 절제 지침 준비',balanced:'추가 절제 불필요',insufficient_history:'답변 2개부터 비교',not_returned:'모델 결과 없음 · 일반 판독 유지',invalid_evidence:'비교 근거 부족 · 일반 판독 유지',save_failed:'결과 저장 실패'})[trace.repetitionStatus] || '확인 대기')}</strong></div>`);
     if (trace.verdicts?.length) rows.push(...trace.verdicts.map((item) => `<div class="sr-decision-row"><span>${deps.escapeHtml(deps.continuityLabel(item.type))}${item.label ? ` · ${deps.escapeHtml(item.label)}` : ''}</span><strong>${deps.escapeHtml(deps.continuityLabel(item.verdict))}</strong>${item.reason ? `<small>${deps.escapeHtml(item.reason)}</small>` : ''}</div>`));

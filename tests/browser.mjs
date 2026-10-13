@@ -72,9 +72,9 @@ window.eventSource={on(name,fn){if(!listeners.has(name))listeners.set(name,[]);l
 const server=http.createServer(async(req,res)=>{try{
     if(req.url==='/favicon.ico'){res.statusCode=204;res.end();return;}
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
-    if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(`export const main_api='openai';export const eventSource=window.eventSource;export const event_types=new Proxy({},{get:(_,key)=>key});export const chat_metadata={};export function saveSettingsDebounced(){};export function setExtensionPrompt(key,value){window.mock.prompts[key]=value};export function getRequestHeaders(){return {}};export function isStreamingEnabled(){return Boolean(window.mock.streamingEnabled)};export function isGenerating(){return Boolean(window.mock.mainBusy)};export async function generateQuietPrompt(options){(window.mock.quietRequests ||= []).push(options);await mock.emit('GENERATION_AFTER_COMMANDS','quiet',{quiet_prompt:options.quietPrompt},false);const latest=mock.promptManager.preparePrompt({identifier:'chatHistory-1',name:ctx.name2,role:'assistant',content:'Latest story scene'});const depth=['system','user','assistant'].map((role,i)=>mock.promptManager.preparePrompt({identifier:'chatHistory-'+(i+2),role,content:'Depth 0 order 0 '+role}));const quiet=mock.promptManager.preparePrompt({identifier:'quietPrompt',role:'system',content:options.quietPrompt});mock.promptManager.messages={identifier:'root',collection:[{identifier:'main',collection:[{identifier:'main',role:'system',content:'Preset and older relationship memory'}]},{identifier:'chatHistory',collection:[latest,...depth]},{identifier:'jailbreak',collection:[{identifier:'jailbreak',role:'system',content:'Final preset instruction'}]},{identifier:'controlPrompts',collection:[quiet]}]};const chat=mock.promptManager.messages.collection.flatMap(block=>block.collection.map(({role,content})=>({role,content})));await mock.emit('CHAT_COMPLETION_PROMPT_READY',{chat,dryRun:false});chat.push({role:'system',content:'Other extension context'});await mock.emit('CHAT_COMPLETION_SETTINGS_READY',{messages:chat});(window.mock.reviewMessages ||= []).push(structuredClone(chat));if(mock.reviewError)throw new Error('Synthetic model failure');return mock.reviewAnswer||'Original: Guarded.\\nChange: Guarded, but accepts help from one person.';}export async function generateRaw(options){(window.mock.rawRequests ||= []).push(options);return '- 신뢰: 이전: 경계함 -> 현재: 경계심은 남지만 한 사람의 도움은 받아들임.';}`);return;}
+    if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(await readFile(new URL('./fixtures/browser-review-host.mjs',import.meta.url),'utf8'));return;}
     if(req.url==='/scripts/openai.js'){res.setHeader('Content-Type','application/javascript');res.end('export const oai_settings=window.mock.presetSettings;export const promptManager=window.mock.promptManager;');return;}
-    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true}));return;}
+    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true,messages:body.messages}));return;}
     if(req.url==='/scripts/extensions.js'){res.setHeader('Content-Type','application/javascript');res.end('export const extension_settings={};');return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','application/javascript');res.end("export const world_info={charLore:[{name:'Hunter',extraBooks:['Hunter Extra']}]};export async function loadWorldInfo(name){if(window.mock.loreReady)await window.mock.loreReady;return window.mock.worldBooks[name]||null}");return;}
     if(req.url==='/scripts/personas.js'){res.setHeader('Content-Type','application/javascript');res.end("export const user_avatar='User.png'");return;}
@@ -101,6 +101,7 @@ const server=http.createServer(async(req,res)=>{try{
         let raw='';for await(const part of req)raw+=part;const body=raw?JSON.parse(raw):{};requests.push({url:req.url,body});
         res.setHeader('Content-Type','application/json');let result={ok:true};
         if(req.url.endsWith('/bootstrap'))result={...store,ok:true,storageVersion:3,migrated:true,keyStatus:'저장됨 ····mock',backups:[]};
+        else if(req.url.endsWith('/key'))result={ok:true,keyStatus:body.key?'저장됨 ····mock':'저장된 키 없음'};
         else if(req.url.endsWith('/transaction')){store.chat=body.chat;store.history=body.history;}
         else if(req.url.endsWith('/settings')){if(failWorldWrite){failWorldWrite=false;res.statusCode=500;res.end(JSON.stringify({error:'Simulated world save failure'}));return;}store.settings=body.settings;}
         else if(req.url.endsWith('/characters')) { if(failCharacterWrite){failCharacterWrite=false;res.statusCode=500;res.end(JSON.stringify({error:'Simulated failed save'}));return;} store.characters=body.value; }
@@ -590,16 +591,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.locator('#sr-world-manager-list button').filter({hasText:'Garden world'}).click();await page.locator('#sr-world-delete').click();await page.locator('#sr-world-editor').waitFor({state:'hidden'});
     assert.equal(store.settings.worlds.some(w=>w.name==='Garden world'),false);
     await page.locator('#sr-settings-button').click();
-    assert.equal(await page.locator('#sr-progress-intensity').inputValue(),'1.0');
-    await page.locator('#sr-progress-intensity-up').click();
-    await page.waitForFunction(()=>document.getElementById('sr-progress-intensity').value==='1.1');
-    await page.locator('[data-sr-tab="flow"]').click();await page.locator('#sr-settings-button').click();
-    assert.equal(store.settings.global.commonPreferences.progressIntensity,1.1);
-    assert.equal(await page.locator('#sr-progress-intensity-value').textContent(),'1.1');
-    await page.locator('#sr-progress-intensity-down').click();
-    await page.waitForFunction(()=>document.getElementById('sr-progress-intensity').value==='1.0');
-    await page.locator('#sr-progress-intensity-reset').click();
-    assert.equal(store.settings.global.commonPreferences.progressIntensity,1);
+    assert.equal(await page.locator('#sr-progress-intensity').count(),0);
     await page.screenshot({path:path.join(root,'artifacts','mobile-settings.png')});
     assert.equal(await page.locator('#sr-copy-macro').count(),0);
     assert.equal(await page.evaluate(()=>mock.macros['scene-reader']()),'');

@@ -179,20 +179,6 @@ function bindForm() {
         notifySceneReaderToast(deps.window, 'info', deps.debugInjectionArmed ? '다음 OOC-only 응답에 직전 주입문을 한 번 유지합니다.' : '검사용 OOC 대기를 취소했습니다.', '씬판독기', { timeOut: 1800 });
     });
     deps.document.getElementById('sr-recent-turns')?.addEventListener('change', (event) => deps.runUiTask(deps.saveGlobal('recentTurns', Math.max(1, Math.min(5, Number(event.target.value) || 3)))));
-    deps.document.getElementById('sr-progress-intensity')?.addEventListener('change', event => {
-        const parsed = Number(event.target.value);
-        const value = Number.isFinite(parsed) && parsed > 0 ? Math.round(Math.max(0.5, Math.min(1.5, parsed)) * 10) / 10 : 1;
-        event.target.value = value.toFixed(1);
-        deps.runUiTask(deps.savePreference('progressIntensity', value).then(deps.setFormValues));
-    });
-    for(const [id,delta] of [['sr-progress-intensity-down',-0.1],['sr-progress-intensity-up',0.1]])deps.document.getElementById(id)?.addEventListener('click',()=>{
-        const current=Number(deps.document.getElementById('sr-progress-intensity')?.value)||1;
-        const value=Math.round(Math.max(0.5,Math.min(1.5,current+delta))*10)/10;
-        deps.document.getElementById('sr-progress-intensity').value=value.toFixed(1);
-        deps.document.getElementById('sr-progress-intensity-value').textContent=value.toFixed(1);
-        deps.runUiTask(deps.savePreference('progressIntensity',value).then(deps.setFormValues));
-    });
-    deps.document.getElementById('sr-progress-intensity-reset')?.addEventListener('click', () => deps.runUiTask(deps.savePreference('progressIntensity', 1).then(deps.setFormValues)));
     deps.document.getElementById('sr-confidence')?.addEventListener('change', (event) => { deps.runUiTask(deps.saveGlobal('showConfidence', event.target.checked).then(deps.renderJudgment)); });
     bindJevSettings(deps);
     deps.document.getElementById('sr-continuity-enabled')?.addEventListener('change', (event) => deps.runUiTask((async () => {

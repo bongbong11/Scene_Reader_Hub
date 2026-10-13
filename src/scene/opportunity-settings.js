@@ -23,7 +23,7 @@ export function opportunitySettings(preferences={}) {
     const eventSpontaneous=['event','both'].includes(spontaneousMode);
     const personSpontaneous=['person','both'].includes(spontaneousMode);
     return {enabled,spontaneousMode,eventSpontaneous,personSpontaneous,
-        eventEnabled:enabled&&(Boolean(preferences.advancedEnabled)||eventSpontaneous),
+        eventEnabled:enabled,
         personEnabled:enabled,eventChance:advancedChance(preferences.advancedStyle),
         personChance:normalizeChance(preferences.appearanceChance),villainAllowed:Boolean(preferences.villainEnabled)};
 }

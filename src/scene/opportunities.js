@@ -33,7 +33,7 @@ export function makeOpportunities(rec,key,{worldId='current',worldName='현재 �
     // not promote the stored proposal into a fictional fact.
     const current=Boolean(rec.eventProfile || rec.pendingPlan?.outputText && rec.pendingPlan?.additions?.some(x=>x.feature==='event'&&x.scope==='central'));
     const configuration=JSON.stringify([config.spontaneousMode,Boolean(rec.preferences.advancedEnabled),rec.preferences.advancedElements,config.villainAllowed,worldId,supernatural,current]);
-    const event=ticket(key,'event',config.eventChance,config.eventEnabled&&(!current||config.eventSpontaneous),!config.enabled?'generation_disabled':current&&!config.eventSpontaneous?'existing_event':'disabled');
+    const event=ticket(key,'event',config.eventChance,config.eventEnabled,'generation_disabled');
     const person=ticket(key,'person',config.personChance,config.personEnabled,'generation_disabled');
     const kind=config.villainAllowed&&drawRandom(key,'appearance-kind')()<0.3?'villain':'npc';
     person.kind=kind;person.spontaneous=config.personSpontaneous;
@@ -46,7 +46,9 @@ export function makeOpportunities(rec,key,{worldId='current',worldName='현재 �
         const advanced=rec.preferences.advancedEnabled&&!current?ADVANCED_TEMPLATES.filter(x=>elements.includes(x.element)
             && (supernatural || !['A_horror_03','A_horror_05'].includes(x.id))).map(x=>({...x,family:x.element,label:x.title,
             condition:`The selected world permits this element and trigger: ${x.trigger} Use only established actors or anonymous background; never invent a new featured person, named or unnamed, to bypass the person draw.`,action:x.prompt,effect:x.goal})):[];
-        eventPool=config.eventSpontaneous?[...EVENTS,...advanced]:advanced;
+        // Keep selected advanced themes in normal mode. Without a new central
+        // thread, ordinary local happenings still use the same event chance.
+        eventPool=config.eventSpontaneous?[...EVENTS,...advanced]:advanced.length?advanced:EVENTS;
         event.candidates=choosePackages(eventPool,key,'event',history.offered);
         if(!event.candidates.length){event.status='blocked';event.reasonCode='element_missing';}
     }

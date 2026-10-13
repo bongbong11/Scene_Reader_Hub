@@ -3,7 +3,7 @@ import {sourceRp,validateSourceRefs} from './source-refs.js';
 // Read only unprocessed visible groups. A long group is continued in a later
 // window; successful parsing never marks an unread suffix as processed.
 export function continuitySourceWindow(groups,{chatRef,chat,fingerprint,maxChars=9000}) {
-    const parts=[],refs=[],consumed=[];let remaining=maxChars;
+    const parts=[],refs=[],consumed=[],sources=[];let remaining=maxChars;
     for(const [group,entry] of groups) {
         if(!validateSourceRefs(entry.refs,{chatRef,chat,fingerprint}))continue;
         const text=entry.refs.map(ref=>`[${ref.messageIndex}] ${ref.role.toUpperCase()}:\n${sourceRp(chat[ref.messageIndex])}`).join('\n');
@@ -12,12 +12,12 @@ export function continuitySourceWindow(groups,{chatRef,chat,fingerprint,maxChars
         const separator=parts.length?1:0;
         if(remaining<=separator)break;
         const piece=text.slice(offset,offset+remaining-separator);
-        parts.push(piece);refs.push(...entry.refs);
+        parts.push(piece);refs.push(...entry.refs);sources.push({text:piece,refs:entry.refs});
         consumed.push({group,key:entry.key,offset:offset+piece.length,complete:offset+piece.length>=text.length});
         remaining-=piece.length+separator;
         if(!consumed.at(-1).complete)break;
     }
-    return {text:parts.join('\n'),refs:[...new Map(refs.map(ref=>[ref.messageIndex,ref])).values()],consumed,groupCount:consumed.length,partial:consumed.some(entry=>!entry.complete)};
+    return {sources,text:parts.join('\n'),refs:[...new Map(refs.map(ref=>[ref.messageIndex,ref])).values()],consumed,groupCount:consumed.length,partial:consumed.some(entry=>!entry.complete)};
 }
 export function advanceContinuityWindow(progress,window) {
     for(const step of window.consumed) {

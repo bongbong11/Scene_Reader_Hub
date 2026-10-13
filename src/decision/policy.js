@@ -38,7 +38,6 @@ export function applyDecisionPolicy({ key, answer, allowedChoices = [], fallback
         certainty: score,
         threshold:0,
         baseAcceptanceThreshold:0,
-        progressIntensity:1,
         adjusted: !selected,
         policy: kind,
         fallbackApplied: !selected,

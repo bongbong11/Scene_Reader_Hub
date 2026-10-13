@@ -94,7 +94,9 @@ for(let i=0;i<100;i++) {
 }
 const pending=makeRecord({advancedEnabled:true,spontaneousMode:'off'});
 pending.pendingPlan={outputText:'A synthetic occurrence begins.',additions:[{feature:'event',scope:'central'}]};
-assert.equal(makeOpportunities(pending,'unverified-event').event.reasonCode,'existing_event');
+const pendingOffer=makeOpportunities(pending,'unverified-event');
+assert.equal(pendingOffer.event.scope,'local');
+assert.ok(pendingOffer.event.candidates.every(x=>!x.element),'pending central events only allow local additions');
 // A direct-response budget formerly excluded independent new routes. Explicit
 // additions reach the prompt even with this same ongoing budget unchanged.
 const priorBudget=selectActionPlan({settings:{...preferences,advancedEnabled:true},decisions:{...FALLBACKS,primary_focus:'direct',secondary_focus:'none',advanced_route:'create',advanced_move:'seed',npc_route:'create'},allowUnpreparedCreates:true});

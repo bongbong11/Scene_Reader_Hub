@@ -55,13 +55,12 @@ export const FALLBACKS = {
     advanced_move: 'quiet',
 };
 
-export function applyPolicy(key, answer, judgmentStyle = 'balanced', allowedChoices = [], progressIntensity = 1) {
+export function applyPolicy(key, answer, judgmentStyle = 'balanced', allowedChoices = []) {
     const fallback = String(key).startsWith('verification_') ? 'unavailable' : key.endsWith('_conflict_tactic')?'character_driven':FALLBACKS[key];
     const result = applyDecisionPolicy({
         key,
         answer,
         style: judgmentStyle,
-        progressIntensity,
         allowedChoices,
         fallback: allowedChoices.includes(fallback) ? fallback : allowedChoices.includes('unclear') ? 'unclear' : allowedChoices.includes('not_applicable') ? 'not_applicable' : allowedChoices[0],
     });

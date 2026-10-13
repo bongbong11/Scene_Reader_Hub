@@ -1,35 +1,32 @@
 import assert from 'node:assert/strict';
-import { createJevClient } from '../src/adapters/jev-client.js';
-import { JEV_PROVIDERS, JEV_BROWSER_KEY_STORAGE, browserJevKey, saveBrowserJevKey, detectJevProvider, resolveJevKeyProvider } from '../src/adapters/jev-providers.js';
-const values=new Map(),storage={getItem:key=>values.get(key)||null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)};
+import {createJevClient} from '../src/adapters/jev-client.js';
 const request={model:'jev-latest',state:{text:'Synthetic scene'},questions:{q:{type:'choice',criteria:{yes:'Yes',no:'No'}}}};
-assert.equal(detectJevProvider('sk-or-v1-synthetic'),'openrouter');assert.equal(detectJevProvider('vck_synthetic'),'vercel');
-assert.equal(detectJevProvider('sk-unidentified'),'');assert.throws(()=>resolveJevKeyProvider('sk-unidentified'),/発給|발급처/);
-assert.throws(()=>resolveJevKeyProvider('sk-or-v1-synthetic','vercel'),/다릅니다/);
-let calls=[];
-for(const provider of Object.keys(JEV_PROVIDERS)){
- if(provider!=='typesafe')saveBrowserJevKey(storage,provider,'synthetic-'+provider);
- const deps={settings:{jevProvider:provider},localStorage:storage,serverKeyStatus:'저장됨',getSavedKey:()=>'',JEV_API_URL:'/api/plugins/scene-reader-jev/systemone',getRequestHeaders:()=>({'X-CSRF-Token':'host-only-token'}),StaleRunError:class extends Error{},fetch:async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({answers:{q:{choice:'yes'}}})};}};
- const client=createJevClient(deps);
- assert.equal((await client.callJev(request)).answers.q.choice,'yes');
- const {url,options}=calls.at(-1);
- assert.equal(url,JEV_PROVIDERS[provider].url||deps.JEV_API_URL);
- if(provider==='typesafe')assert.equal(options.headers['X-CSRF-Token'],'host-only-token');
- else {assert.equal(options.headers.Authorization,'Bearer synthetic-'+provider);assert.equal(options.headers['X-CSRF-Token'],undefined);assert.equal(options.credentials,'omit');assert.equal(options.referrerPolicy,'no-referrer');assert.equal(JSON.parse(options.body).model,JEV_PROVIDERS[provider].model);}
- for(const status of [401,403,429,500]){
-  deps.fetch=async()=>({ok:false,status,json:async()=>({error:'failure'})});
-  await assert.rejects(()=>client.callJev(request),error=>error.httpStatus===status && error.code.startsWith('JEV_') && !error.message.includes('failure'));
- }
- deps.fetch=async()=>({ok:true,json:async()=>({answers:{}})});await assert.rejects(()=>client.callJev(request),/판정 결과/);
- deps.fetch=async()=>{throw new TypeError('network');};await assert.rejects(()=>client.callJev(request),/연결/);
- deps.fetch=async(_url,options)=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError'))));
- await assert.rejects(()=>client.callJev(request,5),/초과/);
- const controller=new AbortController(),running=client.callJev(request,1000,controller.signal);controller.abort();await assert.rejects(()=>running,deps.StaleRunError);
+const calls=[],events=[];
+const deps={settings:{jevProvider:'vercel'},localStorage:{getItem:()=>JSON.stringify({provider:'vercel',key:'vck_obsolete'})},serverKeyStatus:'저장됨',getSavedKey:()=>'',JEV_API_URL:'/api/plugins/scene-reader-jev/systemone',getRequestHeaders:()=>({'X-CSRF-Token':'synthetic-host-token'}),StaleRunError:class extends Error{},noteDiagnostic:(stage,data)=>events.push({stage,...data})};
+const success=async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({answers:{q:{choice:'yes'}}})};};
+deps.fetch=success;
+const client=createJevClient(deps);
+assert.equal((await client.callJev(request)).answers.q.choice,'yes');
+assert.equal(calls[0].url,deps.JEV_API_URL);
+assert.equal(calls[0].options.headers.Authorization,undefined);
+assert.equal(calls[0].options.headers['X-Jev-Key'],undefined,'uses official server key, never obsolete browser key');
+assert.equal(calls[0].options.headers['X-CSRF-Token'],'synthetic-host-token');
+assert.equal(JSON.parse(calls[0].options.body).model,'jev-latest');
+await client.callJev(request,15000,null,{key:'synthetic-official'});
+assert.equal(calls.at(-1).options.headers['X-Jev-Key'],'synthetic-official');
+const count=calls.length;
+for(const key of ['vck_obsolete','sk-or-v1-obsolete'])await assert.rejects(client.callJev(request,100,null,{key}),{code:'JEV_CREDENTIAL_PROVIDER'});
+assert.equal(calls.length,count);
+for(const status of [401,403,404,429,500]) {
+ deps.fetch=async()=>({ok:false,status,json:async()=>({error:'private-provider-body'})});
+ await assert.rejects(client.callJev(request),e=>e.httpStatus===status&&e.code.startsWith('JEV_')&&!e.message.includes('private-provider-body'));
 }
-saveBrowserJevKey(storage,'openrouter','synthetic-openrouter');assert.equal(browserJevKey(storage,'vercel'),'');
-let contacted=false;
-const client=createJevClient({settings:{jevProvider:'vercel'},localStorage:storage,serverKeyStatus:'저장됨',getSavedKey:()=> 'direct-site-key',fetch:async()=>{contacted=true;},StaleRunError:Error});
-await assert.rejects(()=>client.callJev(request),/먼저 저장/);assert.equal(contacted,false,'never forward a different provider key');
-assert.equal(values.has(JEV_BROWSER_KEY_STORAGE),true);
-saveBrowserJevKey(storage,'openrouter','');assert.equal(browserJevKey(storage,'openrouter'),'');
-console.log('Jev providers passed: prefix recognition, unknown-key stop, explicit fallback, provider-scoped credential, unchanged relay, direct headers/models, no host-token leak, API failures, timeout and cancellation.');
+deps.fetch=async()=>({ok:true,json:async()=>({answers:{}})});await assert.rejects(client.callJev(request),/판정 결과/);
+deps.fetch=async()=>{throw new TypeError('network');};await assert.rejects(client.callJev(request),{code:'JEV_NETWORK_ERROR'});
+deps.fetch=async(_url,options)=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError'))));
+await assert.rejects(client.callJev(request,5),{code:'JEV_TIMEOUT'});
+const controller=new AbortController(),running=client.callJev(request,1000,controller.signal);controller.abort();await assert.rejects(running,deps.StaleRunError);
+deps.serverKeyStatus='저장된 키 없음';deps.fetch=success;
+await assert.rejects(client.callJev(request),{code:'JEV_CREDENTIAL_MISSING'});
+assert.equal(calls.length,count);assert.ok(!JSON.stringify(events).includes('synthetic-official'));
+console.log('Official Jev passed: relay, legacy provider ignored, no foreign credential forwarding, save probe, no diagnostic secrets, HTTP failures, cancellation and timeout.');

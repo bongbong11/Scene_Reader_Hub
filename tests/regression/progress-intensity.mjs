@@ -1,41 +1,36 @@
 import assert from 'node:assert/strict';
-import { applyPolicy, applyCharacterPolicy } from '../../src/scene/policy.js';
-import { normalizeDevelopmentPreferences } from '../../prompt-library.js';
-import {buildInjection} from '../../prompt-library.js';
-import {progressIntensityInstruction} from '../../src/injection/progress-intensity.js';
-import {opportunitySettings} from '../../src/scene/opportunity-settings.js';
-const judge = (key, choice, confidence, intensity) => applyPolicy(key, {choice, confidence}, 'balanced', ['none', 'hold', choice], intensity);
-assert.equal(judge('progression_move','advance',0.55,1).effective,'advance');
-assert.equal(judge('progression_move','advance',0.55,1.2).effective,'advance');
-assert.equal(judge('progression_move','advance',0.70,0.8).effective,'advance');
-assert.equal(judge('progression_move','advance',0.70,1).effective,'advance');
-for (const [key,choice] of [['scene_state','active'],['npc_knowledge','direct'],['relationship_pacing','closer_significant'],['resolution_readiness','decisive'],['verification_event','fulfilled'],['continuity_candidate_0','accept'],['advanced_entry','open'],['advanced_route','create'],['npc_route','create'],['event_route','retire'],['progression_move','reveal'],['basic_move','continue']]) {
-    const base=judge(key,choice,0.65,1);
-    for(const intensity of [0.5,1.5]) assert.deepEqual(judge(key,choice,0.65,intensity),base,`${key}/${choice} must not change`);
+import {normalizeDevelopmentPreferences,buildInjection} from '../../prompt-library.js';
+import {makeOpportunities} from '../../src/scene/opportunities.js';
+import {resolveOpportunities} from '../../src/scene/opportunity-policy.js';
+import {incorporateAdditions,additionBlocks} from '../../src/injection/opportunity.js';
+import {LANGUAGE_SCOPE} from '../../src/injection/language-scope.js';
+import {buildPausedInjection} from '../../src/injection/paused.js';
+import {sceneGateRequest} from '../../src/scene/intimacy-gate.js';
+const prefs={developmentStyle:'balanced',newGenerationEnabled:true,advancedEnabled:false,advancedStyle:'very_active',appearanceChance:75};
+const decisions={primary_focus:'direct',basic_move:'dialogue',direct_execution:'yes'};
+const baseline=buildInjection({settings:prefs,decisions});
+for(const value of [undefined,null,'bad',0,-1,.5,1,1.5,99]) {
+ const settings=normalizeDevelopmentPreferences({...prefs,progressIntensity:value});
+ assert.equal(Object.hasOwn(settings,'progressIntensity'),false);
+ assert.equal(buildInjection({settings,decisions}),baseline);
 }
-for(const style of ['conservative','balanced','active']) {
-    const absent=applyPolicy('event_route',{choice:'continue',confidence:0.6},style,['none','continue']);
-    assert.deepEqual(applyPolicy('event_route',{choice:'continue',confidence:0.6},style,['none','continue'],1),absent);
+assert.ok(!baseline.includes('PROGRESS_EXPRESSION'));
+assert.ok(baseline.includes(LANGUAGE_SCOPE));
+assert.ok(buildPausedInjection({settings:prefs}).includes(LANGUAGE_SCOPE));
+assert.match(sceneGateRequest({transcript:'[1] USER: A clinical question.',people:[]}).questions.scene_status.instructions,/not vocabulary/);
+// Every mode has the same single draw per channel, even without advanced events.
+for(let i=0;i<2000;i++) {
+ const offers=['off','event','person','both'].map(spontaneousMode=>makeOpportunities({preferences:{...prefs,spontaneousMode}},`independent-${i}`));
+ for(const offer of offers) {
+  for(const feature of ['event','person']) {
+   assert.equal(offer[feature].roll,offers[0][feature].roll);
+   assert.equal(offer[feature].passed,offers[0][feature].passed);
+   if(offer[feature].passed)assert.ok(offer[feature].candidates.length>0);
+  }
+  const additions=resolveOpportunities(offer,{event_opportunity:{choice:'candidate_1'},person_opportunity:{choice:'candidate_1'}});
+  assert.equal(additions.length,Number(offer.event.passed)+Number(offer.person.passed));
+  const blocks=additionBlocks(additions,prefs,false),payload=incorporateAdditions(baseline,blocks,prefs);
+  for(const block of blocks)assert.ok(payload.includes(block.text),'normal and spontaneous selections both reach injection');
+ }
 }
-const invalid=applyPolicy('basic_move',{choice:'invent',confidence:1},'balanced',['continue','action'],1.5);
-assert.equal(invalid.effective,'continue');
-assert.equal(applyPolicy('basic_move',undefined,'balanced',['continue','action'],1.5).effective,'continue');
-assert.equal(applyCharacterPolicy('character_0_context_access_0',{choice:'yes',confidence:0.6},'active',['none','yes']).effective,'yes');
-for(const value of [undefined,null,'bad',0,-1]) assert.equal(normalizeDevelopmentPreferences({progressIntensity:value}).progressIntensity,1);
-assert.equal(normalizeDevelopmentPreferences({progressIntensity:99}).progressIntensity,1.5);
-assert.equal(normalizeDevelopmentPreferences({progressIntensity:0.1}).progressIntensity,0.5);
-const decisions={primary_focus:'direct',basic_move:'dialogue',direct_execution:'yes',relationship_pacing:'closer_incremental',relationship_beat:'vulnerability',event_route:'continue',progression_move:'advance'};
-const before=JSON.stringify(decisions),outputs=[];
-for(const intensity of [.5,1,1.5]){
- const settings=normalizeDevelopmentPreferences({progressIntensity:intensity,relationshipPace:'slow',resolutionPace:'slow',advancedStyle:'very_active',appearanceChance:75});
- const output=buildInjection({settings,decisions});outputs.push(output);
- assert.equal(JSON.stringify(decisions),before,'expression does not change classification or route');
- assert.equal(opportunitySettings(settings).eventChance,75);assert.equal(opportunitySettings(settings).personChance,75);
- for(const block of ['<DIRECT_SCENE_EXECUTION>','<RELATIONSHIP_BEAT','<RP_PROGRESSION'])assert.ok(output.includes(block),'selected conduct remains present at every intensity');
- assert.equal(output.replace(/<PROGRESS_EXPRESSION[\s\S]*?<\/PROGRESS_EXPRESSION>\n\n/,''),outputs[1]||outputs[0].replace(/<PROGRESS_EXPRESSION[\s\S]*?<\/PROGRESS_EXPRESSION>\n\n/,''),'only the expression wrapper changes');
-}
-assert.notEqual(outputs[0],outputs[1]);assert.notEqual(outputs[1],outputs[2]);
-assert.match(outputs[0],/restrained but concrete/);assert.match(outputs[2],/more direct and decisive/);
-for(const intensity of [.5,1.5]){const instruction=progressIntensityInstruction(intensity);assert.ok(instruction.length<750);assert.match(instruction,/Do not invent success, increase harm, or add another event/);}
-assert.equal(progressIntensityInstruction(1),'');assert.equal(progressIntensityInstruction('invalid'),'');
-console.log('Progress intensity passed: valid classifications unchanged, actual expression adjustment, protected pace/creation/knowledge/user choice, invalid input.');
+console.log('Retired intensity and independent generation passed: obsolete values inert, single draws in all four modes, general events without advanced mode, selected additions reach injection, language/action distinction in both scene routes.');

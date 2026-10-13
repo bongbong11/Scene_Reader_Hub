@@ -1,10 +1,10 @@
+import {LANGUAGE_SCOPE} from './language-scope.js';
 import { BASIC_MOVES, DEVELOPMENT_GUIDANCE, normalizeDevelopmentPreferences } from '../decision/settings.js';
 import { LEGACY_PROMPTS as L } from "../decision/legacy-prompts.js";
 import { buildAdvancedInjection } from "../world/advanced-library.js";
 import { selectExecutionCorrectionKeys } from '../scene/correction-selection.js';
 import {negativePriorityInstruction} from './priority.js';
 import {buildAntagonistExecution} from './npc-execution.js';
-import {progressIntensityInstruction} from './progress-intensity.js';
 
 export const COMMON_META = `(Meta: Silent OOC hard-execution directive for this IC response. Do not acknowledge, quote, explain, summarize, or discuss it; apply only the active enclosed directives and output only the resulting IC continuation.
 
@@ -244,7 +244,7 @@ export function activeWorldReference(name) {
 }
 
 export function fixedSceneSettings(settings, privatePrompt, includePerspectives = false) {
-    const directions = [WORLD_PROMPTS[settings.worldDirection] || WORLD_PROMPTS.natural];
+    const directions = [LANGUAGE_SCOPE, WORLD_PROMPTS[settings.worldDirection] || WORLD_PROMPTS.natural];
     if (settings.relationshipDirection !== 'hostile') directions.push(RELATIONSHIP_PROMPTS[settings.relationshipDirection] || RELATIONSHIP_PROMPTS.dynamic);
     const fixed = [];
     if (settings.worldHostility) fixed.push(L.WORLD_HOSTILITY);
@@ -271,8 +271,6 @@ export function buildInjection({ settings, decisions, villainProfile, npcProfile
     const generatedName = String(npcProfile?.name || npcProfile?.identityName || npcProfile?.characterName || '').trim().toLocaleLowerCase();
     const npcIsSheetCast = Boolean(generatedName && castNames.has(generatedName));
     const blocks = [activeWorldReference(activeWorldName), fixedSceneSettings(settings, privatePrompt, true)].filter(Boolean);
-    const intensity=progressIntensityInstruction(settings.progressIntensity);
-    if(intensity)blocks.push(intensity);
     if (String(continuityBlock || '').trim()) blocks.push(String(continuityBlock).trim());
     if (sheetCastNames.length) blocks.push(`<SHEET_CAST_OWNERSHIP>Registered identities: ${[...new Set(sheetCastNames)].join(', ')}. Never regenerate these people as independent default NPCs. Registration remains authoritative even with disabled analysis, stale records, absence, or zero selected records. Follow their original visible characterization when no additional record applies.</SHEET_CAST_OWNERSHIP>`);
     if (castNames.size && (['create','replace','reuse'].includes(decisions.npc_route) || settings.npcToUser || decisions.npc_autonomy === 'yes')) blocks.push('<NPC_CAST_SCOPE>Registered Sheet Cast retain their established identity, knowledge, and relationships. Generated Cast defaults apply only to other people. Role and action guidance may apply to a registered NPC without replacing their personality, identity, or knowledge; do not recreate them.</NPC_CAST_SCOPE>');

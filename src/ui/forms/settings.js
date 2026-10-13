@@ -3,7 +3,6 @@ import { recentTurnCount, renderRecentTurns } from '../../context/turn-settings.
 import { renderRetrievalSettings, refreshRetrievalSecret } from '../retrieval-settings.js';
 import { normalizeRetrievalPatch } from '../../retrieval/connection-settings.js';
 import { renderPresetSlots } from '../preset-slots.js';
-import { renderJevProviderSelection } from '../jev-settings.js';
 import { normalizePresetSlot } from '../../injection/preset-catalog.js';
 import { COMMON_PREFERENCE_KEYS, commonPreferences } from '../../storage/common-preferences.js';
 import { notifySceneReaderToast } from "../toasts.js";
@@ -15,17 +14,13 @@ function setFormValues() {
     const prefs = deps.preferences();
     const setValue = (id, value) => { const element = deps.document.getElementById(id); if (element) element.value = value; };
     const setChecked = (id, value) => { const element = deps.document.getElementById(id); if (element) element.checked = Boolean(value); };
-    renderJevProviderSelection(deps);
     renderRetrievalSettings(deps);
     setValue('sr-world-direction', prefs.worldDirection);
     setValue('sr-relationship-direction', prefs.relationshipDirection);
     setChecked('sr-negative-priority', prefs.negativePriority);
     setValue('sr-development-style', prefs.developmentStyle);
-    setValue('sr-progress-intensity', Number(prefs.progressIntensity ?? 1).toFixed(1));
     setValue('sr-character-volume', prefs.characterVolume || 'generous');
     setValue('sr-npc-record-limit', prefs.npcRecordLimit || 3);
-    const intensityValue=deps.document.getElementById('sr-progress-intensity-value');
-    if(intensityValue)intensityValue.textContent=Number(prefs.progressIntensity ?? 1).toFixed(1);
     setValue('sr-world-profile', prefs.selectedWorldId);
     for (const key of Object.keys(SEASONAL_OPTIONS)) setChecked(`sr-season-${key}`, prefs.seasonalReferences?.includes(key));
     setChecked('sr-advanced-enabled', prefs.advancedEnabled);
@@ -179,11 +174,7 @@ async function saveCommonPreferences(patch) {
         try {await deps.saveServerSettings();deps.saveSettingsDebounced();}
         catch(error){if(target.commonPreferences===next)target.commonPreferences=previous;setFormValues();throw error;}
         if(target!==deps.settings || chatKey!==deps.stateChatKey())return;
-        const rec=deps.record(true);
-        if(Object.hasOwn(patch,'progressIntensity')) {
-            rec.lastJudgment=null;if(!rec.pendingPlan?.outputText)rec.pendingPlan=null;
-            await deps.clearInjection({chatKey,onlyIfOrphaned:true});
-        } else await deps.applyStoredInjection();
+        await deps.applyStoredInjection();
         setFormValues();deps.renderAll();
     });
 }

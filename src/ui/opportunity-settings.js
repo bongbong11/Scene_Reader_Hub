@@ -11,7 +11,7 @@ export function renderOpportunitySettings({document,preferences}) {
     const event=document.getElementById('sr-advanced-style');if(event){event.value=prefs.advancedStyle;event.disabled=!cfg.eventEnabled;}
     const person=document.getElementById('sr-appearance-chance');
     if(person){if(person.options&&!Array.from(person.options).some(x=>x.value===String(prefs.appearanceChance))){const option=document.createElement('option');option.value=String(prefs.appearanceChance);option.textContent=`${prefs.appearanceChance}%`;person.append(option);}person.value=String(prefs.appearanceChance);person.disabled=!cfg.enabled;}
-    const help=document.getElementById('sr-generation-help');if(help)help.textContent=!cfg.enabled?UI.generationOff:!cfg.eventEnabled?UI.compactHelp+' 사건 확률은 돌발 사건 또는 고급 전개를 켜면 적용됩니다.':UI.compactHelp;
+    const help=document.getElementById('sr-generation-help');if(help)help.textContent=!cfg.enabled?UI.generationOff:UI.compactHelp;
 }
 export function bindOpportunitySettings(deps) {
     for(const [id,key,read] of [['sr-new-generation-enabled','newGenerationEnabled',e=>e.target.checked],['sr-spontaneous-mode','spontaneousMode',e=>e.target.value]]) {
