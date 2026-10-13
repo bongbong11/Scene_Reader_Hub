@@ -6,6 +6,7 @@ import {notifySceneReaderToast} from "../ui/toasts.js";
 import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
 import {visibilityKey} from '../context/visibility.js';
 import {sceneGateRequest, resolveSceneGate} from "./intimacy-gate.js";
+import {recentSceneRoleplay} from './recent-context.js';
 import {recordBankIsCurrent} from "../characters/records.js";
 import {addWorldQuestions, selectedWorldRecords, worldPayload as buildWorldPayload} from "../world/advanced.js";
 import {seasonalWorldNote} from "../world/seasonal.js";
@@ -22,7 +23,9 @@ async function prepareGate(run,frame) {
     (frame.carriedGateIds = [...new Set([...frame.previousParticipantIds,...(frame.rec.lastJudgment?.characterTrace || []).filter(item=>(item?.presence||item?.final?.presence)==='active').map(item=>item.id)])]);
     (frame.gatePeople = deps.characterStore.enabled ? deps.selectActiveEntries(deps.characterStore, frame.transcript, deps.getContext().name2 || '', frame.carriedGateIds, {allowUserImpersonation:frame.prefs.allowUserImpersonation}).slice(0,6) : []);
     if (deps.characterStore.characters?.length===1 && !deps.characterStore.characters[0].cardCast) frame.gatePeople=frame.gatePeople.map(person=>person.id===deps.characterStore.characters[0].id?{...person,mainSillyTavernName:deps.getContext().name2||''}:person);
-    (frame.gateRequest = sceneGateRequest({model:deps.JEV_MODEL,transcript: frame.transcript,previous:frame.previousSceneRoute,previousScene:frame.rec.sceneIntimacy,people:frame.gatePeople,previousParticipantIds: frame.previousParticipantIds}));
+    const host=deps.getContext();
+    const sceneTranscript=recentSceneRoleplay({chat:host.chat,pendingUserText:frame.pendingUserText,nonRpOutputIndices:frame.rec.nonRpOutputIndices,userName:host.name1,characterName:host.name2});
+    (frame.gateRequest = sceneGateRequest({model:deps.JEV_MODEL,transcript: frame.transcript,sceneTranscript,previous:frame.previousSceneRoute,previousScene:frame.rec.sceneIntimacy,people:frame.gatePeople,previousParticipantIds: frame.previousParticipantIds}));
     (frame.rawPriorStates = new Map(inheritedStates(frame.rec,deps.latestStateForChat(frame.rec, deps.getContext().chat, deps.stableFingerprint)).map(item => [item.id, item])));
     if(frame.storylineReference) {
         frame.gateRequest.state.continuation_reference=frame.storylineReference;
@@ -74,8 +77,8 @@ async function prepareGate(run,frame) {
         }
     }
     (frame.sceneContextEndIndex = Math.max(-1,...frame.context.selected.map(message=>(deps.getContext().chat||[]).indexOf(message)),String(frame.pendingUserText||'').trim()?(deps.getContext().chat||[]).length:-1));
-    frame.rec.sceneIntimacy={route:frame.sceneGate.route,level:frame.sceneGate.level??frame.rec.sceneIntimacy?.level??null,phase:frame.sceneGate.phase,evidence:frame.sceneGate.evidence,participantIds:frame.sceneGate.participantIds,inputKey: frame.inputKey,contextEndIndex:frame.sceneContextEndIndex,...(frame.sceneGate.confirmation?{confirmation:frame.sceneGate.confirmation}:{}),...(frame.sceneGateError?{error:frame.sceneGateError}:{})};
-    deps.noteDiagnostic?.('scene_gate',{displayStage:sceneDisplayState(frame.rec.sceneIntimacy).stage,route:frame.sceneGate.route,transition:frame.sceneGate.transition||'',phase:frame.sceneGate.phase||'',confirmation:frame.sceneGate.confirmation||'',error:frame.sceneGateError||''});
+    frame.rec.sceneIntimacy={contextScope:'latest_turn',route:frame.sceneGate.route,level:frame.sceneGate.level??frame.rec.sceneIntimacy?.level??null,phase:frame.sceneGate.phase,evidence:frame.sceneGate.evidence,participantIds:frame.sceneGate.participantIds,inputKey: frame.inputKey,contextEndIndex:frame.sceneContextEndIndex,...(frame.sceneGate.confirmation?{confirmation:frame.sceneGate.confirmation}:{}),...(frame.sceneGateError?{error:frame.sceneGateError}:{})};
+    deps.noteDiagnostic?.('scene_gate',{module:'src/scene/gate-stage.js',contextScope:'latest_turn',sceneInputChars:sceneTranscript.length,displayStage:sceneDisplayState(frame.rec.sceneIntimacy).stage,route:frame.sceneGate.route,transition:frame.sceneGate.transition||'',phase:frame.sceneGate.phase||'',confirmation:frame.sceneGate.confirmation||'',error:frame.sceneGateError||''});
     (frame.seasonalContext = seasonalWorldNote(frame.prefs, frame.transcript, frame.world));
     (frame.appliedWorldRecords = selectedWorldRecords(frame.world, frame.worldRecordCandidates, frame.worldRecordAnswers, frame.worldSelectionFailed));
     (frame.selectedWorldPayload = [buildWorldPayload(frame.world, frame.worldRecordCandidates, frame.worldRecordAnswers, frame.worldSelectionFailed), frame.seasonalContext].filter(Boolean).join('\n\n'));

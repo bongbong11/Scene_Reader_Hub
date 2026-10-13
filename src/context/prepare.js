@@ -68,7 +68,7 @@ await deps.waitForOutputChanges?.();
     (frame.memory = deps.mergeMemory(frame.charm, frame.lore, frame.memoryIdentity));
     if (!run.valid() || deps.sourceRevisionKey(deps.record(), deps.selectedWorld()) !== frame.sourceKey || deps.recentContext(frame.pendingUserText).contextKey !== frame.context.contextKey) throw new deps.StaleRunError();
     (frame.memoryKey = deps.stableFingerprint({ status: frame.memory.status, entries: frame.memory.entries.map(entry => [entry.sourceId, entry.contentHash]) }));
-    if (!frame.force && frame.rec.lastJudgment?.inputKey === frame.inputKey && frame.rec.lastJudgment?.contextKey === frame.context.contextKey && frame.rec.lastJudgment?.sourceKey === frame.sourceKey && frame.rec.lastJudgment?.continuityCacheKey === frame.continuityCacheKey && frame.rec.lastJudgment?.memoryKey === frame.memoryKey && !frame.rec.lastJudgment?.sceneIntimacy?.error) {
+    if (!frame.force && frame.rec.lastJudgment?.inputKey === frame.inputKey && frame.rec.lastJudgment?.contextKey === frame.context.contextKey && frame.rec.lastJudgment?.sourceKey === frame.sourceKey && frame.rec.lastJudgment?.continuityCacheKey === frame.continuityCacheKey && frame.rec.lastJudgment?.memoryKey === frame.memoryKey && frame.rec.lastJudgment?.sceneIntimacy?.contextScope === 'latest_turn' && !frame.rec.lastJudgment?.sceneIntimacy?.error) {
         (frame.receipt = await deps.applyStoredInjection({validate:frame.assertCurrentSnapshot}));
         frame.assertCurrentSnapshot();
         if (!frame.receipt?.applied || frame.receipt.inputKey!==frame.inputKey || frame.receipt.sourceKey!==frame.sourceKey) throw new deps.StaleRunError();

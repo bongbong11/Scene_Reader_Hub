@@ -74,3 +74,14 @@ assert.deepEqual(failures,[]);
     assert.equal(f.run('record().sceneIntimacy'),null,'history restoration must not resurrect invalid scene evidence');
 }
 console.log('Scene gate runtime passed: participant continuity, explicit absence, and source edit/delete/swipe invalidation.');
+{
+ const {f,requests,scenario}=setup();f.run('settings.recentTurns=5;');
+ f.ctx.chat=[{is_user:true,mes:'OLDER_INPUT'},{is_user:false,mes:'OLDER_SCENE'},{is_user:true,mes:'Wade enters another room.'},{is_user:false,mes:'He starts an ordinary conversation.'}];
+ scenario.level='0';scenario.phase='ended';await f.run('runJudge({force:true})');
+ const gate=requests.find(request=>request.questions.scene_status);
+ assert.match(gate.state.recent_roleplay,/OLDER_SCENE/);assert.doesNotMatch(gate.state.current_scene_roleplay,/OLDER_/);assert.match(gate.state.current_scene_roleplay,/ordinary conversation/);
+ assert.equal(f.run('record().sceneIntimacy.contextScope'),'latest_turn');
+ const count=requests.length;await f.run('runJudge()');assert.equal(requests.length,count,'same new-scope judgment can be reused');
+ f.run('delete record().lastJudgment.sceneIntimacy.contextScope;');await f.run('runJudge()');assert.ok(requests.length>count,'legacy broad-history judgment is refreshed once');
+ assert.equal(f.run('settings.recentTurns'),5);
+}

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {sceneGateRequest,resolveSceneGate} from '../../src/scene/intimacy-gate.js';
 import {buildPausedInjection} from '../../prompt-library.js';
+import {recentSceneRoleplay} from '../../src/scene/recent-context.js';
+import {buildRecentContext} from '../../src/context/messages.js';
 
 const request=sceneGateRequest({model:'jev',transcript:'[1] USER: A kiss.\n[2] CHARACTER: They begin explicit sexual activity.',people:[{id:'wade',name:'Wade'}]});
 assert.ok(Object.hasOwn(request.questions.scene_evidence.criteria,'2'));
@@ -22,3 +24,20 @@ assert.match(prompt,/Stored reference/);
 assert.match(prompt,/NSFW, and character-specific kink instructions/);
 assert.ok(!prompt.includes('CHARACTER_EXECUTION'));
 console.log('Scene gate transitions and paused injection passed.');
+
+const history=[{is_user:true,mes:'OLDER_INPUT'},{is_user:false,mes:'OLDER_SCENE'},{is_user:true,mes:'LATEST_INPUT'},{is_user:false,mes:'LATEST_REPLY'}];
+const latest=recentSceneRoleplay({chat:history});assert.match(latest,/LATEST_INPUT/);assert.match(latest,/LATEST_REPLY/);assert.doesNotMatch(latest,/OLDER_/);
+const pending=recentSceneRoleplay({chat:history,pendingUserText:'The next morning, they leave for work.'});assert.match(pending,/LATEST_REPLY/);assert.match(pending,/next morning/);assert.doesNotMatch(pending,/LATEST_INPUT|OLDER_/);
+const full=buildRecentContext({chat:history,turnCount:5}).recentRoleplay;
+const scoped=sceneGateRequest({model:'jev',transcript:full,sceneTranscript:pending,previous:'paused'});
+assert.equal(scoped.state.recent_roleplay,full);assert.equal(scoped.state.current_scene_roleplay,pending);assert.doesNotMatch(scoped.state.current_scene_roleplay,/OLDER_/);assert.deepEqual(Object.keys(scoped.questions.scene_evidence.criteria).sort(),['1','2','none']);
+assert.equal(resolveSceneGate({scene_status:'ended',scene_evidence:'2'},scoped,'paused').transition,'exited');
+assert.equal(resolveSceneGate({scene_status:'brief_pause',scene_evidence:'2'},scoped,'paused').route,'paused');
+const excluded=[...history,{is_user:false,mes:'HIDDEN',extra:{hidden:true}},{is_user:true,mes:'(OOC: OUTSIDE)'},{is_user:false,mes:'AUDIT_RESULT'},{is_system:true,mes:'SYSTEM'}];
+assert.equal(recentSceneRoleplay({chat:excluded,nonRpOutputIndices:[6]}),latest);
+assert.doesNotMatch(recentSceneRoleplay({chat:history,pendingUserText:'They leave. (OOC: META)'}),/META/);
+assert.equal(recentSceneRoleplay({chat:[]}), '');assert.match(recentSceneRoleplay({pendingUserText:'A new room.'}),/A new room/);
+for(const edit of ['edit','swipe','delete','hide']){const changed=structuredClone(history);if(edit==='delete')changed.pop();else if(edit==='hide')changed.at(-1).is_hidden=true;else changed.at(-1).mes='UPDATED_VISIBLE_REPLY';const value=recentSceneRoleplay({chat:changed});assert.doesNotMatch(value,/LATEST_REPLY/);}
+const large=recentSceneRoleplay({chat:[{is_user:false,mes:'long '.repeat(5000)+'VISIBLE_END'}]});assert.ok(large.length<=18000);assert.match(large,/^\[1\] CHARACTER/);assert.match(large,/VISIBLE_END$/);assert.ok(sceneGateRequest({transcript:'unused',sceneTranscript:large}).questions.scene_evidence.criteria['1']);
+const notRead={is_user:true,get mes(){throw new Error('older body must not be read');}};assert.match(recentSceneRoleplay({chat:[notRead,...history.slice(-2)]}),/LATEST_REPLY/);
+console.log('NSFW one-exchange context passed: pending/empty input, latest output, hidden/OOC exclusions, edits/swipes/deletes, scoped evidence and unchanged general history.');
