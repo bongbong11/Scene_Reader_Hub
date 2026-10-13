@@ -3,6 +3,7 @@ import {installReviewMessage} from '../src/adapters/review-message.js';
 import {createCurrentChatReview} from '../src/adapters/current-chat-review.js';
 import {currentCharacterReview,validateReviewTemplate} from '../src/character/replacement-prompts.js';
 import {reviewHost} from './fixtures/review-host.mjs';
+import {installReviewSheetFilter} from '../src/adapters/review-sheet-filter.js';
 for(const squashed of [false,true])for(const transformed of [false,true]){
  const f=reviewHost(),original=f.host.reviewWindow.SceneReaderHubBeforeGenerate,stored=JSON.stringify(f.host.chat),hook=installReviewMessage(f.host,'PRIVATE audit',event=>f.notes.push(event));
  const core=structuredClone(f.host.chat);
@@ -51,3 +52,33 @@ const quoted='A $& "quoted"';assert.equal(currentCharacterReview(quoted,'Audit {
 assert.equal(currentCharacterReview('Persona','{{char}} / {{user}} / {{CHAR}} / {{USER}} / {{subject}} / {{other}}',true),'{{user}} / {{char}} / {{user}} / {{char}} / "Persona" / {{other}}');
 assert.equal(currentCharacterReview('Name {{char}}','{{subject}} {{char}} {{user}}',true),'"Name {{char}}" {{user}} {{char}}');
 console.log('Review input passed: request-only user message through the native history path, depth-0 roles after input, no prompt relocation, answer delivery independent of inspector, saved chat and unrelated requests preserved.');
+
+// Native preparation filters only standard target slots and restores before the next request.
+for(const kind of ['character','persona'])for(const outcome of ['success','failure','unobserved']){
+ const f=reviewHost(async()=>{if(outcome==='failure')throw new Error('Synthetic failure');return 'Original: A current record.\nChange: A supported revision.';});
+ f.host.sheetSlots=['charDescription','charPersonality','personaDescription','worldInfoBefore'].map(identifier=>({identifier,role:'system',content:identifier+' ORIGINAL'}));
+ const original=f.host.promptManager.preparePrompt,before=JSON.stringify(f.host.sheetSlots);
+ f.host.skipPrompt=outcome==='unobserved';
+ const client=createCurrentChatReview({loadHost:async()=>f.host});
+ const operation=client.request('Audit',{subjectKind:kind,onPlacement:event=>f.notes.push(event)});
+ if(outcome==='failure')await assert.rejects(operation,{code:'REVIEW_REQUEST_FAILED'});else await operation;
+ const wire=JSON.stringify(f.host.sent),excluded=kind==='character'?['charDescription','charPersonality']:['personaDescription'];
+ for(const slot of ['charDescription','charPersonality','personaDescription','worldInfoBefore'])assert.equal(wire.includes(slot+' ORIGINAL'),!excluded.includes(slot));
+ assert.equal(f.host.promptManager.preparePrompt,original);assert.equal(JSON.stringify(f.host.sheetSlots),before);
+ assert.equal(f.host.promptManager.preparePrompt(f.host.sheetSlots[0]).content,'charDescription ORIGINAL');assert.equal(f.count(),0);
+ assert.ok(f.notes.some(event=>event.code==='REVIEW_SHEET_FILTERED'));
+}
+// A later extension wrapper must not keep our filtering alive after cleanup.
+{
+ const manager={preparePrompt:prompt=>({...prompt})},dispose=installReviewSheetFilter(manager,'character');
+ const wrapped=manager.preparePrompt;manager.preparePrompt=(...args)=>wrapped(...args);
+ dispose();assert.equal(manager.preparePrompt({identifier:'charDescription',content:'Unchanged'}).content,'Unchanged');
+}
+// Preserve literal macros inside JSON while resolving the editable instruction normally.
+{
+ const f=reviewHost();f.host.substituteParams=text=>text.replaceAll('{{char}}','ACTOR');
+ const prompt=currentCharacterReview('Actor','(OOC: Review {{char}}.)',false,{records:[{rule:'Literal {{char}} "quoted"'}]});
+ await createCurrentChatReview({loadHost:async()=>f.host}).request(prompt,{subjectKind:'character'});
+ const sent=f.host.core.at(-1).mes;assert.ok(sent.includes('Literal {{char}}'));assert.ok(sent.includes('Review ACTOR.'));
+}
+console.log('Request-scoped sheet filtering passed: character/persona separation, memory retained, success/error cleanup, downstream wrappers and literal JSON macros.');

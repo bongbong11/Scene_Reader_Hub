@@ -5,6 +5,8 @@ function renderOwnerMode() {
     const ownerCard = deps.document.getElementById('sr-owner-card');
     const ownerStatus = deps.document.getElementById('sr-owner-status');
     if (ownerCard) ownerCard.hidden = !unlocked;
+    const replacementTools=deps.document.getElementById('sr-replacement-tools');
+    if(replacementTools)replacementTools.hidden=!unlocked;
     const tracePanel = deps.document.getElementById('sr-hub-trace-panel');
     if (tracePanel) { tracePanel.hidden = !unlocked; if (!unlocked) tracePanel.open = false; }
     if (ownerStatus) ownerStatus.textContent = unlocked ? '열림' : '잠금 상태';

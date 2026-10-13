@@ -3,11 +3,14 @@ export function reviewHost(respond=async()=> 'Original: Guarded.\nChange: Accept
  host.eventSource={makeLast(event,fn){listeners.set(event,[...(listeners.get(event)||[]).filter(x=>x!==fn),fn]);},removeListener(event,fn){listeners.set(event,(listeners.get(event)||[]).filter(x=>x!==fn));}};
  const emit=async(event,...args)=>{for(const fn of [...(listeners.get(event)||[])])await fn(...args);};
  host.reviewWindow={SceneReaderHubBeforeGenerate:async()=>{host.fallbackCount=(host.fallbackCount||0)+1;}};
+ host.promptManager={preparePrompt:prompt=>({...prompt}),messages:null};
  function assemble(core,{squashed=false}={}) {
   const history=core.map((message,index)=>({identifier:`chatHistory-${index+1}`,role:message.is_user?'user':'assistant',content:message.mes}));
   const depth=['system','user','assistant'].map((role,index)=>({identifier:`chatHistory-${history.length+index+1}`,role,content:`Depth 0 order 0 ${role}`}));
   const blocks=[{identifier:'main',collection:[{role:'system',content:'Older relationship memory'}]},{identifier:'dialogueExamples',collection:[{role:'assistant',content:'Latest conflict'}]},{identifier:'chatHistory',collection:[...history,...depth]},{identifier:'jailbreak',collection:[{role:'system',content:'Late preset'}]}];
-  host.promptManager={messages:{identifier:'root',collection:squashed?blocks.flatMap(block=>block.collection):blocks}};
+  const slots=(host.sheetSlots||[]).map(prompt=>host.promptManager.preparePrompt(prompt)).filter(prompt=>prompt.content);
+  if(slots.length)blocks.unshift({identifier:'sheet',collection:slots});
+  host.promptManager.messages={identifier:'root',collection:squashed?blocks.flatMap(block=>block.collection):blocks};
   return {chat:flatten(),blocks};
  }
  function flatten(root=host.promptManager.messages){return(root?.collection||[]).flatMap(node=>Array.isArray(node.collection)?flatten(node):[{role:node.role,content:node.content}]);}

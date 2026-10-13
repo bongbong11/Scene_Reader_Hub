@@ -1,10 +1,12 @@
-import {DEFAULT_CHARACTER_REVIEW_PROMPT, validateReviewTemplate} from '../character/replacement-prompts.js';
+import {DEFAULT_CHARACTER_REVIEW_PROMPT, validateReviewTemplate, adaptReviewTemplate} from '../character/replacement-prompts.js';
 
 export function createReviewPromptEditor({container, deps, run, current, getPrompt, status}) {
     container.innerHTML = `<summary>✎ 확인 명령문 보기·수정</summary><p class="sr-help">캐릭터 선택 시 {{char}}·{{user}}는 그대로, 페르소나 선택 시 서로 바꿔 전달합니다. 저장한 원문은 유지됩니다. {{subject}}는 여기서 선택한 인물 이름이며 생략해도 됩니다. 저장하면 모든 방에서 유지됩니다. 저장하지 않은 수정은 창을 닫으면 사라집니다.</p><textarea data-review-template class="text_pole" aria-label="인물 변화 확인 명령문" spellcheck="false"></textarea><div class="sr-replacement-actions"><button type="button" data-template-save class="menu_button">저장</button><button type="button" data-template-default class="menu_button">기본값 불러오기</button><button type="button" data-template-copy class="menu_button">명령문 복사</button></div><p data-template-status class="sr-help" role="status"></p>`;
     const input = container.querySelector('[data-review-template]'), note = container.querySelector('[data-template-status]');
-    input.value = typeof deps.settings.characterReviewPrompt === 'string' && deps.settings.characterReviewPrompt.trim()
+    const stored=typeof deps.settings.characterReviewPrompt === 'string' && deps.settings.characterReviewPrompt.trim()
         ? deps.settings.characterReviewPrompt : DEFAULT_CHARACTER_REVIEW_PROMPT;
+    input.value=adaptReviewTemplate(stored);
+    if(input.value!==stored)note.textContent='현재 파일을 기준으로 비교하도록 기준 문구를 조정했습니다. 내용을 확인한 뒤 저장하세요.';
     let saved = input.value;
     const resize = () => { if(container.open){input.style.height='auto'; input.style.height=Math.max(180,input.scrollHeight)+'px';} };
     const getTemplate = () => {

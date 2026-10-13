@@ -1,5 +1,6 @@
 export const main_api='openai',name1='User',chat=window.mock.chat;
 export const eventSource=window.eventSource,event_types=new Proxy({},{get:(_,key)=>key}),chat_metadata={};
+export const promptManager=window.mock.promptManager;
 export function saveSettingsDebounced(){}
 export function setExtensionPrompt(key,value){window.mock.prompts[key]=value;}
 export function getRequestHeaders(){return {};}
@@ -17,6 +18,8 @@ export async function Generate(type,options){
  const history=core.map((message,index)=>({identifier:'chatHistory-'+(index+1),role:message.is_user?'user':'assistant',content:message.mes}));
  const depth=['system','user','assistant'].map((role,i)=>({identifier:'chatHistory-'+(history.length+i+1),role,content:'Depth 0 order 0 '+role}));
  mock.promptManager.messages={identifier:'root',collection:[{identifier:'main',collection:[{identifier:'main',role:'system',content:mock.reviewPrefixRewrite?'Updated earlier relationship memory':'Preset and older relationship memory'}]},{identifier:'chatHistory',collection:[...history,...depth]},{identifier:'jailbreak',collection:[{identifier:'jailbreak',role:'system',content:'Final preset instruction'}]}]};
+ const sheet=(mock.reviewSheetSlots||[]).map(prompt=>mock.promptManager.preparePrompt(prompt)).filter(prompt=>prompt.content);
+ if(sheet.length)mock.promptManager.messages.collection.push({identifier:'sheet',collection:sheet});
  const messages=mock.promptManager.messages.collection.flatMap(block=>block.collection.map(({role,content})=>({role,content})));
  if(!mock.reviewSkipObservation)await mock.emit('CHAT_COMPLETION_PROMPT_READY',{chat:messages,dryRun:false});
  messages.push({role:'system',content:'Other extension context'});
