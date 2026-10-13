@@ -1,4 +1,5 @@
 import { setCharacterImportMode, characterImportMode } from './character-import-mode.js';
+import {openRecordFile} from './record-file.js';
 import { notifySceneReaderToast } from './toasts.js';
 import { castCompilerPrompt, importRecordBundle, validateRecordBundle } from "../character/bundles.js";
 import { characterCopyNotice } from './compiler-copy.js';
@@ -113,6 +114,7 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
     el('sr-character-import-json')?.addEventListener('drop',event=>{event.preventDefault();const file=event.dataTransfer.files?.[0];task(()=>readFile(file));});
     el('sr-character-versions')?.addEventListener('click',event=>{
         const button=event.target.closest('[data-record-action]');if(!button)return;
+        if(button.dataset.recordAction==='add-file'){event.preventDefault();if(!busy)openRecordFile(deps,button.dataset.recordGroup,persist);return;}
         task(async()=>{
             const {recordGroup:groupId,recordVersion:versionId,recordAction:action}=button.dataset;
             if(action==='delete-person') {

@@ -75,7 +75,27 @@ export async function checkReplacementTool(page,store,requests,setViewportSize,r
   await page.evaluate(()=>mock.reviewError=true);await modal.locator('[data-review]').click();await modal.locator('[data-status]').filter({hasText:'현재 채팅 모델 요청에 실패'}).waitFor();assert.equal(await modal.locator('[data-answer]').inputValue(),lastGood);assert.equal(JSON.stringify(store.chat.companionStores),storedGood);await page.evaluate(()=>mock.reviewError=false);
   await page.evaluate(()=>mock.reviewAnswer='Original: Guarded.\nChange: Guarded with a trusted partner; now works as an engineer.');await modal.locator('[data-review]').click();await modal.locator('[data-status]').filter({hasText:'확인 완료'}).waitFor();
   assert.ok((await page.evaluate(()=>mock.reviewMessages.at(-1)[2].content)).includes(lastGood));assert.match(await modal.locator('[data-answer]').inputValue(),/engineer/);
-  const filesBeforeClear=JSON.stringify(store.characters);page.once('dialog',dialog=>dialog.accept());await modal.locator('[data-clear]').click();await modal.locator('[data-status]').filter({hasText:'저장 답변을 지웠습니다'}).waitFor();assert.equal(await modal.locator('[data-answer]').inputValue(),'');assert.equal(JSON.stringify(store.characters),filesBeforeClear);
+  const latestPrompt=await page.evaluate(()=>mock.reviewMessages.at(-1)[2].content);
+  await modal.locator('[data-reference] > details > summary').click();
+  assert.match(await modal.locator('[data-reference-status]').textContent(),/이전 답변 반영/);
+  assert.match(await modal.locator('[data-previous]').textContent(),/engineer/);
+  assert.equal(await modal.locator('[data-retry-previous]').textContent(),lastGood);
+  await modal.locator('[data-wire] > summary').click();await page.waitForFunction(()=>document.querySelector('[data-next-prompt]')?.textContent.includes('engineer'));
+  assert.ok((await modal.locator('[data-next-prompt]').textContent()).includes('engineer'));
+  assert.ok((await modal.locator('[data-retry-prompt]').textContent()).includes(lastGood));
+  await page.evaluate(()=>mock.reviewAnswer='Original: Guarded.\nChange: Accepts help.\n<charm-now>FOREIGN_STATE<inner>noise</inner></charm-now><unknown_tag>OTHER_NOISE</unknown_tag>');
+  await modal.locator('[data-retry]').click();await modal.locator('[data-status]').filter({hasText:'재시도 완료'}).waitFor();
+  assert.equal(await page.evaluate(()=>mock.reviewMessages.at(-1)[2].content),latestPrompt);
+  assert.equal(await modal.locator('[data-answer]').inputValue(),'Original: Guarded.\nChange: Accepts help.');
+  assert.ok(!JSON.stringify(store.chat.companionStores).includes('FOREIGN_STATE'));
+  await modal.locator('[data-close]').click();await reload();await page.locator('#sr-replacement-open').click();
+  await modal.locator('[data-retry]').click();await modal.locator('[data-status]').filter({hasText:'재시도 완료'}).waitFor();
+  assert.equal(await page.evaluate(()=>mock.reviewMessages.at(-1)[2].content),latestPrompt,'reload retains retry reference');
+  await page.evaluate(()=>mock.reviewAnswer='<another-extension>NO_VALID_ANSWER</another-extension>');
+  const cleanGood=await modal.locator('[data-answer]').inputValue();
+  await modal.locator('[data-retry]').click();await modal.locator('[data-status]').filter({hasText:'빈 답변'}).waitFor();assert.equal(await modal.locator('[data-answer]').inputValue(),cleanGood);
+  await page.evaluate(()=>mock.reviewAnswer='Original: Guarded.\nChange: A new answer.');
+  const filesBeforeClear=JSON.stringify(store.characters);page.once('dialog',dialog=>dialog.accept());await modal.locator('[data-clear]').click();await modal.locator('[data-status]').filter({hasText:'저장 답변을 지웠습니다'}).waitFor();assert.equal(await modal.locator('[data-answer]').inputValue(),'');assert.equal(await modal.locator('[data-retry]').isHidden(),true);assert.match(await modal.locator('[data-reference-status]').textContent(),/이전 답변 없이/);assert.equal(JSON.stringify(store.characters),filesBeforeClear);
   await modal.locator('[data-review]').click();await modal.locator('[data-status]').filter({hasText:'확인 완료'}).waitFor();assert.ok(!(await page.evaluate(()=>mock.reviewMessages.at(-1)[2].content)).includes('[PREVIOUS AUDIT]'));await modal.locator('[data-close]').click();
   console.log('Review editor passed: real-history USER boundary before all depth-0/order-0 roles, native inspector, cumulative save/reopen/regeneration/failure retention, extension-profile translation, current JSON export, small clear action, other developer locks and 320px fit.');
  }finally{Object.assign(store,saved);await reload();}

@@ -5,6 +5,7 @@ import {currentCharacterReview,replacementFilePrompt} from '../src/character/rep
 import {requestWithConnectionProfile} from '../src/adapters/connection-profile.js';
 import {stableFingerprint} from '../src/decision/policy.js';
 import {reviewHost} from './fixtures/review-host.mjs';
+import {cleanReviewText} from '../src/character/review-text.js';
 let release;
 const delayed=reviewHost(()=>new Promise(r=>release=r)),client=createCurrentChatReview({timeoutMs:15,loadHost:async()=>delayed.host});
 await assert.rejects(client.request('review'),{code:'REVIEW_TIMEOUT'});assert.equal(client.busy,true);await assert.rejects(client.request('duplicate'),{code:'REVIEW_BUSY'});release('Late answer');await new Promise(r=>setImmediate(r));assert.equal(client.busy,false);assert.equal(delayed.count(),0);assert.equal(delayed.host.sent[3].content,'review');assert.equal(delayed.host.options.skipWIAN,false);
@@ -45,3 +46,31 @@ const translation=fixture();let finishTranslation;translation.deps.connectionReq
 for(const response of [{content:''},{content:'partial',finish_reason:'length'}]){const g=fixture();g.deps.connectionRequestService.sendRequest=async()=>response;await assert.rejects(g.tool.translate('a','English answer'),{code:response.finish_reason?'PROFILE_TRUNCATED_RESPONSE':'PROFILE_INVALID_RESPONSE'});}
 const long='Original: Guarded.\nChange: A person-specific exception.\n'.repeat(500)+'FINAL_COMPLETE_SENTENCE.';const native=reviewHost(async()=>long),longClient=createCurrentChatReview({loadHost:async()=>native.host});assert.equal(await longClient.request('Review'),long);assert.equal(Object.hasOwn(native.host.options,'responseLength'),false);
 console.log('Replacement passed: one cumulative audit per room/person, current JSON export, regeneration, reopen, failure/cancellation retention, scope and privacy, native latest user placement, full output, extension-profile text translation.');
+
+const body='Original: Guarded.\nChange: Accepts help from a trusted person.';
+for(const noise of ['<charm-now>Foreign state</charm-now>','<Other_Block data-label="a > b"><nested>Foreign state</nested></Other_Block>','&lt;foreign-state&gt;Foreign state&lt;/foreign-state&gt;','<!-- Foreign state -->','<foreign-state/>','<foreign-state>Foreign state','<foreign-state']){
+ assert.equal(cleanReviewText(body+'\n'+noise),body);
+ assert.equal(cleanReviewText(cleanReviewText(body+'\n'+noise)),body);
+}
+assert.equal(cleanReviewText('<p>Original: <b>Guarded.</b></p><p>Change: Accepts help from a trusted person.</p>'),body.replace('\n','\n\n'));
+assert.equal(cleanReviewText('Original: Trust < 5.\nChange: Trust > 5.'),'Original: Trust < 5.\nChange: Trust > 5.');
+assert.equal(cleanReviewText('<other><b>discard</b></other>\n'+body),body);
+assert.equal(cleanReviewText('<other><b>discard</other>\n'+body),body);
+const redo=fixture();await redo.tool.saveAnswer('a','BASELINE_A');
+const instructions='Audit {{char}}; partner {{user}}. CUSTOM_BASELINE';
+redo.api.request=async prompt=>{redo.requests.push(prompt);return body+'<foreign>remove</foreign>';};
+const accepted=await redo.tool.review('a',instructions),samePrompt=redo.requests.at(-1);
+assert.equal(accepted.text,body);assert.equal(accepted.retry.previous,'BASELINE_A');
+await redo.tool.saveAnswer('a','BAD_MANUAL_ANSWER');
+redo.api.request=async prompt=>{redo.requests.push(prompt);return 'BETTER_ANSWER';};
+const retried=await redo.tool.retry('a');assert.equal(redo.requests.at(-1),samePrompt);assert.equal(retried.text,'BETTER_ANSWER');
+const reopened=createReplacementTool(redo.deps,{client:redo.api,expand:async bank=>structuredClone(bank)});
+assert.equal((await reopened.loadAnswer('a')).retry.previous,'BASELINE_A');await reopened.retry('a');assert.equal(redo.requests.at(-1),samePrompt,'retry survives reopening and does not use its own last result');
+for(const output of ['', '<other>foreign only</other>']){redo.api.request=async()=>output;await assert.rejects(reopened.retry('a'),{code:'REVIEW_EMPTY'});assert.equal((await reopened.loadAnswer('a')).text,'BETTER_ANSWER');}
+redo.fail(true);redo.api.request=async()=>body;await assert.rejects(reopened.retry('a'));redo.fail(false);assert.equal((await reopened.loadAnswer('a')).text,'BETTER_ANSWER');
+redo.api.request=async prompt=>{redo.requests.push(prompt);return body;};await reopened.review('a',instructions+' NEW');assert.ok(redo.requests.at(-1).includes('BETTER_ANSWER'));assert.ok(redo.requests.at(-1).startsWith(instructions.replace('{{subject}}','Actor')+' NEW'));
+await reopened.clearAnswer('a');assert.deepEqual((({text,retry})=>({text,retry}))(await reopened.loadAnswer('a')),{text:'',retry:null});await assert.rejects(reopened.retry('a'),/다시 받을 요청/);await reopened.review('a');assert.doesNotMatch(redo.requests.at(-1),/\[PREVIOUS AUDIT\]/);
+redo.saved.get('room').answers[0].text=body+'<foreign>legacy noise</foreign>';
+assert.equal((await reopened.loadAnswer('a')).text,body);assert.ok(!(await reopened.prompt('a',body+'<foreign>export noise</foreign>')).includes('export noise'));
+redo.deps.connectionRequestService.sendRequest=async()=>({content:'번역 본문<alien>번역 잡음</alien>'});assert.equal(await reopened.translate('a',body+'<alien>입력 잡음</alien>'),'번역 본문');
+console.log('Review answer cleanup and frozen retry passed: nested/unknown/escaped tags, prior answers, export/translation, reopen, errors, deletion and same request reference.');

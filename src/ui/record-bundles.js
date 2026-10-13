@@ -26,15 +26,16 @@ export function renderRecordBundles(document, store, esc) {
     root.innerHTML = recordBundleRows(store, kind).map(bundle => {
         const people = bundle.people.map(person => {
             const versions = person.versions.map(version => {
-                const applied = person.entry?.appliedRecordVersion === version.id;
-                const actions = [['view', '보기'], ['edit', '수정'], ['download','JSON'], ...(applied ? [] : [['apply', '적용']]), ['delete', '삭제']];
-                return `<div class="sr-record-version"><span>${esc(new Date(version.savedAt).toLocaleString('ko-KR'))}${applied ? ' · 적용 중' : ''}</span><div class="sr-version-actions">${actions.map(([action, label]) => `<button type="button" class="menu_button" data-record-action="${action}" data-record-group="${esc(bundle.id)}" data-record-version="${esc(version.id)}">${label}</button>`).join('')}</div></div>`;
+                const applied = Boolean(person.entry?.recordBank) && person.entry.appliedRecordVersion === version.id;
+                const actions = [['view', '보기'], ['edit', '수정'], ['download','JSON'], ['apply', '적용'], ['delete', '삭제']];
+                return `<div class="sr-record-version" data-version-id="${esc(version.id)}"><span>${esc(new Date(version.savedAt).toLocaleString('ko-KR'))}</span><div class="sr-version-actions">${actions.map(([action, label]) => action==='apply'&&applied?'<span class="sr-record-applied" role="status" title="다음 인물 판독에 사용하는 파일입니다">✓ 적용 중</span>':`<button type="button" class="menu_button" data-record-action="${action}" data-record-group="${esc(bundle.id)}" data-record-version="${esc(version.id)}">${label}</button>`).join('')}</div></div>`;
             }).join('');
             const nameAction = person.entry ? `data-character-view-kind="${esc(kind)}" data-character-view-id="${esc(person.id)}"` : `data-record-action="view" data-record-group="${esc(bundle.id)}" data-record-version="${esc(person.versions[0].id)}"`;
             const npcToggle = kind === 'npc' && person.entry ? `<label class="sr-npc-affect-toggle"><input type="checkbox" data-npc-affect-id="${esc(person.id)}" ${person.entry.trackArousal ? 'checked' : ''}><span>성적 충동·자제력 추가 판독</span></label>` : '';
             const deleteButton = `<button type="button" class="menu_button sr-record-person-delete" data-record-action="delete-person" data-person-kind="${esc(kind)}" data-person-id="${esc(person.id)}" aria-label="${esc(person.name)} 인물 삭제">인물 삭제</button>`;
             return `<div class="sr-record-person"><div class="sr-record-person-heading"><button type="button" class="sr-record-person-name" ${nameAction}>${esc(person.name)}</button>${deleteButton}</div><small>${person.versions.length ? `${person.versions.length}개 저장본` : '저장된 판독시트 없음'}</small>${npcToggle}<div class="sr-record-person-versions">${versions}</div></div>`;
         }).join('');
-        return `<details class="sr-record-bundle" data-record-bundle="${esc(bundle.id)}" ${previous.get(bundle.id) !== false ? 'open' : ''}><summary><span>${esc(bundle.name)}</span><small>${bundle.people.length}명</small></summary><div class="sr-record-bundle-people">${people}</div></details>`;
+        const add=bundle.people.some(person=>person.entry)?`<button type="button" class="menu_button sr-record-add-file" data-record-action="add-file" data-record-group="${esc(bundle.id)}" aria-label="${esc(bundle.name)}에 파일 추가">＋ 파일</button>`:'';
+        return `<details class="sr-record-bundle" data-record-bundle="${esc(bundle.id)}" ${previous.get(bundle.id) !== false ? 'open' : ''}><summary><span>${esc(bundle.name)}</span><small>${bundle.people.length}명</small>${add}</summary><div class="sr-record-bundle-people">${people}</div></details>`;
     }).join('') || '<p class="sr-help">저장된 인물이 없습니다.</p>';
 }

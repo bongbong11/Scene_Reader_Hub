@@ -16,11 +16,12 @@ function putEntry(store, entry) {
 export function bankOutput(bank) {
     return {entity_type:bank.entity_type,entity_name:bank.entity_name,...(bank.source_set_id?{source_set_id:bank.source_set_id}:{}),intimacy_reference:structuredClone(bank.intimacy_reference || {text:'',source_ids:[]}),records:structuredClone(bank.records)};
 }
-export function archiveRecordVersion(store, entry, saveName) {
+export function archiveRecordVersion(store, entry, saveName, groupId) {
     const name=String(saveName || '').trim();
     if (!name) throw new Error('저장 이름을 입력하세요.');
     store.recordGroups ||= [];
-    let group=store.recordGroups.find(g=>g.kind===entry.kind && normalized(g.name)===normalized(name));
+    let group=groupId?store.recordGroups.find(g=>g.id===groupId&&g.kind===entry.kind):store.recordGroups.find(g=>g.kind===entry.kind && normalized(g.name)===normalized(name));
+    if(groupId&&!group)throw new Error('저장할 묶음을 찾지 못했습니다. 다시 열어 주세요.');
     if (!group) { group={id:uid(),kind:entry.kind,name,versions:[]}; store.recordGroups.push(group); }
     const entrySnapshot=Object.fromEntries(['id','kind','name','aliases','source','sourceHash','selectedLore','sourceVisibleToMain','npcRole','antagonist','trackArousal','provenance','cardCast'].filter(key=>Object.hasOwn(entry,key)).map(key=>[key,structuredClone(entry[key])]));
     const version={id:uid(),savedAt:new Date().toISOString(),entryId:entry.id,entityName:entry.name,entrySnapshot,bank:structuredClone(entry.recordBank)};

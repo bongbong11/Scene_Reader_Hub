@@ -1,3 +1,4 @@
+import {checkRecordFiles} from './browser-record-files.mjs';
 import {checkReplacementTool} from './browser-replacement-tool.mjs';
 import {checkRoomBackups} from './browser-room-backups.mjs';
 import {checkCharacterDeletion} from './browser-character-deletion.mjs';
@@ -131,7 +132,7 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#scene-reader-quick-button').waitFor();
     await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
-    if(process.env.SR_BROWSER_CASE==='replacement'){await checkReplacementTool(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Replacement-only browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='opportunity'){await page.locator('#scene-reader-quick-button').click();await checkOpportunitySettings(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Opportunity-only browser checks passed.');}else{
+    if(process.env.SR_BROWSER_CASE==='replacement'){await checkReplacementTool(page,store,requests,setViewportSize,root);await checkRecordFiles(page,store,setViewportSize);assert.deepEqual(errors,[]);console.log('Replacement-only browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='opportunity'){await page.locator('#scene-reader-quick-button').click();await checkOpportunitySettings(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Opportunity-only browser checks passed.');}else{
     const inferenceRequests=()=>requests.filter(item=>/systemone|\/api\/vector\/|chat-completions\/generate/.test(item.url)).length;
     assert.equal(inferenceRequests(),0,'startup performs no inference or embedding');
     assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
@@ -1031,7 +1032,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await checkRoomBackups(page,setViewportSize);
     await checkCommonPreferences(page,store,requests);
     for(const id of ['sr-analysis-now','sr-evolution-results','sr-continuity-interval','sr-history-now','sr-change-dialog'])assert.equal(await page.locator('#'+id).count(),0,'removed collection UI');
-    await checkReplacementTool(page,store,requests,setViewportSize,root);
+    await checkReplacementTool(page,store,requests,setViewportSize,root);await checkRecordFiles(page,store,setViewportSize);
     await checkCharacterDeletion(page,store,requests,setViewportSize);
     console.log('Browser passed: desktop/mobile/landscape × 5 panels, bottom reachability, mouse/touch drag resize, fitting child dialogs, size persistence, character/world save, native vector retrieval, integrated key settings, two Jev calls, seasonal context, NSFW pause/resume, OOC, delete, clipboard.');
     }

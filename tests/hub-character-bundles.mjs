@@ -7,6 +7,7 @@ import { selectActiveEntries } from '../src/character/selection.js';
 import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../src/character/live.js';
 import { stateRoster } from '../src/character/state-collector.js';
 import { recordBundleRows, renderRecordBundles } from '../src/ui/record-bundles.js';
+import {addRecordFile} from '../src/character/record-file.js';
 const names=['Aster','Briar','Cedar'];
 const form={kind:'character',name:'The Archive',castNames:names,importMode:'multi',source:'Aster keeps the north key. Briar tends the south garden. Cedar guards the east bridge.',selectedLore:[],sourceVisibleToMain:true};
 const person=name=>({entity_type:'character',entity_name:name,intimacy_reference:{text:'',source_ids:[]},records:[{type:'core',target:'self',when:['quiet conversation'],rule:`${name} prefers ${name}-only-markers.`,modality:'preference',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}]});
@@ -56,3 +57,18 @@ renderRecordBundles({getElementById:()=>root,querySelectorAll:()=>[]},reloaded,s
 assert.match(root.innerHTML,/Archive file/);assert.match(root.innerHTML,/3명/);
 assert.equal((root.innerHTML.match(/class="sr-record-person"/g)||[]).length,3);
 console.log('Character bundles passed: one-file atomic import, grouped history, independent banks/IDs/presence/injection/state, duplicate/missing/malformed rejection, restore and unchanged single prompt.');
+
+const groupId=reloaded.recordGroups[0].id;
+const added=addRecordFile(reloaded,groupId,a.id,person('Aster Jr'));
+assert.equal(JSON.stringify(reloaded),snapshot);assert.equal(added.store.recordGroups.length,1);assert.equal(added.store.characters.length,3);assert.equal(added.entry.id,a.id);assert.equal(added.entry.name,'Aster');assert.ok(added.entry.aliases.includes('Aster Jr'));assert.equal(added.entry.recordBank.entity_name,'Aster');assert.ok(recordBankIsCurrent(added.entry));assert.equal(added.store.recordGroups[0].versions.length,4);
+assert.deepEqual(added.store.characters.filter(e=>e.id!==a.id),reloaded.characters.filter(e=>e.id!==a.id));
+const appliedOld=applyRecordVersion(added.store,groupId,older.id);assert.ok(recordBankIsCurrent(appliedOld.entry));assert.equal(appliedOld.entry.appliedRecordVersion,older.id);
+renderRecordBundles({getElementById:()=>root,querySelectorAll:()=>[]},added.store,s=>String(s).replaceAll('<','&lt;'));
+assert.match(root.innerHTML,/<summary>[\s\S]*?data-record-action="add-file"[\s\S]*?<\/summary>/);assert.equal((root.innerHTML.match(/✓ 적용 중/g)||[]).length,3);assert.ok(root.innerHTML.includes(`data-record-action="apply" data-record-group="${groupId}" data-record-version="${older.id}"`));
+for(const bad of [file,person('Briar'),{...person('Aster'),entity_type:'npc'},{...person('Aster'),records:[{rule:'bad'}]}])assert.throws(()=>addRecordFile(reloaded,groupId,a.id,bad));
+assert.throws(()=>addRecordFile(reloaded,'wrong',a.id,person('Aster')));assert.equal(JSON.stringify(reloaded),snapshot);
+const unversioned=structuredClone(reloaded);unversioned.recordGroups=[];assert.equal(addRecordFile(unversioned,`unversioned:${a.id}`,a.id,person('Aster alt')).store.recordGroups.length,1);
+for(const kind of ['persona','npc']){const single=importRecordBundle(empty,{...person('First'),entity_type:kind},'Saved folder');const extra=addRecordFile(single.store,single.store.recordGroups[0].id,single.entry.id,{...person('First alternative spelling'),entity_type:kind});assert.equal(extra.entry.id,single.entry.id);assert.equal(extra.store.recordGroups.length,1);assert.ok(recordBankIsCurrent(extra.entry));}
+const packed={...person('Aster alt'),pagedRecords:{count:100},storageRefs:['part'],recordIndices:[0],seedRecords:person('Aster alt').records,seedIndices:[0]};
+const pagedAdd=addRecordFile(reloaded,groupId,a.id,packed,[packed]);assert.equal(pagedAdd.entry.recordBank.pagedRecords.count,100);assert.deepEqual(pagedAdd.store.recordGroups[0].versions[0].bank,pagedAdd.entry.recordBank);
+console.log('Existing group file import passed: stable person/group identity, dates, old versions, active marker, spelling aliases, other people, persona/NPC, invalid rollback and paged references.');
