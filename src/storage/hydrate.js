@@ -41,6 +41,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     if (saved.global && typeof saved.global === 'object') {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
         delete deps.settings.continuityInterval;delete deps.settings.collectPersonaChanges;
+        delete deps.settings.characterReviewPrompt;
         delete deps.settings.pauseOnOoc;
         delete deps.settings.jevProvider;
         if (deps.settings.commonPreferences) deps.settings.commonPreferences=commonPreferences(deps.settings.commonPreferences);

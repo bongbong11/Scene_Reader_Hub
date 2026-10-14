@@ -4,9 +4,22 @@ import {defaultCharacterStore} from '../src/character/store.js';
 
 export async function checkRecordFiles(page,store,setViewportSize){
  const original=structuredClone(store);
+ const originalUnlock=await page.evaluate(()=>localStorage.getItem('scene-reader-owner-unlocked-v1'));
  const person=name=>({entity_type:'character',entity_name:name,intimacy_reference:{text:'',source_ids:[]},records:[{type:'core',target:'self',when:['quiet conversation'],rule:`${name} prefers quiet conversation.`,modality:'preference',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}]});
  try{
   const result=importRecordBundle(defaultCharacterStore(),{entities:[person('Aster'),person('Briar')]},'Shared folder');store.characters=result.store;
+  for(const unlocked of [false,true]){
+   store.settings.global.ownerUnlocked=unlocked;
+   if(store.settings.owner)store.settings.owner.unlocked=unlocked;
+   await page.evaluate(()=>localStorage.removeItem('scene-reader-owner-unlocked-v1'));
+   store.settings.global.characterReviewPrompt='An obsolete audit instruction';
+   await page.reload();await page.locator('#scene-reader-quick-button').click();await page.locator('[data-sr-tab="characters"]').click();
+   assert.equal(await page.locator('#sr-replacement-tools, #sr-replacement-open, .sr-replacement-dialog').count(),0,'removed audit has no ordinary or developer entry point');
+   assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0,'opening character tools does not call a model');
+   assert.equal(await page.locator('#sr-hub-trace-panel').isVisible(),unlocked,'other developer features still follow the lock');
+  }
+  store.settings.global.ownerUnlocked=false;
+  if(store.settings.owner)store.settings.owner.unlocked=false;
   await page.reload();await page.locator('#scene-reader-quick-button').click();await page.locator('[data-sr-tab="characters"]').click();
   const root=page.locator('#sr-character-versions'),bundle=root.locator('.sr-record-bundle'),initialCount=store.characters.recordGroups[0].versions.length;
   const groupId=store.characters.recordGroups[0].id,actorId=store.characters.characters[0].id,olderId=store.characters.characters[0].appliedRecordVersion;
@@ -15,7 +28,10 @@ export async function checkRecordFiles(page,store,setViewportSize){
   await dialog.locator('[data-person]').selectOption(actorId);
   const upload=async name=>{await dialog.locator('[data-file]').setInputFiles({name:'updated.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(person(name)))});await dialog.locator('[data-status]').filter({hasText:'저장 전'}).waitFor();};
   await upload('Aster alternate');assert.equal(store.characters.recordGroups[0].versions.length,initialCount,'selecting a file does not save it');
-  await setViewportSize({width:320,height:640});assert.equal(await dialog.evaluate(el=>el.scrollWidth>el.clientWidth+1),false);assert.equal(await dialog.evaluate(el=>el.getBoundingClientRect().height<=innerHeight),true);
+  for(const size of [{width:320,height:640},{width:390,height:844},{width:844,height:390}]){
+   await setViewportSize(size);assert.equal(await dialog.evaluate(el=>el.scrollWidth>el.clientWidth+1),false);assert.equal(await dialog.evaluate(el=>el.getBoundingClientRect().height<=innerHeight),true);
+   assert.equal(await dialog.evaluate(el=>getComputedStyle(el).display),'flex','file dialog retains its own layout after audit removal');
+  }
   const fail=route=>route.fulfill({status:500,json:{error:'Synthetic failed write'}});await page.route('**/storage/characters',fail);await dialog.locator('[data-save]').click();await dialog.locator('[data-status]').filter({hasText:'저장되지 않음'}).waitFor();assert.equal(store.characters.recordGroups[0].versions.length,initialCount);assert.equal(store.characters.characters[0].appliedRecordVersion,olderId);await page.unroute('**/storage/characters',fail);
   await dialog.locator('[data-save]').click();await dialog.waitFor({state:'hidden'});
   assert.equal(store.characters.characters.length,2);assert.equal(store.characters.recordGroups.length,1);assert.equal(store.characters.recordGroups[0].id,groupId);assert.equal(store.characters.recordGroups[0].versions.length,initialCount+1);assert.equal(store.characters.characters[0].id,actorId);assert.equal(store.characters.characters[0].name,'Aster');
@@ -27,6 +43,6 @@ export async function checkRecordFiles(page,store,setViewportSize){
   await dialog.locator('[data-file]').setInputFiles({name:'wrong-person.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(person('Briar')))});await dialog.locator('[data-status]').filter({hasText:'다른 저장 인물'}).waitFor();assert.equal(await dialog.locator('[data-save]').isDisabled(),true);
   await dialog.locator('[data-close]').click();
   assert.equal(await root.evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
-  console.log('Record file UI passed: top-level add, owner choice, spelling variation, staged import, failed save retention, active marker switch and mobile fit.');
- }finally{Object.assign(store,original);await setViewportSize({width:1280,height:900});await page.reload();}
+  console.log('Record file UI passed: no audit or unsolicited calls, developer lock retained, top-level add, owner choice, staged import, failed save retention, active marker switch and mobile fit.');
+ }finally{Object.assign(store,original);await page.evaluate(value=>{if(value===null)localStorage.removeItem('scene-reader-owner-unlocked-v1');else localStorage.setItem('scene-reader-owner-unlocked-v1',value);},originalUnlock);await setViewportSize({width:1280,height:900});await page.reload();}
 }

@@ -5,6 +5,7 @@ export function createStartup(deps) {
 async function init() {
     deps.settings = { ...deps.DEFAULTS, ...(deps.extension_settings[deps.MODULE] || {}) };
     delete deps.settings.continuityInterval;delete deps.settings.collectPersonaChanges;
+    delete deps.settings.characterReviewPrompt;
     delete deps.settings.pauseOnOoc;
     for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
     deps.settings.recentTurns = recentTurnCount(deps.settings);

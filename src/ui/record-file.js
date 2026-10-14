@@ -11,8 +11,8 @@ export function openRecordFile(deps,groupId,persist){
  const people=bundle?.people.filter(person=>person.entry)||[];
  if(!people.length)throw new Error('파일을 추가할 인물이 없습니다. 인물을 먼저 등록하세요.');
  const room=deps.stateChatKey(),metadata=deps.getContext().chatMetadata,view=deps.document.createElement('dialog');
- view.className='sr-replacement-dialog sr-record-file-dialog';
- view.innerHTML='<header><h3></h3><button type="button" data-close aria-label="닫기">×</button></header><div class="sr-replacement-body"><label>파일을 추가할 인물<select data-person class="text_pole"></select></label><p class="sr-help">이 묶음 안에 새 날짜로 저장하고 적용합니다. 이전 파일은 남아 있습니다. JSON의 이름 표기가 달라도 선택한 인물 아래에 저장합니다.</p><input data-file type="file" accept=".json,application/json" hidden><div class="sr-replacement-actions"><button type="button" data-pick class="menu_button">JSON 파일 선택</button><button type="button" data-save class="menu_button" disabled>저장·적용</button></div><p data-status class="sr-help" role="status">선택한 인물 한 명의 JSON 파일을 올려 주세요.</p></div>';
+ view.className='sr-record-file-dialog';
+ view.innerHTML='<header><h3></h3><button type="button" data-close aria-label="닫기">×</button></header><div class="sr-record-file-body"><label>파일을 추가할 인물<select data-person class="text_pole"></select></label><p class="sr-help">이 묶음 안에 새 날짜로 저장하고 적용합니다. 이전 파일은 남아 있습니다. JSON의 이름 표기가 달라도 선택한 인물 아래에 저장합니다.</p><input data-file type="file" accept=".json,application/json" hidden><div class="sr-record-file-actions"><button type="button" data-pick class="menu_button">JSON 파일 선택</button><button type="button" data-save class="menu_button" disabled>저장·적용</button></div><p data-status class="sr-help" role="status">선택한 인물 한 명의 JSON 파일을 올려 주세요.</p></div>';
  const $=s=>view.querySelector(s),select=$('[data-person]'),note=$('[data-status]');
  $('h3').textContent=bundle.name+' · 파일 추가';
  for(const person of people){const option=deps.document.createElement('option');option.value=person.id;option.textContent=person.entry.name;select.append(option);}

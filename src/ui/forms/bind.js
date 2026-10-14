@@ -1,6 +1,5 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
 import {normalizeChance} from '../../scene/opportunity-settings.js';
-import {bindReplacementTool} from '../replacement-tool.js';
 import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
 import {backupSource, backupFilename} from '../../storage/backup-label.js';
 import {openBackupCharacters} from '../backup-characters.js';
@@ -21,7 +20,6 @@ import {SEASONAL_OPTIONS} from "../../world/seasonal.js";
 
 export function createFormBindings(deps) {
 function bindForm() {
-    bindReplacementTool(deps);
     bindPresetSlots(deps);
     bindOpportunitySettings(deps);
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());
