@@ -1,5 +1,6 @@
 import { fixedEmbeddingModel, VERTEX_EMBEDDING_REGION } from './connection-settings.js';
-import { withRequestLifetime, createRequestQueue } from '../adapters/request-lifetime.js';
+import { withRequestLifetime } from '../adapters/request-lifetime.js';
+import {createRetrievalSchedule} from './scheduling.js';
 import { requestFailure } from '../adapters/failure-info.js';
 import { createEmbeddingCredentialDiagnostics, embeddingCredentialStore } from './credentials.js';
 import {hash32,hash53,queryText,recordText} from './identity.js';
@@ -19,8 +20,14 @@ const status = error => String(error?.message || error || '검색 오류').slice
 
 export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, onProgress = () => {}, onDiagnostic = () => {}, timeoutMs = 60000, requestTimeouts = {} }) {
     const queries = new Map();
+    let cacheEpoch=0;
+    function invalidateQueries(collectionId) {
+        cacheEpoch++;
+        if(!collectionId){queries.clear();return;}
+        for(const [key,value] of queries)if(value.collectionId===collectionId)queries.delete(key);
+    }
     let maintenanceCount=0;
-    const enqueue = createRequestQueue();
+    const schedule = createRetrievalSchedule();
     const budgets = {list:15000, insert:45000, delete:15000, query:15000, ...requestTimeouts};
     const report = detail => { try { onDiagnostic(detail); } catch { /* diagnostics cannot affect requests */ } };
     const credentials=createEmbeddingCredentialDiagnostics({fetch,getRequestHeaders,onDiagnostic:report});
@@ -41,11 +48,12 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             region:body.vertexai_region || 'default'};
         report({...detail,status:'started'});
         try {
-            const result = await enqueue(() => withRequestLifetime(async requestSignal => {
+            const result = await schedule.request(() => withRequestLifetime(async requestSignal => {
+                if(route==='insert'||route==='delete')invalidateQueries(body.collectionId);
                 const response = await fetch(`/api/vector/${route}`, { method:'POST', headers:getRequestHeaders(), body:JSON.stringify(body), signal:requestSignal });
                 if (!response.ok) throw Object.assign(new Error(`SillyTavern 검색 연결 오류 (${response.status})`), {code:'RETRIEVAL_HTTP_ERROR',httpStatus:response.status});
                 return route === 'insert' || route === 'delete' ? null : await response.json();
-            }, {signal, timeoutMs:recovery?Math.max(budgets[route],60000):budgets[route], timeoutMessage:'검색 연결 시간이 초과되었습니다.'}), signal);
+            }, {signal, timeoutMs:recovery?Math.max(budgets[route],60000):budgets[route], timeoutMessage:'검색 연결 시간이 초과되었습니다.'}), {signal,exclusive:body.source==='transformers'||route==='insert'||route==='delete'});
             signal?.throwIfAborted();
             report({...detail,status:'succeeded',durationMs:Date.now()-started});
             return result;
@@ -133,18 +141,22 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 validate();
                 const verified = new Set(Array.isArray(saved)?saved.map(Number):[]);
                 if (!Array.isArray(saved) || [...entries.keys()].some(hash=>!verified.has(hash))) throw new Error('임베딩 저장 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
-                queries.clear();
+                invalidateQueries(collectionId);
                 report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'succeeded',bankHash:hash32(bankId),...indexCounts,forceRebuild});
                 return {indices:[],status:'rebuilt',recordCount:entries.size,...indexCounts};
             }
-            if (options.source !== 'transformers' && queries.has(cacheKey) && !indexCounts.generatedCount) return { indices: queries.get(cacheKey), status: 'cached' };
+            if (options.source !== 'transformers' && queries.has(cacheKey) && !indexCounts.generatedCount) {
+                report({module:'src/retrieval/vectors.js',phase:'query_cache',status:'succeeded',provider:options.source,bankHash:hash32(collectionId)});
+                return { indices: [...queries.get(cacheKey).indices], status: 'cached' };
+            }
             progress({kind, phase:'querying'});
+            const queryEpoch=cacheEpoch;
             const result = await post('query', { ...body, searchText: queryText(transcript), topK: Math.min(limit, items.length), threshold: 0.01 }, bounded.signal,recovery);
             // The native API returns sorted metadata, but no numeric similarity scores.
             // Never use its unfiltered hashes as accepted matches.
             if (!Array.isArray(result?.metadata)) throw new Error('검색 결과 형식 오류');
             const indices = [...new Set(result.metadata.map(value => entries.get(Number(value.hash))?.index).filter(Number.isInteger))].slice(0,limit);
-            queries.set(cacheKey, indices);
+            if(queryEpoch===cacheEpoch)queries.set(cacheKey, {indices:[...indices],collectionId});
             if (queries.size > 48) queries.delete(queries.keys().next().value);
             return { indices, status: 'ready' };
         } catch (error) {
@@ -201,10 +213,15 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             }
             validate();if(entries.size!==count)throw new Error('일부 인물 기록을 읽지 못해 임베딩 완료로 처리하지 않았습니다.');
             const actual=await post('list',body,signal,true),verified=new Set(Array.isArray(actual)?actual.map(Number):[]);if(!Array.isArray(actual)||[...entries].some(hash=>!verified.has(hash)))throw new Error('임베딩 저장 결과를 확인하지 못했습니다. 다시 시도해 주세요.');
-            const stale=[...savedHashes].filter(hash=>!entries.has(hash));if(stale.length){validate();await post('delete',{...body,hashes:stale},signal,true);}queries.clear();
+            const stale=[...savedHashes].filter(hash=>!entries.has(hash));if(stale.length){validate();await post('delete',{...body,hashes:stale},signal,true);}invalidateQueries(body.collectionId);
             report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'succeeded',bankHash:hash32(bankId),totalCount:count,reusedCount,generatedCount,forceRebuild});return {status:'rebuilt',recordCount:count,reusedCount,generatedCount};
         }catch(error){if(signal?.aborted)throw signal.reason||error;return {status:'fallback',code:error.code||'EMBEDDING_REBUILD_FAILED',error:status(error)};}
         finally{maintenanceCount--;}
     }
-    return { search, searchPaged, rebuildPaged, rebuild:options=>search({...options,indexOnly:true,forceRebuild:options.forceRebuild===true,recovery:true}), test, config, clear: () => {queries.clear();credentials.clear();} };
+    // Lock the whole read/sync/query sequence, not individual requests. A second
+    // caller then sees the completed index and can reuse an identical query.
+    const inBank=(operation,options)=>schedule.bank(JSON.stringify([options.kind,options.bankId]),()=>operation(options),options.signal);
+    return { search:options=>inBank(search,options), searchPaged:options=>inBank(searchPaged,options), rebuildPaged:options=>inBank(rebuildPaged,options),
+        rebuild:options=>inBank(search,{...options,indexOnly:true,forceRebuild:options.forceRebuild===true,recovery:true}),
+        test:signal=>schedule.bank('connection-test',()=>test(signal),signal), config, clear: () => {invalidateQueries();credentials.clear();} };
 }
