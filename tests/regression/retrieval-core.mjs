@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { createRecordBank, currentRecords, compilerRequest, recordBankIsCurrent } from '../../src/characters/records.js';
-import { currentProfileItems, buildLiveCharacterPlan, normalizeCharacterStore } from '../../character-library.js';
+import { createRecordBank, currentRecords, compilerRequest, recordBankIsCurrent } from '../../src/character/records.js';
+import { currentProfileItems, buildLiveCharacterPlan, normalizeCharacterStore } from '../../src/character/index.js';
 import { validateImport, compileResult } from '../../src/vendor/character-reasoner/index.js';
 import { fixture } from './audit-v012.mjs';
 

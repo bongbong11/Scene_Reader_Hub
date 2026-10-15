@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { selectExecutionCorrectionKeys, EXECUTION_CORRECTION_LIMIT } from '../../src/scene/correction-selection.js';
 import { selectExecutionCorrections, buildInjection } from '../../prompt-library.js';
-import { buildContinuityInjection } from '../../continuity-engine.js';
-import { buildLiveCharacterPlan, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/characters/live.js';
-import { createRecordBank } from '../../src/characters/records.js';
-import { selectActiveEntries } from '../../src/characters/selection.js';
-import { npcRecordLimit } from '../../src/characters/volume.js';
-import { selectRecordCandidates } from '../../src/characters/record-selection.js';
+import { buildContinuityInjection } from '../../src/continuity/engine.js';
+import { buildLiveCharacterPlan, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/live.js';
+import { createRecordBank } from '../../src/character/records.js';
+import { selectActiveEntries } from '../../src/character/selection.js';
+import { npcRecordLimit } from '../../src/character/volume.js';
+import { selectRecordCandidates } from '../../src/character/record-selection.js';
 
 const diagnoses = {npc_knowledge_fit:'overreach', directive_followthrough:'missed', action_evasion:'yes', scene_cutoff:'yes', user_handoff:'yes', circularity:'yes', refusal_stall:'yes', input_echo:'yes', repetitive_ending:'yes', hesitation_drag:'yes', npc_followthrough:'partial'};
 const keys=Object.keys(diagnoses), protectedKeys=['npc_knowledge_fit','refusal_stall','user_handoff','repetitive_ending'];

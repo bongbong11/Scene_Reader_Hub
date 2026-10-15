@@ -146,7 +146,7 @@ export function applyContinuityVerdicts(continuity, candidates, decisions, { opp
     return { continuity: next, accepted };
 }
 
-export function buildContinuityInjection(selected, chosenFollowup = null) {
+export function buildContinuityInjection(selected, chosenFollowup = null, eventFollowups = []) {
     const lines = [];
     const usable = (value, max) => { const text = String(value || '').trim(); return text && text.length <= max ? text : ''; };
     for (const item of selected?.items || []) {
@@ -160,5 +160,9 @@ export function buildContinuityInjection(selected, chosenFollowup = null) {
     for (const item of selected?.dependencies || []) lines.push(`${short(item.stateId, 60)} remains in its established lifecycle; pressure=${item.pressure}${item.reason?`; ${short(item.reason,160)}`:''}.`);
     const action = usable(chosenFollowup?.data?.action, 180);
     if (action) lines.push(`Carry the selected established thread forward: ${action}. Perform its next supported step within the current interaction; do not claim an unseen action already happened.`);
+    for(const item of eventFollowups.slice(0,1)) {
+        const step=usable(item.data?.action,180);
+        if(step&&item.id!==chosenFollowup?.id)lines.push(`Within the selected event, carry out its established next step: ${step}. This supports that event, not a second plot; do not claim an unseen completion.`);
+    }
     return lines.length ? `<CONTINUITY_CONTEXT>\n${lines.join('\n')}\nTreat pressure as context, not a completed off-screen action.\n</CONTINUITY_CONTEXT>` : '';
 }

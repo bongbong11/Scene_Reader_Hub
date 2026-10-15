@@ -38,6 +38,18 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
         if(expected.slotResults)receipt.slots=expected.slotResults.map(item=>`${item.kind}:${item.status}${item.reason?':'+item.reason:''}`);
         for(const kind of ['scene','world'])if(expected[kind+'Preset'] && receipt[kind]!=='not_expected' && expected.slotResults?.find(item=>item.kind===kind)?.status==='missing')receipt[kind]='unconfirmed';
         report('injection.consume','PROMPT_OBSERVED',receipt);
+        if(phase==='request') {
+            const rec=getRecord();
+            if(rec?.lastJudgment?.payload===expected.payload && rec.lastJudgment.cast?.length) {
+                const delivery=receipt.scene==='confirmed'?'request_included':receipt.scene==='unconfirmed'?'request_missing':'request_unobservable';
+                if(rec.pendingPlan?.judgment?.payload===expected.payload)for(const actor of rec.pendingPlan.cast||[])actor.delivery=delivery;
+                const marker=`${receipt.cycleId}:cast:${delivery}`;
+                if(!reported.has(marker)) {
+                    reported.add(marker);
+                    report('injection.consume','EVENT_CAST_RECEIPT',{module:'src/injection/receipt.js',count:rec.lastJudgment.cast.length,reasonCode:delivery,status:delivery==='request_missing'?'degraded':'info'});
+                }
+            }
+        }
         if(phase==='request')for(const item of receipt.activity) {
             const marker=`${receipt.cycleId}:activity:${item.id}:${item.status}`;
             if(reported.has(marker))continue;

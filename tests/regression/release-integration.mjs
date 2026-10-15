@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fixture } from './audit-v012.mjs';
-import { createRecordBank } from '../../src/characters/records.js';
-import { FALLBACKS } from '../../src/scene/policy.js';
+import { createRecordBank } from '../../src/character/records.js';
+import { FALLBACKS } from '../../src/decision/answers.js';
 
 const world={id:'audit-world',name:'Archive',hint:'An archive whose sealed gate responds to a token.',prompt:'WORLD_FIXED_SENTINEL',advanced:{version:1,records:[
     {id:'W1',category:'mechanism',when:'A token touches the gate.',keywords:['token'],rule:'WORLD_SELECTED_SENTINEL: a token opens the gate.',source_quote:'SOURCE_QUOTE_NOT_FOR_JEV'},

@@ -71,6 +71,7 @@ function renderJudgment() {
     if (d.misfortune === 'yes') conflictApplied.push('유저 불운');
     if (deps.record()?.preferences?.privatePromptEnabled && deps.ownerPrompt()) conflictApplied.push('제작자 전용');
     const actionPlan = judgment.actionPlan || d.action_plan || {};
+    const cast=deps.record()?.pendingPlan?.inputKey===judgment.inputKey ? deps.record().pendingPlan.cast||judgment.cast : judgment.cast;
     const excludedRoutes = (actionPlan.excluded || []).map((item) => `${item.label}: ${item.reason}`).join(' / ');
     summary.innerHTML = [
         ...opportunityRows(judgment,deps.record()?.lastOpportunityVerification||[]),
@@ -82,6 +83,8 @@ function renderJudgment() {
         ['사건', `${resultLabel('progression_move', d.progression_move)} · ${resultLabel('resolution_pacing', d.resolution_pacing)} · ${resultLabel('event_valence', d.event_valence)}`],
         ...(deps.record()?.preferences?.advancedEnabled ? [['고급 전개', `${resultLabel('advanced_route', d.advanced_route)} · ${resultLabel('advanced_element', d.advanced_element)} · ${resultLabel('advanced_move', d.advanced_move)}`]] : []),
         ['NPC', npcText],
+        ...(cast?.length?[['사건 담당 인물',cast.map(item=>item.kind==='unresolved'?'담당 인물 미확정':`${item.name||({current_cast:'현재 인물',scene_existing:'기존 RP 인물'}[item.kind])||'사건 인물'} · ${item.delivery==='request_included'?'요청 포함':item.delivery==='request_missing'?'전달 확인 필요':'행동 준비'}`).join(' / ')]]:[]),
+        ...(judgment.priorVerification?.cast?.length?[['지난 사건 인물 행동',judgment.priorVerification.cast.map(item=>({fulfilled:'실행 확인',partial:'일부 실행',missed:'미이행'}[item.verification]||'미확인')).join(' / ')]]:[]),
         ['갈등용', conflictApplied.length ? conflictApplied.join(' · ') : '미적용'],
         ['기본 진행', resultLabel('basic_move', d.basic_move)],
         ['실행 교정', correctionIssues ? `${correctionIssues}개 감지 · ${appliedCorrections}개 우선 적용` : '문제 없음'],

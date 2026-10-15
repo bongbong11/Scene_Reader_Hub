@@ -1,4 +1,21 @@
 import { normalizeCharacterStore } from "./store.js";
+import {currentRecords} from './records.js';
+
+// Future actors are ranked independently of current-scene participation.
+// Only applied compiled records are inspected; old versions/source sheets stay out.
+export function selectEventCast(entries, query, {limit=3}={}) {
+    const wanted=terms(query);
+    return (entries || []).filter(entry=>entry.kind==='npc').map(entry=>{
+        const records=currentRecords(entry);
+        const score=records.reduce((best,item)=>{
+            const tokens=terms([item.target,item.when,item.rule].join(' '));
+            let hit=0; for(const word of wanted) if(tokens.has(word))hit++;
+            return Math.max(best,hit);
+        },0);
+        return {entry,score,valid:records.length>0};
+    }).filter(item=>item.valid).sort((a,b)=>b.score-a.score || String(a.entry.id).localeCompare(String(b.entry.id)))
+        .slice(0,limit).map(item=>item.entry);
+}
 export function chunkSheet(source, maxChars = 1400) {
     const paragraphs = String(source || '').split(/\n\s*\n/).map((v) => v.trim()).filter(Boolean);
     const chunks = [];

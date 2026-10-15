@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createRecordBank } from '../../src/characters/records.js';
-import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/characters/live.js';
+import { createRecordBank } from '../../src/character/records.js';
+import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/live.js';
 
 const record=(index,rule)=>({type:index%2?'relationship':'expression',target:'self',when:['general conversation'],rule,modality:'habit',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'});
 const entry={id:'c',kind:'character',name:'Casey',source:'Casey has established speech and relationship habits.',selectedLore:[],sourceVisibleToMain:true};

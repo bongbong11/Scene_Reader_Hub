@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { normalizeDevelopmentPreferences, buildQuestions, buildInjection, buildPausedInjection } from '../../prompt-library.js';
-import { applyPolicy, FALLBACKS } from '../../src/scene/policy.js';
+import { applyPolicy, FALLBACKS } from '../../src/decision/answers.js';
 import { coordinateDecisions, coordinateActionBudget, deriveDependentDecisions } from '../../src/scene/coordinator.js';
 import { makeAppearanceOffer, addAppearanceQuestions, applyAppearanceOffer } from '../../src/scene/appearance.js';
 import { createDraws } from '../../src/scene/draws.js';
-import { createRecordBank } from '../../src/characters/records.js';
-import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../character-library.js';
+import { createRecordBank } from '../../src/character/records.js';
+import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/index.js';
 import { fixture } from './audit-v012.mjs';
 import {PROGRESS_BOOST} from '../../src/injection/world-agency.js';
 

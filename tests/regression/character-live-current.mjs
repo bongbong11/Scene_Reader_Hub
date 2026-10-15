@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fixture } from './audit-v012.mjs';
-import { createRecordBank } from '../../src/characters/records.js';
-import { FALLBACKS } from '../../src/scene/policy.js';
+import { createRecordBank } from '../../src/character/records.js';
+import { FALLBACKS } from '../../src/decision/answers.js';
 
 function person(kind, name) {
     const entry = { id:kind, kind, name, npcRole:kind==='npc'?'mixed':'', source:`Name: ${name}. RAW_SOURCE_SENTINEL`, sourceHash:'saved', sourceVisibleToMain:true,

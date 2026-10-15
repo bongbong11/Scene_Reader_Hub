@@ -1,3 +1,4 @@
+import {waitForIdle} from '../lifecycle/jobs.js';
 import {createAnalysisScheduler} from './analysis-scheduler.js';
 import {analysisRequestBudget} from './request-budget.js';
 import {sourceRp,messageRef,validateSourceRefs} from './source-refs.js';
@@ -22,17 +23,9 @@ export function createAuxiliaryRuntime(deps){
  const {commitSession}=createSessionTransaction(deps);
  const scheduler=createAnalysisScheduler({onError:e=>report('analysis_failed',{status:'failed',reasonCode:analysisFailureCode(e)}),onSettled:()=>deps.renderAll()});
  const observed=new Map();let stopped=false,cancellationToken=0;
- async function idle(signal){
-  if(deps.hub.snapshot().state.status!=='running')return;
-  await new Promise((resolve,reject)=>{
-   let unsubscribe=()=>{},timer;
-   const finish=error=>{unsubscribe();clearTimeout(timer);signal.removeEventListener('abort',abort);error?reject(error):resolve();};
-   const abort=()=>finish(Object.assign(new Error('보조 분석 취소'),{name:'AbortError'}));
-   unsubscribe=deps.hub.subscribe(()=>{if(deps.hub.snapshot().state.status!=='running')finish();});
-   timer=setTimeout(()=>finish(Object.assign(new Error('보조 분석 대기 시간 초과'),{code:'ANALYSIS_BUSY_TIMEOUT'})),120000);
-   signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();else if(deps.hub.snapshot().state.status!=='running')finish();
-  });
- }
+ const idle=signal=>waitForIdle({hub:deps.hub,signal,isBusy:deps.isGenerationBusy});
+ const foregroundIdle=()=>deps.hub.snapshot().state.status!=='running'&&!deps.isGenerationBusy?.();
+
  function queue(index){
   if(stopped||!deps.settings.enabled)return Promise.resolve({status:'cancelled'});
   const key=deps.stateChatKey(),profile=deps.settings.reasonerProfileId,enabled=Boolean(deps.settings.continuityEnabled);
@@ -94,15 +87,15 @@ export function createAuxiliaryRuntime(deps){
       rec.lastReasonerSource=identity;rec.lastJudgment=null;
      }
      rec.auxiliaryStateV1={...(malformed?{}:{sourceKey:analysisKey}),retryAfter:malformed?Date.now()+30000:0};return {chat:rec,history};
-    },sourceValid);
-    if(saved&&due){if(!malformed)advanceContinuityWindow(progress,window);await deps.clearInjection?.({chatKey:key});}
+    },()=>sourceValid()&&foregroundIdle());
+    if(saved&&due){if(!malformed)advanceContinuityWindow(progress,window);if(foregroundIdle())await deps.clearInjection?.({chatKey:key});}
     report('analysis_result',{...counts,status:saved?malformed||counts.invalidCount?'degraded':'succeeded':'deferred',...(malformed||counts.invalidCount?{reasonCode:'CONTINUITY_INVALID_RESPONSE'}:{})});
     return {status:saved?'complete':'cancelled'};
    }catch(error){
     if(!valid()||job.signal.aborted)return {status:'cancelled'};
     const reasonCode=analysisFailureCode(error);vault&&bridge?.failAnalysis?.(vault.token,reasonCode);
     report('analysis_failed',{status:'failed',reasonCode});
-    try{await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={retryAfter:Date.now()+30000};rec.lastContinuityTrace={status:'error',error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},valid);}catch{report('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
+    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={retryAfter:Date.now()+30000};rec.lastContinuityTrace={status:'error',error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch{report('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
     return {status:'failed',reasonCode};
    }finally{vault&&bridge?.abandonAnalysis?.(vault.token);}
   });

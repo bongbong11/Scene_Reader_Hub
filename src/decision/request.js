@@ -29,6 +29,7 @@ async function requestDecision(run,frame) {
                 accumulated_state: { pacing: frame.rec.pacingState, progression_pressure: {turnsSinceMeaningfulProgress:frame.rec.progressionState?.turnsSinceMeaningfulProgress||0}, relationship: frame.rec.relationshipState, latest_observation: frame.rec.observationState, background_events: frame.rec.backgroundEvents,
                     state_policy:'Preserve unresolved grievances and directed relationships unless supplied RP actually changes them. Calm, sex or cooperation alone is not forgiveness. These states do not authorize forced actions or tell another actor private information.' },
                 character_profiles: frame.structuredCharacterContext,
+                ...(frame.castBeats?.length?{event_cast_context:{events:frame.castBeats,scope:'Conditional acting roles for proposed/continuing events, not current participation. Relevant registered NPC first, then established NPC, then selected new-person offer. One event and its actor share one beat.'}}:{}),
                 sexual_routing: sexualRoutingState(frame.liveCharacters, frame.prefs.physicalIntimacyPace),
                 prior_output_character_states: frame.liveCharacters.filter(person => person.priorState).map(person => ({
                     id: person.id, name: person.name, values: person.priorState.values, targets: person.priorState.targets,

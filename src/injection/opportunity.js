@@ -5,7 +5,9 @@ import {buildAntagonistExecution} from './npc-execution.js';
 
 export function additionBlocks(additions,settings,hasOngoingEvent) {
     return additions.map(item=>({id:item.id,feature:item.feature,templateId:item.templateId,
-        text:item.feature==='event'&&item.candidate.element
+        text:item.boundEvent
+            ? 'Use the selected new-person offer to supply the actor of the selected event through plausible access. Do not create a second unrelated encounter or duplicate an established person.'
+            :item.feature==='event'&&item.candidate.element
             ?renderAdvancedEvent(item.profile||item.candidate,{move:'seed',ongoing:hasOngoingEvent,style:settings.developmentStyle,direction:settings.worldDirection})
             :[item.kind==='villain'?buildAntagonistExecution({actor:'the selected arriving antagonist',antagonist:true}):'',renderAddition(item.candidate,{kind:item.feature,spontaneous:item.spontaneous,style:settings.developmentStyle,direction:settings.worldDirection,ongoing:hasOngoingEvent,antagonist:item.kind==='villain',groupAllowed:Boolean(settings.worldAgencyEnabled)})].filter(Boolean).join('\n')}));
 }

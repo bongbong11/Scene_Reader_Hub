@@ -1,8 +1,16 @@
-import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
+import {MEMORY_REFERENCE_ENABLED} from "./memory.js";
 import {CORE_SHA256} from "../vendor/character-reasoner/version.js";
 import {knowledgeVaultRevision} from '../integration/knowledge-vault.js';
 import {visibilityKey} from './visibility.js';
 import {DECISION_CONTRACT_VERSION} from '../decision/policy.js';
+
+// Page query results are a cache, not a new applied file. Immutable page roots
+// still invalidate the source when the actual stored bank is replaced.
+function bankSource(bank) {
+    if(!bank?.pagedRecords)return bank;
+    const {records,recordIndices,...source}=bank;
+    return source;
+}
 
 export function createSourceRevision(deps) {
 function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
@@ -18,7 +26,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         decisionContract: DECISION_CONTRACT_VERSION,
         continuityContract: 4,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 6,
-        injectionAssemblyContract: 10,
+        injectionAssemblyContract: 11,
         characterStateContract: 2,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,
         sceneGateContract: 4,
@@ -32,7 +40,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
             wholeWords: deps.worldInfoModule?.world_info_match_whole_words,
         } : null,
         characters: [...deps.characterStore.characters, deps.characterStore.persona, ...deps.characterStore.npcs].filter(Boolean).map((entry) => ({ id: entry.id, name: entry.name, aliases: entry.aliases,
-            ...(deps.characterStore.enabled ? { source: entry.source, sourceHash: entry.sourceHash, sourceVisibleToMain: entry.sourceVisibleToMain, npcRole: entry.npcRole, antagonist: entry.antagonist, trackArousal: entry.trackArousal, recordBank: entry.recordBank, selectedLore: entry.selectedLore } : {}) })),
+            ...(deps.characterStore.enabled ? { source: entry.source, sourceHash: entry.sourceHash, sourceVisibleToMain: entry.sourceVisibleToMain, npcRole: entry.npcRole, antagonist: entry.antagonist, trackArousal: entry.trackArousal, recordBank: bankSource(entry.recordBank), selectedLore: entry.selectedLore } : {}) })),
     });
 }
 

@@ -1,13 +1,8 @@
 import { buildEmotionContext } from './state-context.js';
 import { isStateOutput, latestStateOutputIndex } from './state-message.js';
 import { missingStateFields, mergeRecoveredStates, captureDiagnostic } from './state-coverage.js';
+import {waitForIdle} from '../lifecycle/jobs.js';
 export function createEmotionRuntime(deps) {
-async function waitForProfileState() {
-    const event = deps.latestStateEventForChat(deps.record(),deps.getContext().chat,deps.stableFingerprint);
-    const task = deps.pendingProfileStateRequests.get(event?.capture?.requestId);
-    if (task) await task;
-}
-
 function notifyEmotionCapture(status, count=0, selected=true) {
     const messages={too_long:'답변이 감정 수집 길이 한도를 넘었습니다. 값을 임의로 잘라 수집하지 않았습니다.',incomplete:'요청한 인물의 감정값 일부가 반환되지 않았습니다. 기존 저장값은 유지했습니다.',timeout:'감정 수집 시간 초과 · 다시 판독해 주세요.',request:'감정 수집 실패 · 확장 연결모델의 응답을 확인하세요.',format:'감정값 형식 확인 필요 · 인물의 감정값 탭을 확인하세요.',unavailable:'감정 수집 실패 · 확장 연결모델 설정을 확인하세요.',save_failed:'감정값을 저장하지 못했습니다. 다시 판독해 주세요.'};
     const message=status==='collecting'?'감정 수집 중…':status==='collected'?`${selected?'감정 수집 완료':'다른 스와이프 감정 저장 완료'} · ${count}명`:status==='partial'?`감정 ${count}명 수집 · 일부 값은 형식 확인 필요`:status==='empty'?'감정 수집 완료 · 이번 답변에서 수집할 값 없음':messages[status];
@@ -54,6 +49,8 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         });
         if(controller.signal.aborted)return;
         await deps.waitForOutputChanges();
+        do { await waitForIdle({hub:deps.hub,signal:controller.signal,isBusy:deps.isGenerationBusy}); }
+        while(deps.hub?.snapshot().state.status==='running'||deps.isGenerationBusy?.());
         if (!deps.pendingProfileStateRequests.has(requestId) || chatKey !== deps.stateChatKey() || !deps.settings.enabled || !deps.characterStore.enabled || (!missingOnly && deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') || deps.settings.reasonerProfileId !== profileId) return;
         const rec = deps.record();
         if (!rec?.characterStateEvents?.some(event=>event.capture?.requestId===requestId)) return;
@@ -124,5 +121,5 @@ async function collectCurrentEmotion() {
     if (!roster.length) throw new Error('감정을 읽을 참여 인물이 없습니다. 인물 기록과 판독 결과를 확인하세요.');
     await scheduleProfileStateCollection({chatKey:deps.stateChatKey(),outputIndex,text,roster,missingOnly:true});
 }
-return {waitForProfileState, notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion};
+return {notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion};
 }

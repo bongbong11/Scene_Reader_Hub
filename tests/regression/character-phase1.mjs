@@ -1,15 +1,15 @@
 import { prepareProfileItems, createProfile } from '../fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
 import { fixture } from './audit-v012.mjs';
-import { CHARACTER_LIVE_SYSTEM, ACCESS_CHOICES } from '../../src/characters/prompts.js';
+import { CHARACTER_LIVE_SYSTEM, ACCESS_CHOICES } from '../../src/character/prompts.js';
 import {
     currentProfileItems, normalizeCharacterStore,
     buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan,
     buildCharacterInjection,
-} from '../../character-library.js';
-import { applyCharacterPolicy } from '../../src/scene/policy.js';
+} from '../../src/character/index.js';
+import { applyCharacterPolicy } from '../../src/decision/answers.js';
 import { buildInjection } from '../../prompt-library.js';
-import { suggestNpcAliases } from '../../src/characters/npc-sheet.js';
+import { suggestNpcAliases } from '../../src/character/npc-sheet.js';
 import { wholeDiagnosticReport } from '../../src/debug/whole-report.js';
 
 assert.match(CHARACTER_LIVE_SYSTEM, /up to the number of available slots/);

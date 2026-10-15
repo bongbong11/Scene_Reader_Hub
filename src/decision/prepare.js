@@ -8,10 +8,12 @@ import {searchCharacterRecords} from '../retrieval/character-search.js';
 import {drawOpportunityKey} from '../scene/draw-opportunity.js';
 import {generatedActorCandidates} from '../scene/generated-cast.js';
 
-import {stateForEntry} from "../characters/state-contract.js";
-import {buildSexualQuestions, sexualEligible} from "../characters/sexual-conduct.js";
+import {stateForEntry} from "../character/state-contract.js";
+import {buildSexualQuestions, sexualEligible} from "../character/sexual-conduct.js";
 import {prepareKnowledgeVault} from '../integration/knowledge-vault.js';
 import {conflictTacticQuestion} from './npc-tactics.js';
+import {castBeats,castQuestions,CAST_LIMIT} from '../scene/cast-binding.js';
+import {selectEventCast} from '../character/selection.js';
 
 export function createDecisionPreparation(deps) {
 async function prepareQuestions(run,frame) {
@@ -56,14 +58,30 @@ if (frame.prefs.settingsContract >= 3) {
     (frame.activeCharacters = deps.selectActiveEntries(deps.characterStore, frame.transcript, deps.getContext().name2 || '', frame.carriedCharacterIds, { allowUserImpersonation: frame.prefs.allowUserImpersonation }));
     (frame.priorStates = new Map(frame.activeCharacters.map(entry => [entry.id, stateForEntry(frame.rawPriorStates.get(entry.id), entry)]).filter(([, state]) => state)));
     (frame.npcTargets = frame.activeCharacters.filter((entry) => entry.kind === 'npc').slice(0, 6));
+    frame.castBeats=frame.prefs.advancedEnabled?castBeats(frame.opportunityOffers,frame.rec.eventProfile):[];
+    const castQuery=frame.castBeats.map(beat=>beat.text).join('\n');
+    frame.castSheets=frame.castBeats.length&&deps.characterStore.enabled
+        ?selectEventCast(deps.characterStore.npcs,`${castQuery}\n${frame.transcript}`,{limit:CAST_LIMIT}):[];
+    // Current speakers retain all their slots. Prospective candidates share the
+    // same six-person request ceiling and never become participation evidence.
+    const activeIds=new Set(frame.activeCharacters.map(entry=>entry.id));
+    const future=frame.castSheets.filter(entry=>!activeIds.has(entry.id)).slice(0,Math.max(0,6-frame.activeCharacters.length));
+    const retained=new Set([...activeIds,...future.map(entry=>entry.id)]);
+    if(frame.castBeats.length)deps.noteDiagnostic?.('event_cast_candidates',{module:'src/decision/prepare.js',registeredCount:frame.castSheets.length,omittedByCapacity:frame.castSheets.filter(entry=>!retained.has(entry.id)).length,currentCount:frame.activeCharacters.length,prospectiveCount:future.length});
+    frame.castSheets=frame.castSheets.filter(entry=>retained.has(entry.id));
+    frame.castGenerated=[frame.rec.npcProfile,frame.rec.villainProfile,...frame.generatedNpcTargets,...frame.generatedVillainTargets]
+        .filter((item,index,all)=>item&&item.status!=='retired'&&all.findIndex(other=>other?.id===item.id)===index).slice(0,8);
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));
-    frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? frame.activeCharacters : [],
+    frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? [...frame.activeCharacters,...future] : [],
+        transcripts:new Map(frame.castSheets.map(entry=>[entry.id,`${frame.retrievalTranscript||frame.transcript}\n${castQuery}`])),
         shared:Boolean(frame.rec.sharedSource),recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.retrievalTranscript || frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
     run.assert();
     (frame.liveCharacters = deps.characterStore.enabled ? deps.buildLiveCharacterPlan(frame.activeCharacters, {
         selected: frame.context.selected.map((message) => ({ ...message, _sceneReaderIndex: deps.getContext().chat?.indexOf(message) ?? -1 })),
         transcript: frame.transcript, knowledge: frame.continuityContext.knowledge, memory: frame.memory, persona: deps.characterStore.persona, canonicalOnly: true, volume:frame.prefs.characterVolume, npcSlots:frame.prefs.npcRecordLimit, retrievalResults: frame.retrievalResults, categoryHints: frame.categoryHints,
     }) : []);
+    frame.futureCast=deps.buildLiveCharacterPlan(future,{transcript:`${castQuery}\n${frame.transcript}`,canonicalOnly:true,volume:frame.prefs.characterVolume,npcSlots:frame.prefs.npcRecordLimit,retrievalResults:frame.retrievalResults,protection:false})
+        .map((person,index)=>({...person,index:frame.liveCharacters.length+index,profileCandidates:person.profileCandidates.slice(0,(person.profileSlotLimit||3)+3),contextCandidates:[],priorState:null,plannedOnly:true}));
     for (const person of frame.liveCharacters) person.priorState = frame.priorStates.get(person.id) || null;
     for (const person of frame.liveCharacters) person.sexualConductManaged = sexualEligible(person);
     if (deps.characterStore.characters.length === 1 && !deps.characterStore.characters[0].cardCast) {
@@ -71,6 +89,14 @@ if (frame.prefs.settingsContract >= 3) {
         if (primary) primary.mainSillyTavernName = deps.getContext().name2 || '';
     }
     if (deps.characterStore.enabled) Object.assign(frame.questions, deps.buildCharacterTurnQuestions(frame.liveCharacters,frame.sceneGate.participationObservations||{}));
+    // Record choices are conditional on the actor being selected for the event.
+    // Do not ask whether an unintroduced candidate is already present.
+    const futureQuestions=deps.buildCharacterTurnQuestions(frame.futureCast,Object.fromEntries(frame.futureCast.map(person=>[person.id,{}])));
+    for(const question of Object.values(futureQuestions))question.instructions+=' Also consider the proposed event_cast_context if this person is selected to act. This does not establish presence or knowledge.';
+    Object.assign(frame.questions,futureQuestions,castQuestions(frame.castBeats,frame.castSheets,frame.castGenerated,{newPersonAllowed:Boolean(frame.opportunityOffers?.person?.passed)}));
+    for(const person of frame.liveCharacters.filter(person=>frame.castSheets.some(entry=>entry.id===person.id))) {
+        for(const [key,question] of Object.entries(frame.questions))if(key.startsWith(`character_${person.index}_record_`))question.instructions+=' Also consider their proposed event_cast_context role if selected.';
+    }
     deps.noteDiagnostic?.('character_protection_candidates', { module:'character/record-protection + record-questions',
         baselineCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.prefilterStats?.baselineCandidateCount ?? p.profileCandidates.length),0),
         supplementalCount:frame.liveCharacters.reduce((sum,p)=>sum+(p.protectedCandidateIds?.length || 0),0),
@@ -104,13 +130,13 @@ if (frame.prefs.settingsContract >= 3) {
         criteria: { none: 'No NPC route.', reuse_existing: 'An established NPC fits.', canon_natural: 'A canon character naturally occupies the role.', original_major: 'A lasting original NPC fits.', original_minor: 'A temporary original NPC fits.', group: 'A group fits.' },
     };
     if (frame.opportunityOffers) addOpportunityQuestions(frame.questions,frame.opportunityOffers,frame.rec);
-    (frame.structuredCharacterContext = frame.liveCharacters.length ? {
+    (frame.structuredCharacterContext = frame.liveCharacters.length+frame.futureCast.length ? {
         policy: deps.CHARACTER_LIVE_SYSTEM,
         npcRolePolicy: 'NPC villain, ally, or mixed is a broad role hint, not a personality or knowledge override. Use the stored records and actual RP to judge this person\'s specific motives and conduct. An ally may disagree; a villain may cooperate for a reason.',
         // Only compiled records and live context may cross the Jev boundary.
         // Keep local sheet, lorebook, bank provenance, and legacy excerpts out.
-        people: frame.liveCharacters.map(({ index, id, name, kind, npcRole, recordStatus, recordMode, profileCandidates, contextCandidates }) =>
-            ({ index, id, name, kind, npcRole, recordStatus, recordMode,
+        people: [...frame.liveCharacters,...frame.futureCast].map(({ index, id, name, kind, npcRole, recordStatus, recordMode, profileCandidates, contextCandidates,plannedOnly }) =>
+            ({ index, id, name, kind, npcRole, recordStatus, recordMode,plannedOnly:Boolean(plannedOnly),
                 profileCandidates: profileCandidates.map(item => ({id:item.id,type:item.type||item.kind,target:item.target})), contextCandidates })),
     } : null);
 

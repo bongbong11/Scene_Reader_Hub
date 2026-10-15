@@ -37,6 +37,21 @@ async function commitPriorVerification(rec, decisions, run = null) {
         }
         rec.continuity.revision += 1;
     }
+    for(const [index,item] of (pending.eventFollowups||[]).slice(0,1).entries()) {
+        const followed=rec.continuity?.followups?.find(entry=>entry.id===item.id);
+        if(!followed)continue;
+        followed.lastOffered=rec.sceneOpportunity;
+        if(decisions[`verification_event_followup_${index}`]==='fulfilled'){followed.executed=true;followed.status='executed';}
+        rec.continuity.revision+=1;
+    }
+    const ongoing=(pending.cast||[]).filter(item=>item.beatKey==='ongoing'&&item.kind!=='unresolved');
+    for(const actor of pending.cast||[]) {
+        actor.verification=actor.kind==='unresolved'?'unavailable':actor.beatKey==='ongoing'
+            ?decisions[`verification_event_actor_${ongoing.indexOf(actor)}`]||'unavailable'
+            :additions.find(item=>item.feature==='event'&&item.templateId===actor.beatKey)?.verification||'unavailable';
+        deps.noteDiagnostic?.('event_actor_verification',{module:'src/decision/verification.js',kind:actor.kind,action:actor.action,status:actor.verification});
+    }
+    const castVerification=(pending.cast||[]).map(({kind,action,delivery,verification})=>({kind,action,delivery,verification}));
     if (['character_established', 'both'].includes(decisions.context_change_source)
         && ['fulfilled', 'partial'].includes(verification.progress)) {
         registerSceneOpportunity(rec, `character:${pending.outputFingerprint}`);
@@ -51,13 +66,14 @@ async function commitPriorVerification(rec, decisions, run = null) {
         plan: JSON.parse(JSON.stringify(pending)),
         judgment: pending.judgment ? JSON.parse(JSON.stringify(pending.judgment)) : null,
         verification,
+        castVerification,
         committed: result.committed,
         committedEffects: result.committedEffects,
         committedAt: new Date().toISOString(),
     });
     if (run) run.history = history; else await deps.saveStateHistory(history, chatKey);
     run?.assert();
-    rec.lastVerification = { inputKey: pending.inputKey, outputIndex: pending.outputIndex, verification, committed: result.committed, committedEffects: result.committedEffects, at: new Date().toISOString() };
+    rec.lastVerification = { inputKey: pending.inputKey, outputIndex: pending.outputIndex, verification, cast:castVerification, committed: result.committed, committedEffects: result.committedEffects, at: new Date().toISOString() };
     rec.pendingPlan = null;
     return rec.lastVerification;
 }

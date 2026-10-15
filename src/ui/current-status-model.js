@@ -63,6 +63,9 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
         }
         if(event.stage==='retrieval_request') {
             if(event.phase==='connection_test')return; // A test does not verify the current record bank.
+            if(event.phase==='index_sync'&&event.status==='deferred') {
+                set('embedding',event,{key:`${event.bankHash||''}:pending`,state:'needs_setup',message:'임베딩 재시도로 준비할 기록이 있습니다. 이번 판독은 기록 매칭으로 진행합니다.'});return;
+            }
             const id=event.phase==='query'?'search':'embedding';
             const message=event.status==='succeeded'?(event.phase==='list'?'저장 색인 확인 완료':event.phase==='query'?'관련 기록 검색 완료':event.phase==='insert'?'요청한 기록 저장 응답 확인':'색인 정리 완료'):'';
             set(id,event,{key:`${event.bankHash || ''}:${event.phase}`,message});return;

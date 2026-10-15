@@ -10,7 +10,7 @@ import { checkPresetSlots } from './browser-preset-slots.mjs';
 import { checkRecordProtection } from './browser-record-protection.mjs';
 import { checkRecoverySettings } from './browser-recovery-settings.mjs';
 import {checkOpportunitySettings} from './browser-opportunity-settings.mjs';
-import { createRecordBank } from '../src/characters/records.js';
+import { createRecordBank } from '../src/character/records.js';
 import { prepareProfileItems, createProfile } from './fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -932,15 +932,16 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(()=>mock.profileStateRequests[3].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:90}]})}));
     await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.deepEqual(store.chat.characterStateEvents,[],'reset cannot be undone by a late background response');
-    // Stop during a real automatic preparation waiting for the previous collector.
+    // Preparation proceeds without waiting for the previous collector. Stop must
+    // still abort both paths and the late collector must not start another call.
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter checks the window.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     const stoppedRequestCount=await page.evaluate(()=>mock.profileStateRequests.length);
-    const beforeStopJev=requests.filter(request=>request.url.endsWith('/systemone')).length;
     await page.evaluate(()=>{mock.waitingGeneration=mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     await page.evaluate(async()=>{await mock.emit('GENERATION_STOPPED');await mock.waitingGeneration;});
+    const afterStopJev=requests.filter(request=>request.url.endsWith('/systemone')).length;
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.at(-1).options.signal.aborted),true,'host stop aborts the auxiliary model request');
     await page.evaluate(()=>mock.profileStateRequests.at(-1).resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:99}]})}));
-    assert.equal(requests.filter(request=>request.url.endsWith('/systemone')).length,beforeStopJev,'stopped preparation never starts Jev after the old collector settles');
+    assert.equal(requests.filter(request=>request.url.endsWith('/systemone')).length,afterStopJev,'stopped preparation never starts Jev after the old collector settles');
     assert.ok(!store.chat.characterStateEvents.some(event=>event.states.some(state=>state.values?.anger===99)),'late stopped collection cannot save');
     await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);mock.chat.push({is_user:false,mes:'Hunter sits beside the window.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),stoppedRequestCount+1,'next intentional generation can collect normally');

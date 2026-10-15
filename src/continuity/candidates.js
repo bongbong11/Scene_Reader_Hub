@@ -26,3 +26,8 @@ export function activePendingCandidates(candidates, { chatKey, chat, sourceRevis
 export function verifiedSecondaryCandidates(candidates) {
     return candidates.filter(candidate=>candidate.type==='followup').map(candidate=>({...candidate,kind:'continuity',focus:'event',compatibleWith:['direct','relationship','event','conflict','npc','villain'],priority:2}));
 }
+
+export function eventFollowups(candidates,event) {
+    if(!event)return [];
+    return candidates.filter(item=>item.type==='followup'&&['event:current',event.id].filter(Boolean).includes(item.data?.relatedStateId)).slice(0,1);
+}

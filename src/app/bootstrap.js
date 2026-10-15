@@ -100,7 +100,8 @@ let {noteDiagnostic, diagnosticSnapshot} = createDiagnostics({
     get storageVersion() { return runtime.storageVersion; }, set storageVersion(value) { runtime.storageVersion = value; },
 });
 
-let {waitForProfileState, notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion} = createEmotionRuntime({
+let {notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion} = createEmotionRuntime({
+    hub,isGenerationBusy:()=>Boolean(runtime.pendingGenerationType),
     get noteDiagnostic() { return noteDiagnostic; },
     get STATE_HISTORY_LIMIT() { return STATE_HISTORY_LIMIT; },
     get characterStore() { return runtime.characterStore; }, set characterStore(value) { runtime.characterStore = value; },
@@ -286,7 +287,6 @@ let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSc
 
 let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged,prepareFallback} = createGenerationLifecycle({
     checkVisibility:()=>visibility?.check(),
-    isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
     isStorageBusy:()=>sharedStorage.isBusy(),
     get judgmentFailureState() { return judgmentFailureState; },
     get hub() { return hub; },
@@ -336,7 +336,6 @@ let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged
     get updateActivity() { return updateActivity; },
     get updateStatus() { return updateStatus; },
     get waitForOutputChanges() { return waitForOutputChanges; },
-    get waitForProfileState() { return waitForProfileState; },
     get window() { return window; },
     get worldInfoModule() { return runtime.worldInfoModule; }, set worldInfoModule(value) { runtime.worldInfoModule = value; },
 });
@@ -688,10 +687,8 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     checkVisibility:()=>visibility?.check(),
     get analysis() { return analysis; },
     isStorageBusy:()=>sharedStorage.isBusy(),
-    isEmbeddingBusy:()=>embeddingMaintenance.isBusy(),
     get pendingGenerationType() { return runtime.pendingGenerationType; },
     hub,
-    waitForProfileState,
     waitForOutputChanges,
     noteDiagnostic,
     get latestStateForChat() { return latestStateForChat; },
@@ -801,6 +798,7 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
 
 
 analysis=createAuxiliaryRuntime({
+    isGenerationBusy:()=>Boolean(runtime.pendingGenerationType),
     hub,window,getContext,stateChatKey,record,storagePost,loadStateHistory,renderAll,sourceRevisionKey,selectedWorld,
     get queueWrite(){return runtime.queueWrite;},get clearInjection(){return clearInjection;},
     fingerprint:stableFingerprint,noteDiagnostic,
@@ -942,7 +940,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.17',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.18',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

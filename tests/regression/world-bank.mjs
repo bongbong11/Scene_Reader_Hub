@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { parseAdvancedWorld, advancedWorldToStored, storedWorldToJson, worldCandidates, addWorldQuestions, worldPayload } from '../../src/world/advanced.js';
 import { recentSceneDate, seasonalWorldNote } from '../../src/world/seasonal.js';
-import { allWorlds, INITIAL_CUSTOM_WORLDS, saveCustomWorlds, loadCustomWorlds } from '../../world-library.js';
-import { BUILTIN_WORLDS } from '../../advanced-library.js';
+import { allWorlds, INITIAL_CUSTOM_WORLDS, saveCustomWorlds, loadCustomWorlds } from '../../src/world/catalog.js';
+import { BUILTIN_WORLDS } from '../../src/world/advanced-library.js';
 const raw = {format:'scene-reader-world',version:1,name:'Garden',short_description:'A garden with a moonlit gate.',fixed_rules:'Physical limits apply.',franchise:false,calendar_topics:[],records:[{id:'W001',category:'mechanism',when:'Moonlight reaches the gate.',keywords:['moonlight'],rule:'The gate opens.',source_quote:'The gate opens.'}]};
 const parsed = parseAdvancedWorld('\uFEFF```json\n'+JSON.stringify(raw)+'\n```');
 const world = advancedWorldToStored(parsed,'garden');

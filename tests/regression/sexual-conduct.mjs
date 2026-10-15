@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import {
     PHYSICAL_PACES, SEXUAL_ROUTING_SYSTEM, applySexualChoice, buildSexualInjection,
     buildSexualQuestions, normalizePhysicalPace, resolveSexualConduct, sexualEligible, sexualRoutingState,
-} from '../../src/characters/sexual-conduct.js';
-import { buildCharacterTurnQuestions } from '../../src/characters/live.js';
+} from '../../src/character/sexual-conduct.js';
+import { buildCharacterTurnQuestions } from '../../src/character/live.js';
 import { buildInjection, buildPausedInjection } from '../../prompt-library.js';
 
 const base = { index:0, id:'rowan', name:'Rowan', kind:'character', presence:'active', sexualConductManaged:true, priorState:{values:{a:5,c:80,anger:25},targets:{}}, profileCandidates:[], contextCandidates:[], recordMode:true };

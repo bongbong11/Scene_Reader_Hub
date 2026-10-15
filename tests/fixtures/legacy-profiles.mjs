@@ -1,6 +1,6 @@
 // Test-only constructors for pre-retrieval saved data. Never imported by runtime.
-import { stableFingerprint } from '../../decision-engine.js';
-import { PROFILE_VERSION, ITEM_KINDS } from '../../src/characters/profile.js';
+import { stableFingerprint } from '../../src/decision/policy.js';
+import { PROFILE_VERSION, ITEM_KINDS } from '../../src/character/profile.js';
 export function prepareProfileItems(value) {
     if (!value || !Array.isArray(value.items) || value.items.length > 10) {
         throw new Error('시트 해석 형식 오류: items 배열은 최대 10개여야 합니다.');

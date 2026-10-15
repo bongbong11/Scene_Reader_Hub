@@ -248,7 +248,7 @@ export function activeWorldReference(name) {
     return value ? `Active world: ${value}.` : '';
 }
 
-export function fixedSceneSettings(settings, privatePrompt, includePerspectives = false) {
+export function fixedSceneSettings(settings, privatePrompt, includePerspectives = false, decisions = {}) {
     const directions = [LANGUAGE_SCOPE, WORLD_PROMPTS[settings.worldDirection] || WORLD_PROMPTS.natural];
     if (settings.relationshipDirection !== 'hostile') directions.push(RELATIONSHIP_PROMPTS[settings.relationshipDirection] || RELATIONSHIP_PROMPTS.dynamic);
     const fixed = [];
@@ -259,7 +259,7 @@ export function fixedSceneSettings(settings, privatePrompt, includePerspectives 
     if (settings.userMisfortune) fixed.push(L.USER_MISFORTUNE);
     if (fixed.length && includePerspectives) directions.push(L.INDEPENDENT_PERSPECTIVES);
     directions.push(...fixed);
-    const priority = negativePriorityInstruction(settings,privatePrompt);
+    const priority = negativePriorityInstruction(settings,privatePrompt,decisions);
     return `<FIXED_SCENE_SETTINGS>\n${priority}These ongoing settings govern the current scene. They do not establish completed events or override a named person's established facts, relationships, or knowledge boundaries.\n${directions.join('\n\n')}\n</FIXED_SCENE_SETTINGS>`;
 }
 
@@ -270,14 +270,14 @@ export const SCENE_FOCUS_LABELS = {
     villain: 'the selected antagonist involvement', continuity: 'the selected continuity consequence',
 };
 
-export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], activeWorldName = '', correctionDetails = {}, hasAdditions = false }) {
+export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], activeWorldName = '', correctionDetails = {}, hasAdditions = false }) {
     if (settings.developmentStyle) settings = normalizeDevelopmentPreferences(settings);
     const agency = worldAgencyParts(settings, decisions);
     const boosting = settings.developmentStyle!=='static' && decisions.progress_boost==='yes';
     const castNames = new Set(sheetCastNames.map(name => String(name || '').trim().toLocaleLowerCase()).filter(Boolean));
     const generatedName = String(npcProfile?.name || npcProfile?.identityName || npcProfile?.characterName || '').trim().toLocaleLowerCase();
     const npcIsSheetCast = Boolean(generatedName && castNames.has(generatedName));
-    const blocks = [activeWorldReference(activeWorldName), fixedSceneSettings(settings, privatePrompt, true)].filter(Boolean);
+    const blocks = [activeWorldReference(activeWorldName), fixedSceneSettings(settings, privatePrompt, true, decisions)].filter(Boolean);
     if (String(continuityBlock || '').trim()) blocks.push(String(continuityBlock).trim());
     if (sheetCastNames.length) blocks.push(`<SHEET_CAST_OWNERSHIP>Registered identities: ${[...new Set(sheetCastNames)].join(', ')}. Never regenerate these people as independent default NPCs. Registration remains authoritative even with disabled analysis, stale records, absence, or zero selected records. Follow their original visible characterization when no additional record applies.</SHEET_CAST_OWNERSHIP>`);
     if (castNames.size && (['create','replace','reuse'].includes(decisions.npc_route) || settings.npcToUser || decisions.npc_autonomy === 'yes')) blocks.push('<NPC_CAST_SCOPE>Registered Sheet Cast retain their established identity, knowledge, and relationships. Generated Cast defaults apply only to other people. Role and action guidance may apply to a registered NPC without replacing their personality, identity, or knowledge; do not recreate them.</NPC_CAST_SCOPE>');
@@ -340,14 +340,16 @@ Within the selected scene or event, answer the current interaction through a con
     if (sheetNpcTarget && decisions.npc_route === 'reuse') blocks.push(`<SHEET_NPC_SCENE>Let ${sheetNpcTarget} perform one scene-relevant ${decisions.npc_role || 'participant'} function at ${decisions.npc_weight || 'brief'} weight. Follow established characterization and any selected stored records for motive, knowledge, and response.</SHEET_NPC_SCENE>`);
     const npcExecution = npcExecutionPrompt(decisions, presentSheetNpcNames.length===1 && decisions.npc_role && decisions.npc_role!=='none', agency.npc);
     const actionTarget=sheetNpcTarget||(presentSheetNpcNames.length===1?presentSheetNpcNames[0]:'');
-    if (npcExecution) blocks.push(actionTarget ? `<SHEET_NPC_ACTION_TARGET>${actionTarget}: Apply the following role guidance to this registered person using their own characterization.</SHEET_NPC_ACTION_TARGET>\n${npcExecution}` : npcExecution);
+    const boundNames=new Set(eventActors.map(actor=>actor.name).filter(Boolean));
+    const boundIds=new Set(eventActors.map(actor=>actor.actorId).filter(Boolean));
+    if (npcExecution && !boundNames.has(actionTarget)) blocks.push(actionTarget ? `<SHEET_NPC_ACTION_TARGET>${actionTarget}: Apply the following role guidance to this registered person using their own characterization.</SHEET_NPC_ACTION_TARGET>\n${npcExecution}` : npcExecution);
 
     // Current conflict actions follow the scene plan; persistent settings are above.
     // Preserve the supplied wording and order inside each source group.
     const fightBlocks = [];
-    for (const actor of antagonistActors) blocks.push(buildAntagonistExecution({actor:actor.name,tactic:decisions[`character_${actor.index}_conflict_tactic`]||'character_driven',antagonist:true}));
-    if (['create','replace','continue'].includes(decisions.villain_route) && villainProfile) blocks.push(buildAntagonistExecution({tactic:decisions.npc_conflict_tactic,antagonist:true}));
-    if (decisions.npc_route==='reuse' && ['opposition','exploiter'].includes(decisions.npc_role) && !antagonistActors.some(actor=>actor.name===actionTarget)) blocks.push(buildAntagonistExecution({actor:actionTarget||'the selected opposed NPC',tactic:decisions.npc_conflict_tactic,antagonist:true}));
+    for (const actor of antagonistActors.filter(actor=>!boundIds.has(actor.id))) blocks.push(buildAntagonistExecution({actor:actor.name,tactic:decisions[`character_${actor.index}_conflict_tactic`]||'character_driven',antagonist:true}));
+    if (['create','replace','continue'].includes(decisions.villain_route) && villainProfile && !boundIds.has(villainProfile.id)) blocks.push(buildAntagonistExecution({tactic:decisions.npc_conflict_tactic,antagonist:true}));
+    if (decisions.npc_route==='reuse' && ['opposition','exploiter'].includes(decisions.npc_role) && !boundNames.has(actionTarget) && !antagonistActors.some(actor=>actor.name===actionTarget)) blocks.push(buildAntagonistExecution({actor:actionTarget||'the selected opposed NPC',tactic:decisions.npc_conflict_tactic,antagonist:true}));
     if (decisions.npc_autonomy === 'yes') fightBlocks.push(L.AUTONOMOUS_NPC_DYNAMICS);
     if (decisions.villain_route === 'create' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, true));
     if (decisions.villain_route === 'replace' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, true));

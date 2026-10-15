@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { fixture } from './audit-v012.mjs';
-import { parseReasonerReply } from '../../st-profile-reasoner.js';
+import { parseReasonerReply } from '../../src/adapters/connection-profile.js';
 import { sceneGateRequest, resolveSceneGate } from '../../src/scene/intimacy-gate.js';
 
 function setup() {

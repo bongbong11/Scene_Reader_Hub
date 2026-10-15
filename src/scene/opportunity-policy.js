@@ -56,7 +56,7 @@ export function resolveOpportunities(offers,answers,{worldAgencyEnabled=false}={
 }
 export function additionVerificationQuestions(pending) {
     if(!pending?.outputText)return {};
-    return Object.fromEntries((pending.additions||[]).map((item,i)=>[`verification_addition_${i}`,{type:'choice',instructions:`${VERIFICATION[item.feature]} Selected action: ${item.candidate.action} Required effect: ${item.candidate.effect}`,criteria:VERIFICATION_CHOICES}]));
+    return Object.fromEntries((pending.additions||[]).map((item,i)=>[`verification_addition_${i}`,{type:'choice',instructions:`${VERIFICATION[item.feature]} Selected action: ${item.candidate.action} Required effect: ${item.candidate.effect}${item.cast?.length?` Assigned actors: ${item.cast.filter(actor=>actor.kind!=='unresolved').map(actor=>`${actor.name||actor.kind}: ${actor.action}`).join('; ')}. Inner thoughts alone do not fulfill their move.`:''}`,criteria:VERIFICATION_CHOICES}]));
 }
 export function additionVerdicts(pending,decisions) {
     return (pending?.additions||[]).map((addition,i)=>({...addition,verification:decisions[`verification_addition_${i}`]||'unavailable'}));

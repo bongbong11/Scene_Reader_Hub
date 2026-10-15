@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {fixture} from './audit-v012.mjs';
-import {createRecordBank} from '../../src/characters/records.js';
+import {createRecordBank} from '../../src/character/records.js';
 
 function setup() {
     const f=fixture(), requests=[];

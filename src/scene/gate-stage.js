@@ -3,14 +3,14 @@ import {sceneDisplayState} from './display-state.js';
 import {inheritedStates, CONTINUATION_POLICY, storylineInjection, storylineRetrievalCue} from '../context/storyline-reference.js';
 import {bankIdentity} from '../retrieval/bank-identity.js';
 import {notifySceneReaderToast} from "../ui/toasts.js";
-import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
+import {MEMORY_REFERENCE_ENABLED} from "../context/memory.js";
 import {visibilityKey} from '../context/visibility.js';
 import {sceneGateRequest, resolveSceneGate} from "./intimacy-gate.js";
 import {recentSceneRoleplay} from './recent-context.js';
-import {recordBankIsCurrent} from "../characters/records.js";
+import {recordBankIsCurrent} from "../character/records.js";
 import {addWorldQuestions, selectedWorldRecords, worldPayload as buildWorldPayload} from "../world/advanced.js";
 import {seasonalWorldNote} from "../world/seasonal.js";
-import {stateForEntry} from "../characters/state-contract.js";
+import {stateForEntry} from "../character/state-contract.js";
 
 export function createGateStage(deps) {
 async function prepareGate(run,frame) {

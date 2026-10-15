@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { importRecordVersion, applyRecordVersion, deleteRecordVersion, bankOutput } from '../../src/characters/versions.js';
-import { defaultCharacterStore, normalizeCharacterStore, buildLiveCharacterPlan, resolveLiveCharacterPlan, buildCharacterInjection } from '../../character-library.js';
-import { recordBankIsCurrent } from '../../src/characters/records.js';
+import { importRecordVersion, applyRecordVersion, deleteRecordVersion, bankOutput } from '../../src/character/versions.js';
+import { defaultCharacterStore, normalizeCharacterStore, buildLiveCharacterPlan, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/index.js';
+import { recordBankIsCurrent } from '../../src/character/records.js';
 import { validateImport } from '../../src/vendor/character-reasoner/index.js';
 const output=(kind,name,rule=`${name} suspects the invitation is a trap.`)=>({entity_type:kind,entity_name:name,source_set_id:'external-sheet',records:[{type:'knowledge',target:'self',when:['before confirmation'],rule,modality:'possibility',basis:'explicit',source_ids:['external-source'],knowledge_domain:'event',knowledge_state:'suspects'}]});
 for(const kind of ['character','persona','npc']) {

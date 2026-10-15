@@ -7,14 +7,18 @@ import {drawDiagnostics} from './draw-diagnostics.js';
 import {selectActiveContinuity,confirmedContinuity} from '../continuity/selection.js';
 import {resolveCharacterPresence} from '../character/presence.js';
 import {applyAppearanceOffer} from "../scene/appearance.js";
-import {applySexualChoice} from "../characters/sexual-conduct.js";
+import {applySexualChoice} from "../character/sexual-conduct.js";
+import {resolveCastBindings,castSummary} from '../scene/cast-binding.js';
+import {eventFollowups} from '../continuity/candidates.js';
 
 export function createDecisionResolution(deps) {
 async function resolveDecision(run,frame) {
 (frame.details = {});
         for (const key of Object.keys(frame.questions)) {
             const choices = Object.keys(frame.questions[key]?.criteria || {});
-            frame.details[key] = key.endsWith('_opportunity')
+            frame.details[key] = key.startsWith('event_cast_')
+                ? {...fixedDecision(choices.includes(frame.data.answers[key]?.choice)?frame.data.answers[key].choice:'invalid_selection'),policy:'routing',fixed:false,fallbackApplied:!choices.includes(frame.data.answers[key]?.choice),rule:'사건 담당 인물·행동 선택 · 추가 확신도 탈락 없음'}
+                : key.endsWith('_opportunity')
                 ? opportunityDetail(frame.data.answers[key],frame.opportunityOffers?.[key.split('_')[0]])
                 : key.startsWith('sexual_')
                 ? applySexualChoice(frame.data.answers[key], choices)
@@ -35,7 +39,12 @@ async function resolveDecision(run,frame) {
         }
         deps.noteDiagnostic?.('progress_observed',{module:'src/scene/progress-tracking.js',status:'succeeded',outcome:frame.progressStatus.outcome,count:frame.progressStatus.count,boost:frame.progressStatus.boost,comparisonCount:frame.progressComparison?.turns.length||0});
         (frame.priorVerification = await deps.commitPriorVerification(frame.rec, frame.decisions, run));
+        // Preparation preceded verification; do not offer a step just confirmed complete.
+        frame.pendingCandidates=frame.pendingCandidates.filter(candidate=>candidate.type!=='followup'
+            || !(frame.rec.continuity?.followups||[]).some(item=>item.id===candidate.id&&(item.executed||item.status==='executed')));
         (frame.verifiedExternalCandidates = deps.verifiedSecondaryCandidates(frame.pendingCandidates));
+        frame.eventFollowups=eventFollowups(frame.verifiedExternalCandidates,frame.rec.eventProfile);
+        frame.verifiedExternalCandidates=frame.verifiedExternalCandidates.filter(item=>!frame.eventFollowups.includes(item));
         await deps.commitContinuityCandidates(frame.rec, frame.pendingCandidates, frame.decisions, frame.details, run);
         run.assert();
         frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
@@ -78,6 +87,7 @@ async function resolveDecision(run,frame) {
                 if (frame.decisions.progression_move === 'hold') deps.overrideDecision(frame.details, frame.decisions, 'progression_move', frame.decisions.event_blocker === 'information' ? 'reveal' : 'advance', '빠른 해결·적극 진행에서 저장 사건 한 단계 실행');
             }
         }
+        if(!frame.opportunityOffers) {
         (frame.beforeBudgetDecisions = { ...frame.decisions });
         (frame.provisionalPlan = deps.selectActionPlan({
             decisions: frame.decisions,
@@ -95,6 +105,7 @@ async function resolveDecision(run,frame) {
         }
         if (!frame.proposedIds.has('npc') && ['create', 'replace'].includes(frame.decisions.npc_route)) frame.decisions.npc_route = 'none';
         if (!frame.proposedIds.has('villain') && ['create', 'replace'].includes(frame.decisions.villain_route)) frame.decisions.villain_route = 'none';
+        }
         (frame.staged = deps.stagedRecord(frame.rec));
         if(frame.decisions.npc_route==='reuse'&&/^generated_\d+$/.test(frame.decisions.npc_target||'')) {
             const target=frame.generatedNpcTargets[Number(frame.decisions.npc_target.slice(10))];
@@ -105,6 +116,7 @@ async function resolveDecision(run,frame) {
             if(target)frame.staged.villainProfile=structuredClone(target);
         }
         deps.prepareProfiles(frame.staged, frame.decisions, frame.details);
+        if(!frame.opportunityOffers) {
         (frame.preparedRoutes = {
             event_route: frame.decisions.event_route,
             advanced_route: frame.decisions.advanced_route,
@@ -117,7 +129,9 @@ async function resolveDecision(run,frame) {
                 if (value !== frame.beforeBudgetDecisions[key]) deps.overrideDecision(frame.details, frame.decisions, key, value, frame.details[key]?.rule || '추첨·프로필 준비 결과');
             }
         }
+        }
         (frame.finalPlan = deps.coordinateActionBudget(frame.rec, frame.details, frame.decisions, frame.staged, { externalCandidates: frame.verifiedExternalCandidates }));
+        if(!frame.opportunityOffers) {
         (frame.finalCandidateIds = new Set((frame.finalPlan.candidates || []).map((candidate) => candidate.id)));
         (frame.failedPrepared = [frame.provisionalPlan.primary, frame.provisionalPlan.secondary]
             .filter((candidate) => candidate && candidate.id !== 'direct' && !frame.finalCandidateIds.has(candidate.id))
@@ -125,10 +139,12 @@ async function resolveDecision(run,frame) {
         (frame.excludedById = new Map([...frame.provisionalPlan.excluded, ...frame.failedPrepared, ...frame.finalPlan.excluded].map((item) => [item.id, item])));
         for (const selectedCandidate of [frame.finalPlan.primary, frame.finalPlan.secondary,...(frame.finalPlan.overlays||[])]) if (selectedCandidate) frame.excludedById.delete(selectedCandidate.id);
         frame.finalPlan.excluded = [...frame.excludedById.values()];
-        frame.rec.deferredRoutes = deps.nextDeferredRoutes(frame.rec.deferredRoutes, frame.provisionalPlan);
-        frame.decisions.action_plan = deps.actionPlanSummary(frame.finalPlan);
+        }
+        frame.rec.deferredRoutes = deps.nextDeferredRoutes(frame.rec.deferredRoutes, frame.provisionalPlan || frame.finalPlan);
         (frame.chosenExternal = frame.verifiedExternalCandidates.find((item) => frame.finalPlan.secondary?.id === `external:${item.id}`) || null);
         (frame.chosenContinuity = frame.chosenExternal);
+        frame.chosenEventFollowups=[frame.finalPlan.primary,frame.finalPlan.secondary,...(frame.finalPlan.overlays||[])].some(item=>item?.kind==='event')?frame.eventFollowups:[];
+        frame.finalPlan.followups=frame.chosenEventFollowups.map(item=>({id:item.id,kind:'continuity',label:item.label}));
         if (frame.chosenContinuity) frame.decisions.selected_continuity_id = frame.chosenContinuity.id;
         // Canonical records are constraints, not extra independent action beats.
         if (frame.decisions.npc_route !== 'reuse') deps.overrideDecision(frame.details, frame.decisions, 'npc_target', 'none', '이번 응답에 기존 NPC 재사용 없음');
@@ -137,6 +153,12 @@ async function resolveDecision(run,frame) {
         }
         
         frame.additions=frame.opportunityOffers?resolveOpportunities(frame.opportunityOffers,frame.data.answers,frame.prefs):[];
+        frame.castBindings=resolveCastBindings({beats:frame.castBeats,sheets:frame.castSheets,generated:frame.castGenerated,answers:frame.data.answers,additions:frame.additions,decisions:frame.decisions});
+        for(const addition of frame.additions)if(addition.feature==='event')addition.cast=castSummary(frame.castBindings.filter(binding=>binding.beatKey===addition.templateId));
+        frame.finalPlan.cast=castSummary(frame.castBindings);
+        deps.noteDiagnostic?.('event_cast_prepared',{module:'src/scene/cast-binding.js',status:'prepared',candidateCount:frame.castSheets?.length||0,
+            selectedCount:frame.castBindings.filter(item=>item.kind!=='unresolved').length,unresolvedCount:frame.castBindings.filter(item=>item.kind==='unresolved').length,
+            newCount:frame.castBindings.filter(item=>item.kind==='new').length});
         if(frame.opportunityOffers){
             frame.rec.appearanceOffer={...frame.opportunityOffers.person,candidates:undefined};
             frame.rec.lastNpcRoll={...frame.rec.appearanceOffer};
@@ -145,6 +167,7 @@ async function resolveDecision(run,frame) {
             frame.finalPlan.additions=frame.opportunityPlan.additions;
             reportOpportunities(deps.noteDiagnostic,frame.opportunityPlan);
         }
+ frame.decisions.action_plan=deps.actionPlanSummary(frame.finalPlan);
  frame.drawDiagnostics=drawDiagnostics(frame);
  deps.noteDiagnostic?.('draw_opportunities',{event:frame.drawDiagnostics.event.status,person:frame.drawDiagnostics.person.status,drawKey:frame.drawDiagnostics.key});
  deps.noteDiagnostic?.('policy_candidates',{primary:frame.finalPlan.primary?.id||'',secondary:frame.finalPlan.secondary?.id||'',excludedCount:frame.finalPlan.excluded.length,exclusions:frame.finalPlan.excluded.map(x=>x.id+': '+x.reason)});

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { createOutputLifecycle } from '../../src/app/output-lifecycle.js';
-import { stateCollectorMode, stateRoster } from '../../src/characters/state-collector.js';
-import { mainOutputStatePrompt, collectMainOutputState } from '../../src/characters/state-main-output.js';
-import { collectProfileOutputState } from '../../src/characters/state-profile-output.js';
-import { latestStateForChat, storeStateEvent, dropStateEventsFrom, extractStateBlock, stateForEntry } from '../../src/characters/state-contract.js';
-import { buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/characters/live.js';
-import { createRecordBank, recordBankIsCurrent } from '../../src/characters/records.js';
+import { stateCollectorMode, stateRoster } from '../../src/character/state-collector.js';
+import { mainOutputStatePrompt, collectMainOutputState } from '../../src/character/state-main-output.js';
+import { collectProfileOutputState } from '../../src/character/state-profile-output.js';
+import { latestStateForChat, storeStateEvent, dropStateEventsFrom, extractStateBlock, stateForEntry } from '../../src/character/state-contract.js';
+import { buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/live.js';
+import { createRecordBank, recordBankIsCurrent } from '../../src/character/records.js';
 import { fixture } from './audit-v012.mjs';
 
 const fingerprint = text => `fp:${text}`;
@@ -171,11 +171,10 @@ assert.equal(fallback.run('record().characterStateEvents.some(event=>event.state
 
 fallback.run('record().preferences.profileEmotionJudgment=true; scheduleProfileStateCollection({chatKey:stateChatKey(),outputIndex:0,text:"Rowan smiles.",roster})');
 let validWaitFinished=false;
-const validWait=fallback.run('waitForProfileState()').then(()=>{validWaitFinished=true;});
+const validWait=fallback.run('pendingProfileStateCollection').then(()=>{validWaitFinished=true;});
 await Promise.resolve();
-assert.equal(validWaitFinished,false,'the next judgment waits for its active collector');
+assert.equal(validWaitFinished,false,'the detached collector is still pending');
 fallback.run('invalidateReasonerJobs(); record().characterStateCapture=null;');
-assert.equal(await Promise.race([fallback.run('waitForProfileState()').then(()=>true),new Promise(resolve=>setTimeout(()=>resolve(false),100))]),true,'cancelled collection does not delay the next judgment');
 await new Promise(resolve=>setTimeout(resolve,0));
 resolveLate({result:{states:[{code:'C0',a:90,c:10}]}});
 await validWait;

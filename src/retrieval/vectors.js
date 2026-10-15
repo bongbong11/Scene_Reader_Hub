@@ -19,6 +19,7 @@ const status = error => String(error?.message || error || '검색 오류').slice
 
 export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, onProgress = () => {}, onDiagnostic = () => {}, timeoutMs = 60000, requestTimeouts = {} }) {
     const queries = new Map();
+    let maintenanceCount=0;
     const enqueue = createRequestQueue();
     const budgets = {list:15000, insert:45000, delete:15000, query:15000, ...requestTimeouts};
     const report = detail => { try { onDiagnostic(detail); } catch { /* diagnostics cannot affect requests */ } };
@@ -71,9 +72,12 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         }
         return map;
     }
-    async function search({ kind, bankId, items, transcript, limit = 12, signal, recovery=false, indexOnly=false, forceRebuild=false, validate=()=>{} }) {
+    async function search({ kind, bankId, items, transcript, limit = 12, signal, recovery=false, indexOnly=false, forceRebuild=false, background=false, validate=()=>{} }) {
         if (!items.length || (!indexOnly && !queryText(transcript))) return { indices: [], status: 'empty' };
+        if(!indexOnly&&maintenanceCount)return {indices:[],status:'fallback',code:'EMBEDDING_MAINTENANCE',error:'임베딩 정비 중 · 이번 판독은 기록 매칭으로 진행합니다.'};
+        if(indexOnly)maintenanceCount++;
         const bounded = boundedSignal(signal,recovery,indexOnly);
+        const progress = background ? () => {} : onProgress;
         let indexCounts;
         try {
             validate();
@@ -88,7 +92,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             // The same bank can switch A -> B -> A, or be changed in another tab.
             // A cheap list request checks the actual index; it does not embed text.
             {
-                onProgress({kind, phase:'checking'});
+                progress({kind, phase:'checking'});
                 const saved = await post('list', body, bounded.signal,recovery);
                 validate();
                 if (!Array.isArray(saved)) throw new Error('검색 색인 목록 오류');
@@ -96,11 +100,15 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 const stale = [...savedHashes].filter(hash => !entries.has(hash));
                 const missing = [...entries.values()].filter(entry => forceRebuild || !savedHashes.has(entry.hash));
                 indexCounts = {totalCount:entries.size,reusedCount:forceRebuild?0:entries.size-missing.length,generatedCount:missing.length};
+                if(!indexOnly&&(missing.length>20||missing.reduce((sum,item)=>sum+item.text.length,0)>16000)) {
+                    report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'deferred',code:'EMBEDDING_INDEX_PENDING',...indexCounts});
+                    throw Object.assign(new Error('준비할 임베딩이 많아 기록 매칭으로 진행합니다. 임베딩 재시도를 눌러 준비해 주세요.'),{code:'EMBEDDING_INDEX_PENDING'});
+                }
                 if (indexOnly) {
-                    onProgress({kind,phase:'syncing',...indexCounts});
+                    progress({kind,phase:'syncing',...indexCounts});
                     report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'started',bankHash:hash32(bankId),...indexCounts,forceRebuild});
                 }
-                if (missing.length) onProgress({kind, phase:'indexing', count:missing.length});
+                if (missing.length) progress({kind, phase:'indexing', count:missing.length});
                 // Bound batches by both count and text size, without dropping records.
                 for (let offset = 0; offset < missing.length;) {
                     const batch = []; let chars = 0;
@@ -129,8 +137,8 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'succeeded',bankHash:hash32(bankId),...indexCounts,forceRebuild});
                 return {indices:[],status:'rebuilt',recordCount:entries.size,...indexCounts};
             }
-            if (options.source !== 'transformers' && queries.has(cacheKey)) return { indices: queries.get(cacheKey), status: 'cached' };
-            onProgress({kind, phase:'querying'});
+            if (options.source !== 'transformers' && queries.has(cacheKey) && !indexCounts.generatedCount) return { indices: queries.get(cacheKey), status: 'cached' };
+            progress({kind, phase:'querying'});
             const result = await post('query', { ...body, searchText: queryText(transcript), topK: Math.min(limit, items.length), threshold: 0.01 }, bounded.signal,recovery);
             // The native API returns sorted metadata, but no numeric similarity scores.
             // Never use its unfiltered hashes as accepted matches.
@@ -142,9 +150,10 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         } catch (error) {
             if (signal?.aborted) throw signal.reason || error;
             const reason = bounded.signal.aborted ? '검색 연결 시간이 초과되었습니다.' : status(error);
-            onProgress({kind, phase:'fallback', error:reason});
+            progress({kind, phase:'fallback', error:reason});
             return { indices: [], status: 'fallback', error: reason, code:error.code || 'RETRIEVAL_FAILED' };
         } finally {
+            if(indexOnly)maintenanceCount--;
             bounded.finish();
         }
     }
@@ -173,12 +182,14 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         return `${RETRIEVAL_PROVIDERS[options.source].label} 연결 성공`;
     }
     async function searchPaged({kind,bankId,count,transcript,signal,recovery=false}) {
+        if(maintenanceCount)return {indices:[],hashes:[],status:'fallback',code:'EMBEDDING_MAINTENANCE',error:'임베딩 정비 중 · 이번 판독은 기록 매칭으로 진행합니다.'};
         const bounded=boundedSignal(signal,recovery);
         try {const options=config();await credentials.inspect(options,bounded.signal);const result=await post('query',{...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`,searchText:queryText(transcript),topK:Math.min(12,count),threshold:.01},bounded.signal,recovery);
             if(!Array.isArray(result?.metadata))throw new Error('검색 결과 형식 오류');return {status:result.metadata.length?'ready':'fallback',indices:result.metadata.map(item=>item.index).filter(index=>Number.isInteger(index)&&index>=0&&index<count),hashes:result.metadata.map(item=>item.hash),...(!result.metadata.length?{code:'EMBEDDING_INDEX_MISSING',error:'임베딩이 준비되지 않아 기록 매칭으로 찾습니다. 임베딩 재시도를 사용할 수 있습니다.'}:{})};
         }catch(error){if(signal?.aborted)throw signal.reason||error;return {status:'fallback',indices:[],hashes:[],code:error.code||'RETRIEVAL_FAILED',error:'검색 연결에 실패해 기록 매칭으로 찾습니다.'};}finally{bounded.finish();}
     }
     async function rebuildPaged({kind,bankId,count,pages,signal,forceRebuild=false,validate=()=>{}}){
+        maintenanceCount++;
         let reusedCount=0,generatedCount=0;const entries=new Set();
         try{
             validate();const options=config();await credentials.inspect(options,signal);const body={...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`};
@@ -193,6 +204,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             const stale=[...savedHashes].filter(hash=>!entries.has(hash));if(stale.length){validate();await post('delete',{...body,hashes:stale},signal,true);}queries.clear();
             report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'succeeded',bankHash:hash32(bankId),totalCount:count,reusedCount,generatedCount,forceRebuild});return {status:'rebuilt',recordCount:count,reusedCount,generatedCount};
         }catch(error){if(signal?.aborted)throw signal.reason||error;return {status:'fallback',code:error.code||'EMBEDDING_REBUILD_FAILED',error:status(error)};}
+        finally{maintenanceCount--;}
     }
     return { search, searchPaged, rebuildPaged, rebuild:options=>search({...options,indexOnly:true,forceRebuild:options.forceRebuild===true,recovery:true}), test, config, clear: () => {queries.clear();credentials.clear();} };
 }

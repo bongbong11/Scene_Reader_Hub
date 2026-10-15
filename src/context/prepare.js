@@ -1,5 +1,5 @@
 import {continuityCacheKey} from '../continuity/cache.js';
-import {MEMORY_REFERENCE_ENABLED} from "../memory/context.js";
+import {MEMORY_REFERENCE_ENABLED} from "./memory.js";
 import {storylineReference} from './storyline-reference.js';
 import {ensureSharedWorld} from '../world/shared-library.js';
 
@@ -31,18 +31,16 @@ await deps.waitForOutputChanges?.();
     (frame.mixedOoc = Boolean(frame.context.metaGuidance.current));
     if (frame.mixedOoc) deps.updateActivity('OOC 지시 확인 · RP와 분리해 판독 중…');
 
-    // Manual and automatic judgment both consume completed prior-response state.
-    await deps.waitForProfileState?.();
-    run.assert();
+    // Snapshot the latest completed state. Optional emotion inference finishes
+    // separately and is available to the next judgment; it never blocks RP.
 
     run.assert();
     (frame.rec = deps.stagedRecord(deps.record(true)));
     frame.storylineReference=storylineReference(frame.rec);
-    run.history = structuredClone(await deps.loadStateHistory(run.identity));
-    run.assert();
     (frame.prefs = frame.rec.preferences);
     (frame.inputKey = deps.currentInputKey(frame.pendingUserText, frame.cycleSalt));
-    await ensureSharedWorld(frame.prefs.selectedWorldId,{signal:run.controller?.signal});run.assert();
+    const [history]=await Promise.all([deps.loadStateHistory(run.identity),ensureSharedWorld(frame.prefs.selectedWorldId,{signal:run.controller?.signal})]);
+    run.history=structuredClone(history);run.assert();
     (frame.world = deps.selectedWorld(frame.rec));
     (frame.sourceKey = deps.sourceRevisionKey(frame.rec, frame.world));
     (frame.assertCurrentSnapshot = () => {

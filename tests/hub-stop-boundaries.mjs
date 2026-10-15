@@ -7,7 +7,7 @@ import {auxiliaryFixture} from './fixtures/auxiliary-runtime.mjs';
 import {createGenerationLifecycle} from '../src/lifecycle/generation.js';
 
 // Stop while generation is waiting for the previous emotion request, before Jev starts.
-for(const waitAt of ['reconcileInjection','waitForOutputChanges','waitForProfileState']) for(const fallback of [false,true]) {
+for(const waitAt of ['reconcileInjection','waitForOutputChanges']) for(const fallback of [false,true]) {
     const f=fixture();let release,entered,calls=0;
     const hold=new Promise(resolve=>{release=resolve;});
     const ready=new Promise(resolve=>{entered=resolve;});
@@ -65,7 +65,7 @@ for(const autoJudge of [false,true]) {
         getContext:()=>({chat:[]}),record:()=>record,selectedWorld:()=>null,sourceRevisionKey:()=> 'source',
         currentInputKey:()=> 'input',recentContext:()=>({contextKey:'context'}),stableFingerprint:()=> 'cache',
         pendingComposerText:()=>'',generationCycleSalt:()=>'',document:{getElementById:()=>null},
-        reconcileInjection:async()=>{},waitForOutputChanges:async()=>{},waitForProfileState:async()=>{},
+        reconcileInjection:async()=>{},waitForOutputChanges:async()=>{},
         StaleRunError,runJudge:async()=>{calls++;},updateActivity:()=>{},updateStatus:()=>{},clearInjection:async()=>{},
         applyStoredInjection:async({validate})=>{entered();await new Promise(resolve=>{release=resolve;});validate();return {sourceCurrent:true,payloadChars:5};}};
     // Use the real Hub preparation owner and cancel while cached registration waits.

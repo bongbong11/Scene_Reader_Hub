@@ -52,13 +52,6 @@ async function prepareGeneration(type, data, dryRun, preparation) {
         deps.updateStatus('자료 연결 중 · 이번 응답은 Hub 판독 없이 진행합니다.');
         return;
     }
-    if(deps.isEmbeddingBusy?.()) {
-        deps.generationMode='embedding_maintenance';
-        deps.activeGenerationCycle={mode:'embedding_maintenance',chatKey:startedChatKey,inputKey:'',startedAt:new Date().toISOString()};
-        await deps.clearInjection({chatKey:startedChatKey});
-        deps.updateStatus('임베딩 생성 중 · 이번 응답은 Hub 판독 없이 진행합니다.');
-        return;
-    }
     await deps.reconcileInjection();
     preparation?.assert();
     await deps.waitForOutputChanges();
@@ -119,7 +112,6 @@ async function prepareGeneration(type, data, dryRun, preparation) {
     }
     deps.generationMode = 'rp';
     deps.activeGenerationCycle = { mode: 'rp', chatKey: deps.stateChatKey(), inputKey: generationInputKey, startedAt: new Date().toISOString() };
-    await deps.waitForProfileState();
     preparation?.assert();
     if (startedChatKey !== deps.stateChatKey() || deps.currentInputKey(pendingUserText,cycleSalt)!==generationInputKey) return;
     if (!deps.settings.autoJudge) {
@@ -222,7 +214,7 @@ async function onChatChanged() {
 }
 async function prepareBeforeGeneration(type,data={},dryRun=false,trigger='after_commands') {
     type=String(type||'normal');
-    if(!deps.hub || deps.isEmbeddingBusy?.())return prepareGeneration(type,data,dryRun);
+    if(!deps.hub)return prepareGeneration(type,data,dryRun);
     if(dryRun||data?.quiet_prompt||type==='quiet') {
         deps.hub.report('trigger','GENERATION_SKIPPED',{trigger,type:String(type||'normal'),dryRun:Boolean(dryRun)});
         return prepareGeneration(type,data,dryRun);

@@ -31,6 +31,7 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
     })(),'인물 기록 작업을 완료하지 못했습니다.');
     async function persist(next, entry) {
         const job=deps.jobs.begin('character-transfer'), chat=deps.stateChatKey();
+        const before=new Map(allEntries(deps.characterStore).map(person=>[person.id,person.appliedRecordVersion||person.recordBank?.analysisId]));
         let saved=false,applied=false;
         try {
             const result=await deps.saveCharacterStore(chat,next);
@@ -46,6 +47,8 @@ export function bindCharacterTransfer(deps, {characterForm, invalidatePreparedJu
             if(chat!==deps.stateChatKey())return false;
             if(entry)deps.characterAnalysisSelection={kind:entry.kind,id:entry.id};
             deps.renderCharacterStore();
+            const changed=allEntries(deps.characterStore).filter(person=>person.recordBank&&(person.appliedRecordVersion||person.recordBank.analysisId)!==before.get(person.id)).map(person=>person.id);
+            void deps.embeddingMaintenance?.prepareApplied?.(changed);
             return true;
         } catch(error){error.characterSaved=saved;error.characterApplied=applied;error.characterStage=saved?'apply':'save';throw error;} finally {job.finish();}
     }

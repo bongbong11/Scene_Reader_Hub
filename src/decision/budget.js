@@ -157,6 +157,8 @@ export function actionPlanSummary(plan) {
         primary: plan?.primary ? { id: plan.primary.id, kind: plan.primary.kind, focus: plan.primary.focus, label: plan.primary.label } : null,
         secondary: plan?.secondary ? { id: plan.secondary.id, kind: plan.secondary.kind, focus: plan.secondary.focus, label: plan.secondary.label } : null,
         additions: Array.isArray(plan?.additions)?plan.additions.map(item=>({...item})):[],
+        cast:Array.isArray(plan?.cast)?plan.cast.map(item=>({...item})):[],
+        followups:Array.isArray(plan?.followups)?plan.followups.map(item=>({...item})):[],
         overlays: Array.isArray(plan?.overlays)?plan.overlays.map(item=>({id:item.id,kind:item.kind,label:item.label})):[],
         excluded: Array.isArray(plan?.excluded) ? plan.excluded.map((item) => ({ ...item })) : [],
     };

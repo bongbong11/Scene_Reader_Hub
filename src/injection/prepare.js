@@ -5,7 +5,8 @@ import {continuityCacheKey} from '../continuity/cache.js';
 import {visibilityKey} from '../context/visibility.js';
 import {characterVolume} from '../character/volume.js';
 import {additionBlocks, incorporateAdditions} from './opportunity.js';
-import {selectActingAntagonists} from './npc-execution.js';
+import {selectActingAntagonists,buildEventCastInjection} from './npc-execution.js';
+import {castSummary} from '../scene/cast-binding.js';
 import {repetitionInjection} from '../continuity/repetition.js';
 import {storylineInjection} from '../context/storyline-reference.js';
 import {selectExecutionCorrectionKeys} from "../scene/correction-selection.js";
@@ -24,7 +25,12 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             frame.details.npc_autonomy = { selected: npcActive ? 'yes' : 'no', effective: npcActive ? 'yes' : 'no', certainty: 1, threshold: 1, adjusted: false, conditional: true };
             frame.decisions.npc_autonomy = frame.details.npc_autonomy.effective;
         }
-        (frame.characterExecution = deps.buildCharacterInjection(frame.resolvedCharacters, { conflictActive: ['tension', 'active'].includes(frame.decisions.conflict_state) || frame.decisions.fight_sustain === 'yes', volume:frame.prefs.characterVolume,maxChars:characterVolume(frame.prefs.characterVolume).chars }));
+        const boundIds=new Set((frame.castBindings||[]).filter(item=>item.kind==='sheet').map(item=>item.actorId));
+        const activeIds=new Set(frame.resolvedCharacters.filter(item=>item.presence==='active').map(item=>item.id));
+        const prospective=[...frame.liveCharacters,...(frame.futureCast||[])].filter(person=>boundIds.has(person.id)&&!activeIds.has(person.id));
+        const fullCharacterBudget=characterVolume(frame.prefs.characterVolume).chars;
+        const reserved=prospective.some(person=>person.profileCandidates.length)?Math.min(1800,Math.floor(fullCharacterBudget/4)):0;
+        (frame.characterExecution = deps.buildCharacterInjection(frame.resolvedCharacters, { conflictActive: ['tension', 'active'].includes(frame.decisions.conflict_state) || frame.decisions.fight_sustain === 'yes', volume:frame.prefs.characterVolume,maxChars:fullCharacterBudget-reserved }));
         (frame.characterTrace = frame.characterExecution.traces);
         (frame.sexualPlan = resolveSexualConduct(frame.resolvedCharacters, frame.decisions, frame.prefs.physicalIntimacyPace));
         (frame.sexualExecution = buildSexualInjection(frame.sexualPlan, frame.prefs.physicalIntimacyPace));
@@ -56,8 +62,20 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             lengthOmissions:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.omittedByInjectionChars || 0),0),
             invalidAnswers:frame.characterTrace.reduce((sum,p)=>sum+(p.protection?.invalidAnswers || 0),0) });
         (frame.characterBlock = frame.characterExecution.text);
+        const injectedIds=new Set(frame.characterTrace.filter(item=>item.injectedRuleIds?.length).map(item=>item.id));
+        const plannedPeople=[...frame.liveCharacters,...(frame.futureCast||[])].filter(person=>boundIds.has(person.id)&&!injectedIds.has(person.id));
+        const plannedDecisions={...frame.decisions};
+        for(const person of plannedPeople)plannedDecisions[`character_${person.index}_presence`]='active';
+        // This local rendering decision is NOT stored as observed participation.
+        const plannedGuard='If the selected event actor enters or contacts the scene, use these stored constraints. This plan does not establish present participation or private knowledge.\n';
+        const plannedRecords=deps.buildCharacterInjection(deps.resolveLiveCharacterPlan(plannedPeople,plannedDecisions,frame.details),
+            {volume:frame.prefs.characterVolume,maxChars:Math.max(0,fullCharacterBudget-frame.characterExecution.charCount-plannedGuard.length-1)});
+        frame.castRecordTrace=plannedRecords.traces;
+        frame.characterBlock=[frame.characterBlock,plannedRecords.text?plannedGuard+plannedRecords.text:''].filter(Boolean).join('\n');
+        frame.characterExecution.charCount=frame.characterBlock.length;
+        frame.characterExecution.charLimit=fullCharacterBudget;
         (frame.continuityBlock = deps.settings.continuityEnabled
-            ? deps.buildContinuityInjection(frame.continuityContext, frame.chosenContinuity)
+            ? deps.buildContinuityInjection(frame.continuityContext, frame.chosenContinuity,frame.chosenEventFollowups)
             : '');
         if(deps.settings.continuityEnabled && frame.rec.repetitionGuard) {
             const review=repetitionInjection(frame.rec.repetitionGuard,{chat:deps.getContext().chat,chatKey:run.identity,excluded:frame.rec.nonRpOutputIndices || [],fingerprint:deps.stableFingerprint});
@@ -71,18 +89,25 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         (frame.selectedSheetNpc = frame.decisions.npc_route === 'reuse' && /^sheet_\d+$/.test(frame.decisions.npc_target || '')
             ? frame.npcTargets[Number(frame.decisions.npc_target.slice(6))] || null : null);
         (frame.correctionSelection = selectExecutionCorrectionKeys(frame.decisions, frame.details));
-        (frame.payload = deps.buildInjection({ settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', presentSheetNpcNames:frame.resolvedCharacters.filter(person=>person.kind==='npc'&&person.presence==='active'&&person.participationEvidence!=='continuing').map(person=>person.name), antagonistActors:selectActingAntagonists(frame.resolvedCharacters,{socialEnabled:frame.prefs.socialEnabled,selectedTargetId:frame.selectedSheetNpc?.id}), eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details, hasAdditions:Boolean(frame.additions?.length) }));
+        (frame.payload = deps.buildInjection({ settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', presentSheetNpcNames:frame.resolvedCharacters.filter(person=>person.kind==='npc'&&person.presence==='active'&&person.participationEvidence!=='continuing').map(person=>person.name), antagonistActors:selectActingAntagonists(frame.resolvedCharacters,{socialEnabled:frame.prefs.socialEnabled,selectedTargetId:frame.selectedSheetNpc?.id}), eventActors:frame.castBindings||[], eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details, hasAdditions:Boolean(frame.additions?.length) }));
         const activity=worldAgencyParts(frame.prefs,frame.decisions);
         frame.activitySummary={ids:activity.ids,progressBoost:frame.prefs.developmentStyle!=='static'&&frame.decisions.progress_boost==='yes',stalledTurns:frame.rec.progressionState?.turnsSinceMeaningfulProgress||0};
         deps.noteDiagnostic?.('scene_activity_prepared',{module:'src/injection/prepare.js',status:'prepared',...frame.activitySummary});
         frame.additionBlocks=additionBlocks(frame.additions||[],frame.prefs,Boolean(frame.rec.eventProfile));
         frame.payload=incorporateAdditions(frame.payload,frame.additionBlocks,frame.prefs);
+        const castText=buildEventCastInjection(frame.castBindings);
+        if(castText){
+            if(!frame.payload.endsWith('\n)'))throw new Error('사건 담당 인물의 주입 위치를 확인하지 못했습니다.');
+            frame.payload=frame.payload.slice(0,-2)+`\n\n${castText}\n)`;
+        }
         const carried=storylineInjection(frame.rec);
         if(carried)frame.payload=carried+'\n\n'+frame.payload;
         frame.finalContinuityCacheKey=continuityCacheKey(frame.rec,deps.settings,deps.stableFingerprint);
         (frame.rawChoices = Object.fromEntries(Object.entries({...frame.worldRecordAnswers,...frame.data.answers}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));
         frame.rec.lastJudgment = { decisionContract:DECISION_CONTRACT_VERSION, details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
         frame.rec.lastJudgment.activity=frame.activitySummary;
+        frame.rec.lastJudgment.cast=castSummary(frame.castBindings);
+        frame.rec.lastJudgment.castRecordCounts=[...frame.characterTrace.filter(item=>boundIds.has(item.id)&&item.injectedRuleIds?.length),...(frame.castRecordTrace||[])].map(item=>({id:item.id,injected:item.injectedRuleIds?.length||0}));
         frame.rec.lastJudgment.opportunityPlan=frame.opportunityPlan||null;
         frame.rec.lastJudgment.visibilityKeyV1=visibilityKey(deps.getContext().chat||[]);
         frame.rec.lastJudgment.additionBlocks=frame.additionBlocks;
@@ -92,6 +117,8 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             const pendingOffset = String(frame.pendingUserText || '').trim() ? 1 : 0;
             frame.rec.pendingPlan = {
                 additions: structuredClone(frame.additions||[]),
+                cast:castSummary(frame.castBindings),
+                eventFollowups:(frame.chosenEventFollowups||[]).map(item=>({id:item.id,action:item.data.action})),
                 opportunityKey: frame.opportunityOffers?.key||null,
                 inputKey: frame.inputKey,
                 sourceKey: frame.sourceKey,

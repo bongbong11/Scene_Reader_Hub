@@ -22,3 +22,13 @@ export function buildAntagonistExecution({actor='the established antagonist',tac
     const name=String(actor).replace(/[<>\n\r]/g,' ').trim();
     return `<NPC_CONFLICT_ACTION tactic="${selected}">For ${name}, execute the selected tactic through actual in-character speech or conduct in this response, following their established personality and objective. Inner thoughts, looks, or atmosphere alone do not fulfill it. Use only established knowledge, means and access; the tactic grants no new capability or control of the target. ${CONFLICT_TACTICS[selected]}</NPC_CONFLICT_ACTION>`;
 }
+
+export function buildEventCastInjection(bindings=[]) {
+    return bindings.map(binding=>{
+        if(binding.kind==='unresolved')return 'For the selected event, do not invent an inaccessible actor or a new identity without the person offer. Execute the available part with established participants; do not claim the missing contact occurred.';
+        const actor=binding.kind==='current_cast'?'the existing non-user participants':binding.kind==='scene_existing'?'the relevant established NPC':String(binding.name||'the selected actor').replace(/[<>\r\n]/g,' ');
+        const tactic=(CONFLICT_TACTICS[binding.action]||CONFLICT_TACTICS.character_driven).replaceAll('the NPC','the acting character');
+        const profile=binding.kind==='generated'?` Established purpose: ${binding.profile?.aim||binding.profile?.motive||''}. Means and access: ${binding.profile?.access||''}.`:'';
+        return `Event actor: ${actor}. Make one concrete move for the selected event in this response, through available contact or presence. ${tactic}${profile} This is part of that event, not another plot. Thoughts alone do not fulfill the move. Preserve personality, known facts, access, relationship pace and the target's response; do not assume success or mutual desire.`;
+    }).join('\n');
+}

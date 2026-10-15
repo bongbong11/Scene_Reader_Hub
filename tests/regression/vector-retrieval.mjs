@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { createVectorRetrieval, RETRIEVAL_PROVIDERS } from '../../src/retrieval/vectors.js';
-import { applyRecordRelevance } from '../../src/scene/policy.js';
-import { createRecordBank } from '../../src/characters/records.js';
-import { selectRecordCandidates } from '../../src/characters/record-selection.js';
-import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/characters/live.js';
+import { applyRecordRelevance } from '../../src/decision/answers.js';
+import { createRecordBank } from '../../src/character/records.js';
+import { selectRecordCandidates } from '../../src/character/record-selection.js';
+import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/live.js';
 
 const settings={retrievalProvider:'nanogpt',retrievalModel:RETRIEVAL_PROVIDERS.nanogpt.model};
 const collections=new Map(), calls=[];
@@ -38,6 +38,10 @@ const rules=Array.from({length:69},(_,index)=>({type:'core',target:'self',when:[
 const entry={id:'rowan',kind:'npc',name:'Rowan',source:'Rowan has documented habits and speaks with Ellis.',selectedLore:[],sourceVisibleToMain:true};
 entry.recordBank=createRecordBank({entity_type:'npc',entity_name:'Rowan',records:rules},entry,'audit');
 const transcript='Ellis texted Rowan about the investigation. Rowan considers how to reply.';
+const deferred=await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9});
+assert.equal(deferred.code,'EMBEDDING_INDEX_PENDING');
+assert.equal(calls.filter(item=>item.route==='insert').length,0,'large cold bank does not block the scene with bulk inference');
+assert.equal((await retrieval.rebuild({kind:'character',bankId:'room:rowan',items:rules})).status,'rebuilt');
 const result=await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9});
 assert.equal(result.status,'ready');
 assert.ok(progress.some(item=>item.phase==='checking'));
@@ -76,6 +80,8 @@ assert.equal(activeCollection.size,69,'repeated version switches replace stale r
 assert.ok([...activeCollection.values()].some(item=>item.text.includes('Ellis')));
 const before=calls.filter(call=>call.route==='query').length;
 settings.retrievalModel='Qwen/Qwen3-Embedding-4B';
+assert.equal((await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9})).code,'EMBEDDING_INDEX_PENDING','model switch cannot reuse the old model index');
+assert.equal((await retrieval.rebuild({kind:'character',bankId:'room:rowan',items:rules})).status,'rebuilt');
 await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9});
 assert.equal(calls.filter(call=>call.route==='query').length,before+1,'model switch uses a separate index and query');
 fail=true;
@@ -87,6 +93,9 @@ fail=false;
 assert.match(await retrieval.test(),/연결 성공/);
 assert.match(await retrieval.test(),/연결 성공/);
 assert.equal([...collections.entries()].filter(([key])=>key.includes('scene-reader-connection-test')).every(([,value])=>value.size===0),true,'repeated connection checks leave no test vectors');
+const progressBefore=progress.length;
+assert.equal((await retrieval.rebuild({kind:'character',bankId:'background-apply',items:rules.slice(0,1),background:true})).status,'rebuilt');
+assert.equal(progress.length,progressBefore,'background file preparation does not leave a foreground working toast');
 const hanging=createVectorRetrieval({
     fetch:(_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true})),
     getRequestHeaders:()=>({}),getSettings:()=>settings,timeoutMs:10,
