@@ -13,7 +13,8 @@ import {buildSexualQuestions, sexualEligible} from "../character/sexual-conduct.
 import {prepareKnowledgeVault} from '../integration/knowledge-vault.js';
 import {conflictTacticQuestion} from './npc-tactics.js';
 import {castBeats,castQuestions,CAST_LIMIT} from '../scene/cast-binding.js';
-import {selectEventCast} from '../character/selection.js';
+import {selectReferencedCast} from '../character/selection.js';
+import {recordBankIsCurrent} from '../character/records.js';
 import {storyElements,storyDirectionQuestion,storyDirectionBeat} from '../world/story-direction.js';
 
 export function createDecisionPreparation(deps) {
@@ -21,7 +22,10 @@ async function prepareQuestions(run,frame) {
 if (frame.prefs.settingsContract >= 3) {
         const offerKey=drawOpportunityKey({identity:run.identity,chat:deps.getContext().chat,pendingUserText:frame.pendingUserText,type:deps.pendingGenerationType,pendingPlan:frame.rec.pendingPlan,excluded:frame.rec.nonRpOutputIndices||[]});
         frame.rec.drawOpportunityKey=offerKey;
-        frame.opportunityOffers=makeOpportunities(frame.rec,offerKey,{worldId:frame.world?.id,worldName:frame.world?.name});
+        if(frame.npcOpportunityPreview?.key===offerKey){
+            frame.opportunityOffers=frame.npcOpportunityPreview.offers;
+            frame.rec.opportunities=frame.npcOpportunityPreview.history;
+        }else frame.opportunityOffers=makeOpportunities(frame.rec,offerKey,{worldId:frame.world?.id,worldName:frame.world?.name});
         frame.rec.appearanceOffer={...frame.opportunityOffers.person,candidates:undefined};
         frame.rec.lastNpcRoll={...frame.opportunityOffers.person,candidates:undefined};
 
@@ -66,8 +70,10 @@ if (frame.prefs.settingsContract >= 3) {
         frame.castBeats.push(storyDirectionBeat(frame.storyElements));
     }
     const castQuery=frame.castBeats.map(beat=>beat.text).join('\n');
+    const currentNpcIds=new Set(frame.activeCharacters.filter(entry=>entry.kind==='npc').map(entry=>entry.id));
+    const prospective=deps.characterStore.npcs.filter(entry=>!currentNpcIds.has(entry.id));
     frame.castSheets=frame.castBeats.length&&deps.characterStore.enabled
-        ?selectEventCast(deps.characterStore.npcs,`${castQuery}\n${frame.transcript}`,{limit:CAST_LIMIT}):[];
+        ?[...frame.activeCharacters.filter(entry=>entry.kind==='npc'&&recordBankIsCurrent(entry)),...selectReferencedCast(prospective,`${castQuery}\n${frame.transcript}`,frame.npcReferences,{fallbackLimit:CAST_LIMIT})]:[];
     // Current speakers retain all their slots. Prospective candidates share the
     // same six-person request ceiling and never become participation evidence.
     const activeIds=new Set(frame.activeCharacters.map(entry=>entry.id));
@@ -76,6 +82,9 @@ if (frame.prefs.settingsContract >= 3) {
     if(frame.castBeats.length)deps.noteDiagnostic?.('event_cast_candidates',{module:'src/decision/prepare.js',registeredCount:frame.castSheets.length,omittedByCapacity:frame.castSheets.filter(entry=>!retained.has(entry.id)).length,currentCount:frame.activeCharacters.length,prospectiveCount:future.length,
         recordSearchEnabled:Boolean(deps.characterStore.enabled),pagedSeedCount:deps.characterStore.enabled?deps.characterStore.npcs.filter(entry=>entry.recordBank?.pagedRecords).length:0});
     frame.castSheets=frame.castSheets.filter(entry=>retained.has(entry.id));
+    if(frame.npcReferenceCandidates)deps.noteDiagnostic?.('npc_reference_search',{module:'src/decision/prepare.js',registeredCount:deps.characterStore.npcs.length,
+        currentCount:currentNpcIds.size,prospectiveCount:future.length,skippedCount:[...(frame.npcReferences?.values()||[])].filter(value=>value==='skip').length,
+        fallbackCount:prospective.filter(entry=>!['reference','skip'].includes(frame.npcReferences?.get(entry.id))).length});
     frame.castGenerated=[frame.rec.npcProfile,frame.rec.villainProfile,...frame.generatedNpcTargets,...frame.generatedVillainTargets]
         .filter((item,index,all)=>item&&item.status!=='retired'&&all.findIndex(other=>other?.id===item.id)===index).slice(0,8);
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));

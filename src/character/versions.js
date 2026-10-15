@@ -1,6 +1,7 @@
 import { normalizeCharacterStore } from "./store.js";
 import { createImportedRecordBank, createRecordBank, recordBankIsCurrent } from "./records.js";
 import { validateImport } from "../vendor/character-reasoner/index.js";
+import {withNpcIndex} from './npc-index.js';
 
 const uid = () => globalThis.crypto?.randomUUID?.() || `version-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const normalized = name => String(name || '').trim().replace(/\s+/g,' ').toLocaleLowerCase();
@@ -65,7 +66,7 @@ export function applyRecordVersion(store, groupId, versionId) {
         if (!entry) throw new Error('이 인물의 원본 등록이 없습니다. 버전을 복사한 뒤 다시 가져오세요.');
     }
     if (!recordBankIsCurrent({...entry,recordBank:version.bank})) throw new Error('원문 또는 판독 기준이 바뀌었습니다. 결과를 다시 검증해 가져오거나 새로 판독하세요.');
-    entry.recordBank=structuredClone(version.bank);entry.appliedRecordVersion=version.id;
+    entry.recordBank=withNpcIndex(structuredClone(version.bank));entry.appliedRecordVersion=version.id;
     putEntry(next,entry);
     return {store:next,entry};
 }

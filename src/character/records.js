@@ -1,6 +1,7 @@
 import { CORE_SHA256 } from "../vendor/character-reasoner/version.js";
 import { stableFingerprint } from "../decision/policy.js";
 import { singleCharacterCompilerPrompt } from './compiler-prompt.js';
+import {withNpcIndex} from './npc-index.js';
 import { API_VERSION, RECORD_VERSION, COMPILER_VERSION, buildSources, compileResult, hardValidateRecords, validateImport } from "../vendor/character-reasoner/index.js";
 const PREVIOUS_CORE_SHA256 = 'cba337f701c7760b1414e394bb27c24c65ec23e0267197d2b4d8f68b21c35c11';
 const PRIOR_NPC_GUIDANCE_SHA256 = '188587338d3f4cad54d8e6f217418d13b437b18b0ddaaa3ca6d60ee724685783';
@@ -19,10 +20,10 @@ export function compilerRequest(entry) {
 export function createRecordBank(input, entry, analysisId) {
     const draft = sourceSnapshot(entry);
     const output = compileResult(input, draft);
-    return { coreFingerprint:CORE_SHA256, apiVersion:API_VERSION, recordVersion:RECORD_VERSION, compilerVersion:COMPILER_VERSION,
+    return withNpcIndex({ coreFingerprint:CORE_SHA256, apiVersion:API_VERSION, recordVersion:RECORD_VERSION, compilerVersion:COMPILER_VERSION,
         sourceFingerprint:recordSourceFingerprint(entry), analysisId, analyzedAt:new Date().toISOString(),
         ...output, sources:draft.sources,
-        recordIds:output.records.map((_, i) => `char:${entry.id}@${analysisId}:r${i+1}`) };
+        recordIds:output.records.map((_, i) => `char:${entry.id}@${analysisId}:r${i+1}`) });
 }
 export function recordBankIsCurrent(entry) {
     const bank=entry?.recordBank;
@@ -50,10 +51,10 @@ export function recordBankIsCurrent(entry) {
 export function createImportedRecordBank(input, entry, analysisId) {
     const imported = validateImport(input);
     if (imported.output.entity_type !== entry.kind || imported.output.entity_name !== entry.name) throw new Error('JSON의 인물 종류와 이름이 적용할 인물과 다릅니다.');
-    return { ...imported.output, source_set_id:imported.source_set_id, import_log:imported.import_log,
+    return withNpcIndex({ ...imported.output, source_set_id:imported.source_set_id, import_log:imported.import_log,
         sourceMethod:'external_json_import', sources:[], coreFingerprint:CORE_SHA256,
         apiVersion:API_VERSION, recordVersion:RECORD_VERSION, compilerVersion:COMPILER_VERSION,
         sourceFingerprint:recordSourceFingerprint(entry), analysisId, analyzedAt:new Date().toISOString(),
-        recordIds:imported.output.records.map((_,i)=>`char:${entry.id}@${analysisId}:r${i+1}`) };
+        recordIds:imported.output.records.map((_,i)=>`char:${entry.id}@${analysisId}:r${i+1}`) });
 }
 export function currentRecords(entry) { return recordBankIsCurrent(entry) ? entry.recordBank.records : []; }

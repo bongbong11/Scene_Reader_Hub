@@ -7,8 +7,11 @@ import {DECISION_CONTRACT_VERSION} from '../decision/policy.js';
 // Page query results are a cache, not a new applied file. Immutable page roots
 // still invalidate the source when the actual stored bank is replaced.
 function bankSource(bank) {
-    if(!bank?.pagedRecords)return bank;
-    const {records,recordIndices,...source}=bank;
+    if(!bank)return bank;
+    // Derived search metadata is not a user edit or a new source revision.
+    const {npcIndex,...stable}=bank;
+    if(!bank.pagedRecords)return stable;
+    const {records,recordIndices,...source}=stable;
     return source;
 }
 
@@ -25,7 +28,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         memoryReferenceEnabled: MEMORY_REFERENCE_ENABLED,
         decisionContract: DECISION_CONTRACT_VERSION,
         continuityContract: 4,continuityConfig:[deps.settings.continuityEnabled],
-        characterSelectorContract: 6,
+        characterSelectorContract: 7,
         injectionAssemblyContract: 12,
         characterStateContract: 2,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,

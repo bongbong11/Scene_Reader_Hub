@@ -1,5 +1,5 @@
 import { normalizeCharacterStore } from "./store.js";
-import {currentRecords} from './records.js';
+import {currentRecords,recordBankIsCurrent} from './records.js';
 
 // Future actors are ranked independently of current-scene participation.
 // Only applied compiled records are inspected; old versions/source sheets stay out.
@@ -15,6 +15,16 @@ export function selectEventCast(entries, query, {limit=3}={}) {
         return {entry,score,valid:records.length>0};
     }).filter(item=>item.valid).sort((a,b)=>b.score-a.score || String(a.entry.id).localeCompare(String(b.entry.id)))
         .slice(0,limit).map(item=>item.entry);
+}
+
+// The early answer replaces blind prospective searches, not cast permission.
+// Missing/invalid answers (including old paged files without an index) retain
+// the legacy bounded search. Explicitly selected files need no second score.
+export function selectReferencedCast(entries,query,references,{fallbackLimit=3}={}) {
+    if(!references)return selectEventCast(entries,query,{limit:fallbackLimit});
+    const selected=entries.filter(entry=>references.get(entry.id)==='reference'&&recordBankIsCurrent(entry));
+    const uncertain=entries.filter(entry=>!['reference','skip'].includes(references.get(entry.id)));
+    return [...selected,...selectEventCast(uncertain,query,{limit:fallbackLimit})];
 }
 export function chunkSheet(source, maxChars = 1400) {
     const paragraphs = String(source || '').split(/\n\s*\n/).map((v) => v.trim()).filter(Boolean);

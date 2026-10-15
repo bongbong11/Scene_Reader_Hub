@@ -38,6 +38,7 @@ export function singleCharacterCompilerPrompt(draft) {
 ${compilerSourceGuide(draft.sources)}
 ${nameGuide}
 ${draft.entity_type==='npc' && !draft.sources.length?'Completed NPC sheet supplied alongside this instruction is also valid source material.':''}
+${draft.entity_type==='npc'?'NPC의 역할·주요 관계·목적·소속·활동 장소가 원문에 있으면 기존 records 형식에 빠뜨리지 말고 담으세요. 어떤 상황에 관련된 인물인지 알 수 있도록 쓰되, 원문에 없는 등장 조건·관계·목적을 만들지 마세요. 매번 등장하거나 갈등을 일으키라는 전개 명령을 추가하지 마세요. 선별용 소개나 새 필드는 JSON에 추가하지 않습니다.':''}
 
 ${CHARACTER_FILE_GUIDE}
 

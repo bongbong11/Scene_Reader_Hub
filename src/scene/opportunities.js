@@ -7,6 +7,13 @@ export function normalizeOpportunities(value) {
         offered:Array.isArray(value?.offered)?value.offered.slice(-32):[],
         confirmed:Array.isArray(value?.confirmed)?value.confirmed.slice(-32):[]};
 }
+// Prepare the same deterministic offer once without committing it during a
+// paused scene. The normal decision stage consumes this draft unchanged.
+export function previewOpportunities(rec,key,options) {
+    const draft={...rec,opportunities:structuredClone(rec.opportunities)};
+    const offers=makeOpportunities(draft,key,options);
+    return {key,offers,history:draft.opportunities};
+}
 function choosePackages(pool,key,feature,history) {
     const random=drawRandom(key,`material:${feature}`),remaining=[...pool],chosen=[];
     const recent=new Set(history.slice(-8).map(x=>x.templateId));

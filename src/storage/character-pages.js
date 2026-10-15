@@ -1,12 +1,14 @@
 import {encodeTree} from './tree-codec.js';
 import {recordText,hash53} from '../retrieval/identity.js';
 import {digest} from './shared-document.js';
+import {ensureNpcIndex} from '../character/npc-index.js';
 let storage,report;
 export function bindCharacterPages(post,noteDiagnostic){storage=post;report=noteDiagnostic;}
 const words=text=>[...new Set(String(text||'').toLocaleLowerCase().match(/[\p{L}\p{N}_]{2,}/gu)||[])];
 export async function packCharacterStore(store,emit,{signal}={}) {
  const next=structuredClone(store),banks=new Map();
  async function bank(value) {
+  ensureNpcIndex(value);
   if(!value?.records||value.pagedRecords||value.records.length<512&&JSON.stringify(value).length<256*1024)return value;
   const signature=digest([value.analysisId,value.records]);if(banks.has(signature))return banks.get(signature);
   const root=await encodeTree(value.records,emit,{signal}),terms=Object.create(null),anchors=[],types=new Set();

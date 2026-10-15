@@ -11,6 +11,11 @@ import {recordBankIsCurrent} from "../character/records.js";
 import {addWorldQuestions, selectedWorldRecords, worldPayload as buildWorldPayload} from "../world/advanced.js";
 import {seasonalWorldNote} from "../world/seasonal.js";
 import {stateForEntry} from "../character/state-contract.js";
+import {addNpcReferenceQuestions,resolveNpcReferences} from '../character/npc-index.js';
+import {previewOpportunities} from './opportunities.js';
+import {drawOpportunityKey} from './draw-opportunity.js';
+import {castBeats} from './cast-binding.js';
+import {storyElements,storyDirectionBeat} from '../world/story-direction.js';
 
 export function createGateStage(deps) {
 async function prepareGate(run,frame) {
@@ -26,6 +31,15 @@ async function prepareGate(run,frame) {
     const host=deps.getContext();
     const sceneTranscript=recentSceneRoleplay({chat:host.chat,pendingUserText:frame.pendingUserText,nonRpOutputIndices:frame.rec.nonRpOutputIndices,userName:host.name1,characterName:host.name2});
     (frame.gateRequest = sceneGateRequest({model:deps.JEV_MODEL,transcript: frame.transcript,sceneTranscript,previous:frame.previousSceneRoute,previousScene:frame.rec.sceneIntimacy,people:frame.gatePeople,previousParticipantIds: frame.previousParticipantIds}));
+    if(deps.characterStore.enabled && deps.characterStore.npcs?.length && frame.prefs.advancedEnabled){
+        if(frame.prefs.settingsContract>=3){
+            const key=drawOpportunityKey({identity:run.identity,chat:host.chat,pendingUserText:frame.pendingUserText,type:deps.pendingGenerationType,pendingPlan:frame.rec.pendingPlan,excluded:frame.rec.nonRpOutputIndices||[]});
+            frame.npcOpportunityPreview=previewOpportunities(frame.rec,key,{worldId:frame.world?.id,worldName:frame.world?.name});
+        }
+        const beats=castBeats(frame.npcOpportunityPreview?.offers,frame.rec.eventProfile);
+        const elements=storyElements(frame.prefs);if(elements.length)beats.push(storyDirectionBeat(elements));
+        frame.npcReferenceCandidates=addNpcReferenceQuestions(frame.gateRequest,deps.characterStore.npcs.filter(recordBankIsCurrent),beats,{currentIds:frame.gatePeople.map(person=>person.id)});
+    }
     (frame.rawPriorStates = new Map(inheritedStates(frame.rec,deps.latestStateForChat(frame.rec, deps.getContext().chat, deps.stableFingerprint)).map(item => [item.id, item])));
     if(frame.storylineReference) {
         frame.gateRequest.state.continuation_reference=frame.storylineReference;
@@ -58,6 +72,7 @@ async function prepareGate(run,frame) {
         run.assert();
         if(deps.currentInputKey(frame.pendingUserText,frame.cycleSalt)!==frame.inputKey || deps.recentContext(frame.pendingUserText).contextKey!==frame.context.contextKey || deps.sourceRevisionKey(deps.record(),deps.selectedWorld())!==frame.sourceKey)throw new deps.StaleRunError();
         frame.worldRecordAnswers = gateData.answers || {};
+        if(frame.npcReferenceCandidates)frame.npcReferences=resolveNpcReferences(frame.npcReferenceCandidates,gateData.answers);
         frame.worldInvalidCount = frame.worldRecordCandidates.filter((_, index) => !['yes', 'no'].includes(frame.worldRecordAnswers[`world_record_${index}`]?.choice)).length;
         frame.worldSelectionFailed = frame.worldRecordCandidates.length > 0 && frame.worldInvalidCount === frame.worldRecordCandidates.length;
         frame.sceneGate=resolveSceneGate(gateData.answers,frame.gateRequest,frame.previousSceneRoute);
@@ -76,6 +91,10 @@ async function prepareGate(run,frame) {
         deps.setBusy(false);
         }
     }
+    if(frame.npcReferenceCandidates)deps.noteDiagnostic?.('npc_reference_selection',{module:'src/character/npc-index.js',status:frame.sceneGateError?'fallback':'completed',
+        indexedCount:frame.npcReferenceCandidates.length,selectedCount:[...(frame.npcReferences?.values()||[])].filter(value=>value==='reference').length,
+        skippedCount:[...(frame.npcReferences?.values()||[])].filter(value=>value==='skip').length,
+        fallbackCount:frame.sceneGateError?frame.npcReferenceCandidates.length:[...(frame.npcReferences?.values()||[])].filter(value=>value==='unknown').length});
     (frame.sceneContextEndIndex = Math.max(-1,...frame.context.selected.map(message=>(deps.getContext().chat||[]).indexOf(message)),String(frame.pendingUserText||'').trim()?(deps.getContext().chat||[]).length:-1));
     frame.rec.sceneIntimacy={contextScope:'latest_turn',route:frame.sceneGate.route,level:frame.sceneGate.level??frame.rec.sceneIntimacy?.level??null,phase:frame.sceneGate.phase,evidence:frame.sceneGate.evidence,participantIds:frame.sceneGate.participantIds,inputKey: frame.inputKey,contextEndIndex:frame.sceneContextEndIndex,...(frame.sceneGate.confirmation?{confirmation:frame.sceneGate.confirmation}:{}),...(frame.sceneGateError?{error:frame.sceneGateError}:{})};
     deps.noteDiagnostic?.('scene_gate',{module:'src/scene/gate-stage.js',contextScope:'latest_turn',sceneInputChars:sceneTranscript.length,displayStage:sceneDisplayState(frame.rec.sceneIntimacy).stage,route:frame.sceneGate.route,transition:frame.sceneGate.transition||'',phase:frame.sceneGate.phase||'',confirmation:frame.sceneGate.confirmation||'',error:frame.sceneGateError||''});
