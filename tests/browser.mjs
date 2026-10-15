@@ -548,7 +548,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.ok(!pausedPrompt.includes('SEXUAL_CONDUCT'),'dynamic physical-conduct routing pauses');
     assert.match(pausedPrompt,/<FIXED_SCENE_SETTINGS>/,'basic fixed extension settings remain active');
     assert.match(pausedPrompt,/Active world:/,'the active world marker remains active');
-    assert.match(pausedPrompt,/genre, setting, tone, prose style/,'fixed prompt coexistence remains');
+    assert.match(pausedPrompt,/directions govern scene developments, not writing style/,'fixed prompt coexistence remains');
     gateScenario={level:'0',phase:'ended'};
     const beforeResume=requests.length;
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'They finish and turn to a different conversation.'});await mock.emit('MESSAGE_SENT',7);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});

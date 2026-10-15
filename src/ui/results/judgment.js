@@ -4,9 +4,11 @@ import { selectExecutionCorrectionKeys } from "../../scene/correction-selection.
 import { displayValue, verificationText } from "../presentation.js";
 import {appearanceRollText} from '../appearance-status.js';
 import {opportunityRows} from '../opportunity-results.js';
+import {ADVANCED_ELEMENTS} from '../../world/advanced-library.js';
 
 export function createJudgmentView(deps) {
 function decisionTitle(key) {
+    if(key==='story_element')return '이번 전개 방향';
     const {settings, characterStore, backupList, reasonerProfiles, reasonerProfileError, characterAnalysisSelection, activeInjectionPayload} = deps.readState();
     const context = deps.getContext();
     const user = context.name1 || '유저';
@@ -72,6 +74,7 @@ function renderJudgment() {
     if (deps.record()?.preferences?.privatePromptEnabled && deps.ownerPrompt()) conflictApplied.push('제작자 전용');
     const actionPlan = judgment.actionPlan || d.action_plan || {};
     const cast=deps.record()?.pendingPlan?.inputKey===judgment.inputKey ? deps.record().pendingPlan.cast||judgment.cast : judgment.cast;
+    const direction=judgment.storyDirection;
     const excludedRoutes = (actionPlan.excluded || []).map((item) => `${item.label}: ${item.reason}`).join(' / ');
     summary.innerHTML = [
         ...opportunityRows(judgment,deps.record()?.lastOpportunityVerification||[]),
@@ -83,8 +86,9 @@ function renderJudgment() {
         ['사건', `${resultLabel('progression_move', d.progression_move)} · ${resultLabel('resolution_pacing', d.resolution_pacing)} · ${resultLabel('event_valence', d.event_valence)}`],
         ...(deps.record()?.preferences?.advancedEnabled ? [['고급 전개', `${resultLabel('advanced_route', d.advanced_route)} · ${resultLabel('advanced_element', d.advanced_element)} · ${resultLabel('advanced_move', d.advanced_move)}`]] : []),
         ['NPC', npcText],
-        ...(cast?.length?[['사건 담당 인물',cast.map(item=>item.kind==='unresolved'?'담당 인물 미확정':`${item.name||({current_cast:'현재 인물',scene_existing:'기존 RP 인물'}[item.kind])||'사건 인물'} · ${item.delivery==='request_included'?'요청 포함':item.delivery==='request_missing'?'전달 확인 필요':'행동 준비'}`).join(' / ')]]:[]),
-        ...(judgment.priorVerification?.cast?.length?[['지난 사건 인물 행동',judgment.priorVerification.cast.map(item=>({fulfilled:'실행 확인',partial:'일부 실행',missed:'미이행'}[item.verification]||'미확인')).join(' / ')]]:[]),
+        ...(direction?[['전개 방향',`${ADVANCED_ELEMENTS[direction.focus]||'현재 교류 유지'} · ${{registered:'등록 인물 행동',established:'기존 인물 행동',current:'현재 인물 행동',new_addition:'선택된 새 인물 행동',none:'추가 행동 없음'}[direction.actorSource]||'현재 교류 유지'}`]]:[]),
+        ...(cast?.length?[['행동 담당 인물',cast.map(item=>item.kind==='unresolved'?'담당 인물 미확정':`${item.name||({current_cast:'현재 인물',scene_existing:'기존 RP 인물'}[item.kind])||'사건 인물'} · ${item.delivery==='request_included'?'요청 포함':item.delivery==='request_missing'?'전달 확인 필요':'행동 준비'}`).join(' / ')]]:[]),
+        ...(judgment.priorVerification?.cast?.length?[['지난 인물 행동',judgment.priorVerification.cast.map(item=>({fulfilled:'실행 확인',partial:'일부 실행',missed:'미이행'}[item.verification]||'미확인')).join(' / ')]]:[]),
         ['갈등용', conflictApplied.length ? conflictApplied.join(' · ') : '미적용'],
         ['기본 진행', resultLabel('basic_move', d.basic_move)],
         ['실행 교정', correctionIssues ? `${correctionIssues}개 감지 · ${appliedCorrections}개 우선 적용` : '문제 없음'],
@@ -96,7 +100,7 @@ function renderJudgment() {
     const setCaption = (id, text) => { const node = deps.document.getElementById(id); if (node) node.textContent = text; };
     setCaption('sr-caption-scene', `${resultLabel('scene_state', d.scene_state)} · ${resultLabel('relationship_pacing', d.relationship_pacing)}`);
     setCaption('sr-caption-event', `${resultLabel('progression_move', d.progression_move)} · NPC ${npcText}`);
-    setCaption('sr-caption-advanced', deps.record()?.preferences?.advancedEnabled ? `${resultLabel('advanced_route', d.advanced_route)} · ${resultLabel('advanced_move', d.advanced_move)}` : '사용 안 함');
+    setCaption('sr-caption-advanced', deps.record()?.preferences?.advancedEnabled ? `${direction?ADVANCED_ELEMENTS[direction.focus]||'현재 교류 유지':resultLabel('advanced_route', d.advanced_route)} · ${resultLabel('advanced_move', d.advanced_move)}` : '사용 안 함');
     setCaption('sr-caption-quality', correctionIssues ? `${correctionIssues}개 감지 · ${appliedCorrections}개 우선 적용` : '문제 없음');
 }
 

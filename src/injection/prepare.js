@@ -67,7 +67,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         const plannedDecisions={...frame.decisions};
         for(const person of plannedPeople)plannedDecisions[`character_${person.index}_presence`]='active';
         // This local rendering decision is NOT stored as observed participation.
-        const plannedGuard='If the selected event actor enters or contacts the scene, use these stored constraints. This plan does not establish present participation or private knowledge.\n';
+        const plannedGuard='If the selected actor enters or contacts the scene, use these stored constraints. This plan does not establish present participation or private knowledge.\n';
         const plannedRecords=deps.buildCharacterInjection(deps.resolveLiveCharacterPlan(plannedPeople,plannedDecisions,frame.details),
             {volume:frame.prefs.characterVolume,maxChars:Math.max(0,fullCharacterBudget-frame.characterExecution.charCount-plannedGuard.length-1)});
         frame.castRecordTrace=plannedRecords.traces;
@@ -89,7 +89,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         (frame.selectedSheetNpc = frame.decisions.npc_route === 'reuse' && /^sheet_\d+$/.test(frame.decisions.npc_target || '')
             ? frame.npcTargets[Number(frame.decisions.npc_target.slice(6))] || null : null);
         (frame.correctionSelection = selectExecutionCorrectionKeys(frame.decisions, frame.details));
-        (frame.payload = deps.buildInjection({ settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', presentSheetNpcNames:frame.resolvedCharacters.filter(person=>person.kind==='npc'&&person.presence==='active'&&person.participationEvidence!=='continuing').map(person=>person.name), antagonistActors:selectActingAntagonists(frame.resolvedCharacters,{socialEnabled:frame.prefs.socialEnabled,selectedTargetId:frame.selectedSheetNpc?.id}), eventActors:frame.castBindings||[], eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details, hasAdditions:Boolean(frame.additions?.length) }));
+        (frame.payload = deps.buildInjection({ settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', presentSheetNpcNames:frame.resolvedCharacters.filter(person=>person.kind==='npc'&&person.presence==='active'&&person.participationEvidence!=='continuing').map(person=>person.name), antagonistActors:selectActingAntagonists(frame.resolvedCharacters,{socialEnabled:frame.prefs.socialEnabled,selectedTargetId:frame.selectedSheetNpc?.id}), eventActors:frame.castBindings||[], storyDirection:frame.storyDirection, eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details, hasAdditions:Boolean(frame.additions?.length) }));
         const activity=worldAgencyParts(frame.prefs,frame.decisions);
         frame.activitySummary={ids:activity.ids,progressBoost:frame.prefs.developmentStyle!=='static'&&frame.decisions.progress_boost==='yes',stalledTurns:frame.rec.progressionState?.turnsSinceMeaningfulProgress||0};
         deps.noteDiagnostic?.('scene_activity_prepared',{module:'src/injection/prepare.js',status:'prepared',...frame.activitySummary});
@@ -107,17 +107,19 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         frame.rec.lastJudgment = { decisionContract:DECISION_CONTRACT_VERSION, details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
         frame.rec.lastJudgment.activity=frame.activitySummary;
         frame.rec.lastJudgment.cast=castSummary(frame.castBindings);
+        frame.rec.lastJudgment.storyDirection=frame.storyDirection||null;
         frame.rec.lastJudgment.castRecordCounts=[...frame.characterTrace.filter(item=>boundIds.has(item.id)&&item.injectedRuleIds?.length),...(frame.castRecordTrace||[])].map(item=>({id:item.id,injected:item.injectedRuleIds?.length||0}));
         frame.rec.lastJudgment.opportunityPlan=frame.opportunityPlan||null;
         frame.rec.lastJudgment.visibilityKeyV1=visibilityKey(deps.getContext().chat||[]);
         frame.rec.lastJudgment.additionBlocks=frame.additionBlocks;
         frame.rec.lastJudgment.correctionSelection = frame.correctionSelection;
         frame.rec.lastJudgment.drawDiagnostics=frame.drawDiagnostics;
-        if (frame.rec.lastStateInput !== frame.inputKey || !frame.rec.pendingPlan) {
+        if (frame.rec.lastStateInput !== frame.inputKey || !frame.rec.pendingPlan || !frame.rec.pendingPlan.outputText && frame.rec.pendingPlan.judgment?.payload!==frame.payload) {
             const pendingOffset = String(frame.pendingUserText || '').trim() ? 1 : 0;
             frame.rec.pendingPlan = {
                 additions: structuredClone(frame.additions||[]),
                 cast:castSummary(frame.castBindings),
+                storyDirection:frame.storyDirection?structuredClone(frame.storyDirection):null,
                 eventFollowups:(frame.chosenEventFollowups||[]).map(item=>({id:item.id,action:item.data.action})),
                 opportunityKey: frame.opportunityOffers?.key||null,
                 inputKey: frame.inputKey,

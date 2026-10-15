@@ -41,6 +41,7 @@ export function resolveOpportunities(offers,answers,{worldAgencyEnabled=false}={
             addition.profile={id:`event-${offers.key}`,source:'advanced',worldId:offer.worldId,worldName:offer.worldName,element:candidate.element||'social',
                 title:candidate.label,trigger:candidate.trigger||candidate.condition,goal:candidate.goal||candidate.effect,pressure:candidate.pressure||'A bounded local consequence',prompt:candidate.prompt||candidate.action,
                 resolution:'The event ends only after its concrete objective produces an established result or the user ends it.',
+                ...(candidate.id==='A_relationship_01'?{requiresOutsideActor:true}:{}),
                 phase:'introduced',status:'pending',progress:0,createdAt:new Date().toISOString()};
         }
         if(feature==='person') {
@@ -56,7 +57,7 @@ export function resolveOpportunities(offers,answers,{worldAgencyEnabled=false}={
 }
 export function additionVerificationQuestions(pending) {
     if(!pending?.outputText)return {};
-    return Object.fromEntries((pending.additions||[]).map((item,i)=>[`verification_addition_${i}`,{type:'choice',instructions:`${VERIFICATION[item.feature]} Selected action: ${item.candidate.action} Required effect: ${item.candidate.effect}${item.cast?.length?` Assigned actors: ${item.cast.filter(actor=>actor.kind!=='unresolved').map(actor=>`${actor.name||actor.kind}: ${actor.action}`).join('; ')}. Inner thoughts alone do not fulfill their move.`:''}`,criteria:VERIFICATION_CHOICES}]));
+    return Object.fromEntries((pending.additions||[]).map((item,i)=>[`verification_addition_${i}`,{type:'choice',instructions:`${VERIFICATION[item.feature]} Selected action: ${item.candidate.action} Required effect: ${item.candidate.effect}${item.templateId==='A_relationship_01'?' An external relationship rival must actually act or contact them. The main pair thinking or talking alone does not fulfill this external intervention.':''}${item.cast?.length?` Assigned actors: ${item.cast.filter(actor=>actor.kind!=='unresolved').map(actor=>`${actor.name||actor.kind}: ${actor.action}`).join('; ')}. Inner thoughts alone do not fulfill their move.`:''}`,criteria:VERIFICATION_CHOICES}]));
 }
 export function additionVerdicts(pending,decisions) {
     return (pending?.additions||[]).map((addition,i)=>({...addition,verification:decisions[`verification_addition_${i}`]||'unavailable'}));

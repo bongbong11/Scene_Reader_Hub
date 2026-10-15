@@ -89,7 +89,7 @@ const castOffPayload = buildInjection({
     settings: { worldDirection: 'natural', relationshipDirection: 'dynamic', progressionMode: 'off', roleplayPace: 'medium', npcToUser: true },
     decisions: { response_cadence: 'natural', npc_route: 'none', npc_autonomy: 'no' }, sheetCastNames: ['Wade'],
 });
-assert.match(castOffPayload, /Registered Sheet Cast retain their established identity/, 'ownership survives disabled individual analysis');
+assert.match(castOffPayload, /Do not recreate them as new NPCs, even when absent or their record analysis is disabled, stale, or empty/, 'ownership survives disabled individual analysis');
 assert.deepEqual(suggestNpcAliases('Wade Ashford', 'Alias: Mr. Ashford\nRole: family head'), ['Wade', 'Mr. Ashford']);
 assert.deepEqual(suggestNpcAliases('Wade Ashford', 'Alias: Mr. Ashford', ['Wade', 'Mr. Ashford']), []);
 assert.deepEqual(suggestNpcAliases('민수', '역할: 동료'), []);

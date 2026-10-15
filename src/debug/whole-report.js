@@ -8,8 +8,11 @@ export function wholeDiagnosticReport({execution,judgment,record,chat,fingerprin
     const event=Array.isArray(chat)?latestStateEventForChat(record,chat,fingerprint):null;
     const capture=event?.capture || (Array.isArray(chat)?null:record?.characterStateCapture);
     const fields=['a','c','anger','joy','fear','sadness'];
+    const direction=record?.pendingPlan?.inputKey===judgment?.inputKey ? record?.pendingPlan?.storyDirection||judgment?.storyDirection : judgment?.storyDirection;
     return {...execution,opportunities:safeOpportunityPlan(judgment?.opportunityPlan),opportunityVerification:safeOpportunityVerification(record?.lastOpportunityVerification),status:judgment?'judgment_available':'no_judgment',
         judgedAt:judgment?.judgedAt || null,
+        storyDirection:direction?{contract:number(direction.contract),enabledElements:(direction.enabledElements||[]).map(symbol).filter(Boolean),focus:symbol(direction.focus),actorSource:symbol(direction.actorSource),action:symbol(direction.action),origin:symbol(direction.origin),reason:symbol(direction.reason),delivery:symbol(direction.delivery),verification:symbol(direction.verification)}:null,
+        storyDirectionVerification:symbol(record?.lastVerification?.storyDirection?.verification),
         sharedStorage:record?.sharedSource?{linked:true,active:record.sharedSource.active===true,baselineRevision:number(record.sharedSource.baselineRevision),epoch:number(record.sharedSource.epoch),hasContinuationReference:Boolean(record.sharedReference)}:{linked:false},
         scene:judgment?.sceneIntimacy ? {route:symbol(judgment.sceneIntimacy.route),level:number(judgment.sceneIntimacy.level),phase:symbol(judgment.sceneIntimacy.phase),confirmation:symbol(judgment.sceneIntimacy.confirmation),hasError:Boolean(judgment.sceneIntimacy.error)} : null,
         jevOriginalChoices:Object.fromEntries([...new Set([...details.map(([key])=>key),...Object.keys(judgment?.rawChoices||{}).filter(symbol)])].map(key=>{const answer=judgment.rawChoices?.[key] || {};return [key,{choice:symbol(answer.choice),noul:number(answer.noul),confidence:number(answer.confidence)}];})),

@@ -269,7 +269,7 @@ export function buildAdvancedQuestions({ preferences, hasEvent = false, worldHin
         none: 'No new advanced central event should enter the draw this response.',
         create: 'A world-compatible advanced central event has a plausible opening and may enter the configured draw.',
     };
-    const enabled = Array.isArray(preferences.advancedElements) && preferences.advancedElements.length
+    const enabled = Array.isArray(preferences.advancedElements)
         ? preferences.advancedElements.filter((key) => ADVANCED_ELEMENTS[key])
         : ADVANCED_DEFAULT_ELEMENTS;
     const elementCriteria = { none: 'No enabled element should be used in this response.' };

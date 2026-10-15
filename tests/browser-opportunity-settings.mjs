@@ -52,6 +52,26 @@ export async function checkOpportunitySettings(page,store,requests,setViewportSi
     }
     assert.equal(count(),before,'changing settings performs no inference, embedding or generation');
     assert.equal(await page.locator('.sr-tabs [data-sr-tab]').count(),4);
+    await page.locator('[data-sr-tab="advanced"]').click();
+    await page.locator('#sr-advanced-enabled').check();
+    const elements=page.locator('#sr-tab-advanced .sr-chip-grid input');
+    for(const node of await elements.all())await node.uncheck();
+    await page.waitForLoadState('networkidle');
+    assert.deepEqual(store.chat.preferences.advancedElements,[]);
+    await page.reload();await page.locator('#scene-reader-quick-button').waitFor();await page.locator('#scene-reader-quick-button').click();
+    await page.locator('[data-sr-tab="advanced"]').click();
+    assert.equal(await page.locator('#sr-tab-advanced .sr-chip-grid input:checked').count(),0,'empty selection survives reload');
+    assert.match(await page.locator('#sr-tab-advanced').textContent(),/평소 전개와 새 사건/);
+    for(const size of [{width:320,height:700},{width:390,height:844},{width:844,height:390},{width:1280,height:900}]){
+        await setViewportSize(size);
+        const fits=await page.locator('#sr-tab-advanced .sr-chip-grid').evaluate(node=>node.scrollWidth<=node.clientWidth+1);
+        assert.ok(fits,'eight element controls remain compact');
+        if(size.width===390)await page.screenshot({path:path.join(root,'artifacts','story-direction-mobile.png')});
+    }
+    for(const key of saved.advancedElements||[])await page.locator('#sr-advanced-'+key).check();
+    await page.locator('#sr-advanced-enabled').setChecked(Boolean(saved.advancedEnabled));
+    await page.locator('[data-sr-tab="flow"]').click();
+    assert.equal(count(),before,'direction selection never calls an analysis model');
     if(saved.advancedEnabled){await page.locator('[data-sr-tab="advanced"]').click();await page.locator('#sr-advanced-enabled').check();await page.locator('[data-sr-tab="flow"]').click();}
     await page.locator('#sr-advanced-style').selectOption(saved.advancedStyle);
     await page.locator('#sr-appearance-chance').selectOption(String(saved.appearanceChance));

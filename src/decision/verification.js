@@ -44,14 +44,17 @@ async function commitPriorVerification(rec, decisions, run = null) {
         if(decisions[`verification_event_followup_${index}`]==='fulfilled'){followed.executed=true;followed.status='executed';}
         rec.continuity.revision+=1;
     }
-    const ongoing=(pending.cast||[]).filter(item=>item.beatKey==='ongoing'&&item.kind!=='unresolved');
+    const ongoing=(pending.cast||[]).filter(item=>['ongoing','direction'].includes(item.beatKey)&&item.kind!=='unresolved');
     for(const actor of pending.cast||[]) {
-        actor.verification=actor.kind==='unresolved'?'unavailable':actor.beatKey==='ongoing'
+        actor.verification=actor.kind==='unresolved'?'unavailable':['ongoing','direction'].includes(actor.beatKey)
             ?decisions[`verification_event_actor_${ongoing.indexOf(actor)}`]||'unavailable'
             :additions.find(item=>item.feature==='event'&&item.templateId===actor.beatKey)?.verification||'unavailable';
         deps.noteDiagnostic?.('event_actor_verification',{module:'src/decision/verification.js',kind:actor.kind,action:actor.action,status:actor.verification});
     }
     const castVerification=(pending.cast||[]).map(({kind,action,delivery,verification})=>({kind,action,delivery,verification}));
+    const direction=pending.storyDirection?{...pending.storyDirection,
+        verification:(pending.cast||[]).find(item=>item.kind!=='unresolved')?.verification||'unavailable'}:null;
+    if(direction)deps.noteDiagnostic?.('story_direction',{module:'src/decision/verification.js',code:'STORY_DIRECTION_RESULT',status:'info',focus:direction.focus,actorKind:direction.actorSource,verification:direction.verification});
     if (['character_established', 'both'].includes(decisions.context_change_source)
         && ['fulfilled', 'partial'].includes(verification.progress)) {
         registerSceneOpportunity(rec, `character:${pending.outputFingerprint}`);
@@ -67,6 +70,7 @@ async function commitPriorVerification(rec, decisions, run = null) {
         judgment: pending.judgment ? JSON.parse(JSON.stringify(pending.judgment)) : null,
         verification,
         castVerification,
+        storyDirection:direction,
         committed: result.committed,
         committedEffects: result.committedEffects,
         committedAt: new Date().toISOString(),
@@ -74,6 +78,7 @@ async function commitPriorVerification(rec, decisions, run = null) {
     if (run) run.history = history; else await deps.saveStateHistory(history, chatKey);
     run?.assert();
     rec.lastVerification = { inputKey: pending.inputKey, outputIndex: pending.outputIndex, verification, cast:castVerification, committed: result.committed, committedEffects: result.committedEffects, at: new Date().toISOString() };
+    if(direction)rec.lastVerification.storyDirection=direction;
     rec.pendingPlan = null;
     return rec.lastVerification;
 }

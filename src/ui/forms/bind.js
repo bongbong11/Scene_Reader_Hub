@@ -95,7 +95,6 @@ function bindForm() {
     deps.document.getElementById('sr-advanced-style')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('advancedStyle', event.target.value)));
     for (const key of Object.keys(deps.ADVANCED_ELEMENTS)) deps.document.getElementById(`sr-advanced-${key}`)?.addEventListener('change', () => {
         const selected = Object.keys(deps.ADVANCED_ELEMENTS).filter((item) => deps.document.getElementById(`sr-advanced-${item}`)?.checked);
-        if (!selected.length) { deps.document.getElementById(`sr-advanced-${key}`).checked = true; return; }
         deps.runUiTask(deps.savePreference('advancedElements', selected));
     });
     deps.document.getElementById('sr-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveInjectionMode(event.target.value)));

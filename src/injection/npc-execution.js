@@ -29,6 +29,7 @@ export function buildEventCastInjection(bindings=[]) {
         const actor=binding.kind==='current_cast'?'the existing non-user participants':binding.kind==='scene_existing'?'the relevant established NPC':String(binding.name||'the selected actor').replace(/[<>\r\n]/g,' ');
         const tactic=(CONFLICT_TACTICS[binding.action]||CONFLICT_TACTICS.character_driven).replaceAll('the NPC','the acting character');
         const profile=binding.kind==='generated'?` Established purpose: ${binding.profile?.aim||binding.profile?.motive||''}. Means and access: ${binding.profile?.access||''}.`:'';
+        if(binding.beatKey==='direction')return `Ongoing actor: ${actor}. ${tactic}${profile} Use available presence or contact within the ongoing interaction; do not add an unselected incident or identity. Preserve established personality, knowledge and relationship pace; leave the other person's response and success open.`;
         return `Event actor: ${actor}. Make one concrete move for the selected event in this response, through available contact or presence. ${tactic}${profile} This is part of that event, not another plot. Thoughts alone do not fulfill the move. Preserve personality, known facts, access, relationship pace and the target's response; do not assume success or mutual desire.`;
     }).join('\n');
 }

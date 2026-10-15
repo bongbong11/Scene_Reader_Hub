@@ -68,7 +68,7 @@ function setFormValues() {
 
     const advancedNote = deps.document.getElementById('sr-basic-progression-note');
     if (advancedNote) advancedNote.textContent = prefs.advancedEnabled
-        ? '고급 이벤트에도 적용합니다. 균형·동적에서는 같은 반응이 반복되면 진행을 보강합니다. 글의 호흡은 프리셋을 따릅니다.'
+        ? '고급 전개의 평소 움직임과 사건에도 적용합니다. 균형·동적에서는 같은 반응이 반복되면 진행을 보강합니다. 글의 호흡은 프리셋을 따릅니다.'
         : '균형·동적에서는 같은 반응이 반복되면 진행을 보강합니다. 새 사건·인물과 돌발은 아래에서 조절하세요.';
     const advancedResults = deps.document.getElementById('sr-advanced-results');
     if (advancedResults) advancedResults.hidden = !prefs.advancedEnabled;

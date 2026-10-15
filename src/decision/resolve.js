@@ -10,13 +10,16 @@ import {applyAppearanceOffer} from "../scene/appearance.js";
 import {applySexualChoice} from "../character/sexual-conduct.js";
 import {resolveCastBindings,castSummary} from '../scene/cast-binding.js';
 import {eventFollowups} from '../continuity/candidates.js';
+import {resolveStoryDirection} from '../world/story-direction.js';
 
 export function createDecisionResolution(deps) {
 async function resolveDecision(run,frame) {
 (frame.details = {});
         for (const key of Object.keys(frame.questions)) {
             const choices = Object.keys(frame.questions[key]?.criteria || {});
-            frame.details[key] = key.startsWith('event_cast_')
+            frame.details[key] = key==='story_element'
+                ? {...fixedDecision(choices.includes(frame.data.answers[key]?.choice)?frame.data.answers[key].choice:'none'),policy:'routing',fixed:false,fallbackApplied:!choices.includes(frame.data.answers[key]?.choice),rule:'전개 방향 선택 · 추가 확신도 탈락 없음'}
+                : key.startsWith('event_cast_')
                 ? {...fixedDecision(choices.includes(frame.data.answers[key]?.choice)?frame.data.answers[key].choice:'invalid_selection'),policy:'routing',fixed:false,fallbackApplied:!choices.includes(frame.data.answers[key]?.choice),rule:'사건 담당 인물·행동 선택 · 추가 확신도 탈락 없음'}
                 : key.endsWith('_opportunity')
                 ? opportunityDetail(frame.data.answers[key],frame.opportunityOffers?.[key.split('_')[0]])
@@ -154,6 +157,8 @@ async function resolveDecision(run,frame) {
         
         frame.additions=frame.opportunityOffers?resolveOpportunities(frame.opportunityOffers,frame.data.answers,frame.prefs):[];
         frame.castBindings=resolveCastBindings({beats:frame.castBeats,sheets:frame.castSheets,generated:frame.castGenerated,answers:frame.data.answers,additions:frame.additions,decisions:frame.decisions});
+        frame.storyDirection=resolveStoryDirection(frame.storyElements,frame.data.answers.story_element?.choice,frame.castBindings);
+        if(frame.storyDirection)deps.noteDiagnostic?.('story_direction',{module:'src/decision/resolve.js',code:'STORY_DIRECTION_PREPARED',status:'prepared',focus:frame.storyDirection.focus,actorKind:frame.storyDirection.actorSource,action:frame.storyDirection.action,reasonCode:frame.storyDirection.reason});
         for(const addition of frame.additions)if(addition.feature==='event')addition.cast=castSummary(frame.castBindings.filter(binding=>binding.beatKey===addition.templateId));
         frame.finalPlan.cast=castSummary(frame.castBindings);
         deps.noteDiagnostic?.('event_cast_prepared',{module:'src/scene/cast-binding.js',status:'prepared',candidateCount:frame.castSheets?.length||0,

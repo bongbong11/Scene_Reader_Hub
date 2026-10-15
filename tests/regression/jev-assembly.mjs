@@ -8,6 +8,7 @@ import { createRecordBank } from '../../src/character/records.js';
 import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../src/character/index.js';
 import { fixture } from './audit-v012.mjs';
 import {PROGRESS_BOOST} from '../../src/injection/world-agency.js';
+import {META_CLOSE} from '../../src/injection/assemble.js';
 
 const record = prefs => ({preferences:normalizeDevelopmentPreferences({advancedElements:['daily'],relationshipPace:'slow',resolutionPace:'slow',...prefs}),pacingState:{relationship:{closer:0,distant:0},event:{qualifiedSteps:0}},progressionState:{turnsSinceMeaningfulProgress:2},sceneOpportunity:1});
 let matrix=0;
@@ -74,14 +75,14 @@ const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active',[`ch
 const injection=buildCharacterInjection(resolved);
 assert.match(injection.text,/knowledge=suspects/);assert.match(injection.text,/before confirmation/);assert.match(injection.text,/Do not treat unshared/);assert.doesNotMatch(injection.text,/Direction:/);assert.equal(resolved[0].profileIds.length,1);
 assert.equal(buildLiveCharacterPlan([{...entry,source:'changed'}],{canonicalOnly:true})[0].profileCandidates.length,0);
-assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS,sheetCastNames:['Rowan']}),/Registration remains authoritative/);
+assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS,sheetCastNames:['Rowan']}),/Do not recreate them as new NPCs, even when absent or their record analysis is disabled, stale, or empty/);
 // Prompt categories: ongoing policies and evidence precede this-turn execution;
 // later corrections cannot revive an old route or override character boundaries.
 {
     const settings={...record({developmentStyle:'balanced'}).preferences,worldHostility:true,npcToUser:true,negativePriority:true};
     const payload=buildInjection({settings,decisions:{...FALLBACKS,primary_focus:'conflict',secondary_focus:'relationship',fight_sustain:'yes',direct_execution:'yes',relationship_beat:'rejection',directive_followthrough:'missed'},
         characterBlock:injection.text,continuityBlock:'<CONTINUITY_CONTEXT>Known report; its claim is unconfirmed.</CONTINUITY_CONTEXT>',sheetCastNames:['Rowan']});
-    const ordered=['<FIXED_SCENE_SETTINGS>','<CONTINUITY_CONTEXT>','<SHEET_CAST_OWNERSHIP>','<SCENE_FOCUS>','<BASIC_DEVELOPMENT','<DIRECT_SCENE_EXECUTION>','<CONFLICT_PROGRESSION>','<CHARACTER_EXECUTION>','<EXECUTION_CORRECTION>','Apply these scene directions alongside'];
+    const ordered=['<FIXED_SCENE_SETTINGS>','<CONTINUITY_CONTEXT>','<SHEET_CAST_OWNERSHIP>','<SCENE_FOCUS>','<BASIC_DEVELOPMENT','<DIRECT_SCENE_EXECUTION>','<CONFLICT_PROGRESSION>','<CHARACTER_EXECUTION>','<EXECUTION_CORRECTION>',META_CLOSE];
     for(let i=0;i<ordered.length;i++) {
         assert.ok(payload.includes(ordered[i]),ordered[i]);
         if(i)assert.ok(payload.indexOf(ordered[i-1])<payload.indexOf(ordered[i]),`${ordered[i-1]} must precede ${ordered[i]}`);

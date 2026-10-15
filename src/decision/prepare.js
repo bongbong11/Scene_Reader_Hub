@@ -14,6 +14,7 @@ import {prepareKnowledgeVault} from '../integration/knowledge-vault.js';
 import {conflictTacticQuestion} from './npc-tactics.js';
 import {castBeats,castQuestions,CAST_LIMIT} from '../scene/cast-binding.js';
 import {selectEventCast} from '../character/selection.js';
+import {storyElements,storyDirectionQuestion,storyDirectionBeat} from '../world/story-direction.js';
 
 export function createDecisionPreparation(deps) {
 async function prepareQuestions(run,frame) {
@@ -59,6 +60,11 @@ if (frame.prefs.settingsContract >= 3) {
     (frame.priorStates = new Map(frame.activeCharacters.map(entry => [entry.id, stateForEntry(frame.rawPriorStates.get(entry.id), entry)]).filter(([, state]) => state)));
     (frame.npcTargets = frame.activeCharacters.filter((entry) => entry.kind === 'npc').slice(0, 6));
     frame.castBeats=frame.prefs.advancedEnabled?castBeats(frame.opportunityOffers,frame.rec.eventProfile):[];
+    frame.storyElements=storyElements(frame.prefs);
+    if(frame.storyElements.length){
+        frame.questions.story_element=storyDirectionQuestion(frame.storyElements);
+        frame.castBeats.push(storyDirectionBeat(frame.storyElements));
+    }
     const castQuery=frame.castBeats.map(beat=>beat.text).join('\n');
     frame.castSheets=frame.castBeats.length&&deps.characterStore.enabled
         ?selectEventCast(deps.characterStore.npcs,`${castQuery}\n${frame.transcript}`,{limit:CAST_LIMIT}):[];
@@ -67,7 +73,8 @@ if (frame.prefs.settingsContract >= 3) {
     const activeIds=new Set(frame.activeCharacters.map(entry=>entry.id));
     const future=frame.castSheets.filter(entry=>!activeIds.has(entry.id)).slice(0,Math.max(0,6-frame.activeCharacters.length));
     const retained=new Set([...activeIds,...future.map(entry=>entry.id)]);
-    if(frame.castBeats.length)deps.noteDiagnostic?.('event_cast_candidates',{module:'src/decision/prepare.js',registeredCount:frame.castSheets.length,omittedByCapacity:frame.castSheets.filter(entry=>!retained.has(entry.id)).length,currentCount:frame.activeCharacters.length,prospectiveCount:future.length});
+    if(frame.castBeats.length)deps.noteDiagnostic?.('event_cast_candidates',{module:'src/decision/prepare.js',registeredCount:frame.castSheets.length,omittedByCapacity:frame.castSheets.filter(entry=>!retained.has(entry.id)).length,currentCount:frame.activeCharacters.length,prospectiveCount:future.length,
+        recordSearchEnabled:Boolean(deps.characterStore.enabled),pagedSeedCount:deps.characterStore.enabled?deps.characterStore.npcs.filter(entry=>entry.recordBank?.pagedRecords).length:0});
     frame.castSheets=frame.castSheets.filter(entry=>retained.has(entry.id));
     frame.castGenerated=[frame.rec.npcProfile,frame.rec.villainProfile,...frame.generatedNpcTargets,...frame.generatedVillainTargets]
         .filter((item,index,all)=>item&&item.status!=='retired'&&all.findIndex(other=>other?.id===item.id)===index).slice(0,8);

@@ -40,6 +40,15 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
         report('injection.consume','PROMPT_OBSERVED',receipt);
         if(phase==='request') {
             const rec=getRecord();
+            if(rec?.lastJudgment?.payload===expected.payload && rec.lastJudgment.storyDirection){
+                const delivery=receipt.scene==='confirmed'?'request_included':'unconfirmed';
+                if(rec.pendingPlan?.judgment?.payload===expected.payload && rec.pendingPlan.storyDirection)rec.pendingPlan.storyDirection.delivery=delivery;
+                const marker=`${receipt.cycleId}:direction:${delivery}`;
+                if(!reported.has(marker)){
+                    reported.add(marker);
+                    report('injection.consume','STORY_DIRECTION_INCLUDED',{module:'src/injection/receipt.js',reasonCode:delivery,status:'info'});
+                }
+            }
             if(rec?.lastJudgment?.payload===expected.payload && rec.lastJudgment.cast?.length) {
                 const delivery=receipt.scene==='confirmed'?'request_included':receipt.scene==='unconfirmed'?'request_missing':'request_unobservable';
                 if(rec.pendingPlan?.judgment?.payload===expected.payload)for(const actor of rec.pendingPlan.cast||[])actor.delivery=delivery;

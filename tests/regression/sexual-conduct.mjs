@@ -5,6 +5,7 @@ import {
 } from '../../src/character/sexual-conduct.js';
 import { buildCharacterTurnQuestions } from '../../src/character/live.js';
 import { buildInjection, buildPausedInjection } from '../../prompt-library.js';
+import {META_CLOSE} from '../../src/injection/assemble.js';
 
 const base = { index:0, id:'rowan', name:'Rowan', kind:'character', presence:'active', sexualConductManaged:true, priorState:{values:{a:5,c:80,anger:25},targets:{}}, profileCandidates:[], contextCandidates:[], recordMode:true };
 assert.equal(normalizePhysicalPace('unknown'),'medium');
@@ -57,10 +58,11 @@ const decisions={primary_focus:'direct',basic_move:'continue',progress_need:'flo
 const sexualBlock=buildSexualInjection(resolveSexualConduct([base],{sexual_0_restraint:'little',sexual_0_route:'approach',sexual_0_target:'scene_partner'},'fast'),'fast').text;
 const full=buildInjection({settings,decisions,sexualBlock});
 assert.match(full,/<SEXUAL_CONDUCT pace="fast">/);
-assert.ok(full.indexOf('<SEXUAL_CONDUCT')<full.indexOf('Apply these scene directions alongside'));
+assert.ok(full.includes(META_CLOSE));
+assert.ok(full.indexOf('<SEXUAL_CONDUCT')<full.indexOf(META_CLOSE));
 const paused=buildPausedInjection({settings:{...settings,worldHostility:true,negativePriority:true},activeWorldName:'Test World'});
 assert.doesNotMatch(paused,/SEXUAL_CONDUCT/);
-assert.match(paused,/NSFW, and character-specific kink instructions already present/);
+assert.match(paused,/Preserve its genre, setting, world logic, pacing, NSFW, and character-specific kink instructions/);
 assert.match(paused,/Active world: Test World\./);
 assert.match(paused,/<FIXED_SCENE_SETTINGS>/);
 assert.match(paused,/enabled original negative-bias directives with priority/);
