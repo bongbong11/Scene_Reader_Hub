@@ -38,7 +38,7 @@ export const DEVELOPMENT_GUIDANCE = {
 };
 
 export const BASIC_MOVES = {
-    continue: 'Continue the meaningful current exchange without repetition or an unrelated new incident.',
+    continue: 'Continue the meaningful current exchange without repetition or an unselected new incident.',
     dialogue: 'Let a relevant line or interpersonal response change the current exchange without inventing feelings or knowledge.',
     action: 'Carry out one supported action already available to this person; preserve any outcome requiring another participant.',
     choice: 'Let the responsible character make a supported choice or refusal and show its immediate implication.',
@@ -67,7 +67,9 @@ export const PACE_OPTIONS = {
 };
 
 export const DECISION_LABELS = {
-    progress_need: {flowing:'의미 있는 변화가 이어짐',stalled:'반복을 벗어날 움직임 필요',unclear:'비교 근거 부족'},
+    world_npc_activity:{none:'보강 없음',active:'장소에 맞는 인물 활동',unclear:'장면 근거 부족'},
+    world_physical_opposition:{none:'보강 없음',active:'성격에 맞는 신체적 대립',unclear:'장면 근거 부족'},
+    progress_need: {holding:'필요한 대기·현재 순간 유지',flowing:'의미 있는 변화가 이어짐',stalled:'반복을 벗어날 움직임 필요',unclear:'비교 근거 부족'},
     arrival_mode: {none:'이번 등장 없음',visit:'직접 방문',encounter:'자연스러운 마주침',participate:'현재 활동에 참여',background:'주변 인물의 개입',contact:'연락·메시지'},
     basic_move: {emotion:'감정·생각의 표현',movement:'이동·활동 시도',continue:'현재 교류 이어가기',dialogue:'대화로 변화',action:'행동 실행',choice:'선택·거절',consequence:'기존 행동의 결과'},
     world_direction: WORLD_DIRECTIONS,

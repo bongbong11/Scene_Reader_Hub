@@ -1,3 +1,4 @@
+import {normalizeProgress} from '../scene/progress-tracking.js';
 import {normalizeOpportunities} from '../scene/opportunities.js';
 import {restoreOpportunityPreferences,normalizeChance} from '../scene/opportunity-settings.js';
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
@@ -31,7 +32,7 @@ function record(create = false) {
         value.preferences.seasonalReferences = [...new Set((Array.isArray(value.preferences.seasonalReferences) ? value.preferences.seasonalReferences : []).filter(key => Object.hasOwn(deps.SEASONAL_OPTIONS, key)))];
         value.preferences.advancedElements = [...new Set((Array.isArray(value.preferences.advancedElements) ? value.preferences.advancedElements : []).filter((key) => deps.ADVANCED_ELEMENTS[key]))];
         if (!value.preferences.advancedElements.length) value.preferences.advancedElements = [...deps.ADVANCED_DEFAULT_ELEMENTS];
-        for (const key of ['charmMemory', 'lorebookMemory', 'advancedEnabled', 'negativePriority', 'fightSustain', 'villainEnabled', 'socialEnabled', 'worldHostility', 'privatePromptEnabled', 'npcToUser', 'userMisfortune', 'allowUserImpersonation', 'profileEmotionJudgment']) value.preferences[key] = Boolean(value.preferences[key]);
+        for (const key of ['worldAgencyEnabled', 'charmMemory', 'lorebookMemory', 'advancedEnabled', 'negativePriority', 'fightSustain', 'villainEnabled', 'socialEnabled', 'worldHostility', 'privatePromptEnabled', 'npcToUser', 'userMisfortune', 'allowUserImpersonation', 'profileEmotionJudgment']) value.preferences[key] = Boolean(value.preferences[key]);
         value.preferences.appearanceChance = normalizeChance(value.preferences.appearanceChance,deps.CHAT_DEFAULTS.appearanceChance);
         restoreOpportunityPreferences(value,saved);
         value.opportunities=normalizeOpportunities(value.opportunities);
@@ -59,11 +60,7 @@ function record(create = false) {
         value.backgroundEvents = Array.isArray(value.backgroundEvents) ? value.backgroundEvents.slice(0, 3) : [];
         value.advancedEntities = Array.isArray(value.advancedEntities) ? value.advancedEntities.slice(0, 24) : [];
         value.sceneOpportunity = Math.max(1, Number(value.sceneOpportunity) || 1);
-        const progression = value.progressionState && typeof value.progressionState === 'object' ? value.progressionState : {};
-        value.progressionState = {
-            turnsSinceMeaningfulProgress: Math.max(0, Math.min(8, Number(progression.turnsSinceMeaningfulProgress) || 0)),
-            lastOutputFingerprint: String(progression.lastOutputFingerprint || ''),
-        };
+        value.progressionState = normalizeProgress(value.progressionState,value.preferences.developmentStyle);
         value.deferredRoutes = Object.fromEntries(Object.entries(value.deferredRoutes || {})
             .filter(([key, count]) => ['event', 'advanced_event', 'advanced_scene', 'npc', 'villain'].includes(key) && Number.isFinite(Number(count)))
             .map(([key, count]) => [key, Math.max(0, Math.min(3, Number(count) || 0))]));

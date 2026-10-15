@@ -37,11 +37,6 @@ async function commitPriorVerification(rec, decisions, run = null) {
         }
         rec.continuity.revision += 1;
     }
-    const activeThread = Boolean(rec.eventProfile)
-        || ['active', 'turning', 'resolution_ready'].includes(decisions.event_state)
-        || !['none', 'unclear', undefined].includes(decisions.unresolved)
-        || decisions.scene_state === 'stalled';
-    deps.updateProgressionPressure(rec, pending, verification, { activeThread });
     if (['character_established', 'both'].includes(decisions.context_change_source)
         && ['fulfilled', 'partial'].includes(verification.progress)) {
         registerSceneOpportunity(rec, `character:${pending.outputFingerprint}`);

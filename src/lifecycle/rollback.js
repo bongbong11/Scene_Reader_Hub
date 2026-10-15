@@ -1,3 +1,4 @@
+import {invalidateProgressFrom} from '../scene/progress-tracking.js';
 import {hasRetiredCollection} from '../storage/retired-collection.js';
 import { notifySceneReaderToast } from "../ui/toasts.js";
 import { selectedStateSwipe } from "../character/state-contract.js";
@@ -20,6 +21,7 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
     const index = deletion ? (changedIndex < 0 ? Math.min(Number(messageId) || 0, currentMessages.length) : changedIndex) : Number(messageId);
     deps.messageSnapshots.set(chatKey, currentMessages);
     if (!Number.isInteger(index)) return;
+    invalidateProgressFrom(rec,index);
     const previousStateCount = rec.characterStateEvents?.length || 0;
     if (!['swiped', 'regenerated'].includes(kind)) deps.dropStateEventsFrom(rec, index, kind === 'edited' ? selectedStateSwipe(deps.getContext().chat?.[index]) : null);
     const preservedSwipeStates = ['swiped', 'regenerated', 'edited'].includes(kind) ? (rec.characterStateEvents || []).filter(item => item.outputIndex === index) : [];
@@ -57,7 +59,7 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
         const pendingAffected = rec.pendingPlan && Number(rec.pendingPlan.outputIndex ?? rec.pendingPlan.chatCount) >= index;
         if (!pendingAffected) {
             if (kind === 'swiped') { await deps.saveSession(chatKey, rec, history); if(chatKey===deps.stateChatKey())deps.renderAll(); return; }
-            if (kind === 'edited' || sceneGateAffected || stateEventsChanged) { rec.lastJudgment = null; await deps.clearInjection({chatKey}); await deps.saveSession(chatKey, rec, history); if(chatKey===deps.stateChatKey())deps.renderAll(); }
+            if (kind === 'edited' || kind === 'deleted' || sceneGateAffected || stateEventsChanged) { rec.lastJudgment = null; await deps.clearInjection({chatKey}); await deps.saveSession(chatKey, rec, history); if(chatKey===deps.stateChatKey())deps.renderAll(); }
             return;
         }
         if (['swiped', 'regenerated'].includes(kind)) {
@@ -96,6 +98,7 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
     const entry = history[affected];
     const canReuseSwipe = !hasRetiredCollection(entry.before) && !hasRetiredCollection(entry.after) && !sceneGateAffected && ['swiped', 'regenerated'].includes(kind) && entry.plan && entry.judgment;
     deps.restoreReversibleState(rec, entry.before);
+    invalidateProgressFrom(rec,index);
     for (const stateEvent of preservedSwipeStates) deps.storeStateEvent(rec, stateEvent);
     if(sceneGateAffected)rec.sceneIntimacy=null;
     history = history.slice(0, affected);

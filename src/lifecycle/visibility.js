@@ -1,3 +1,4 @@
+import {emptyProgress} from '../scene/progress-tracking.js';
 import {visibilitySnapshot,visibilityChanges,visibilityKey} from '../context/visibility.js';
 import {createSessionTransaction} from '../storage/session-transaction.js';
 export function createVisibilityLifecycle(deps) {
@@ -22,6 +23,8 @@ export function createVisibilityLifecycle(deps) {
     const current=()=>key===deps.stateChatKey()&&stamp===visibilityKey(deps.getContext().chat||[]);
     const saved=await commitSession(key,({current:rec,history})=>{
      rec.lastJudgment=null;rec.pendingPlan=null;rec.sceneIntimacy=null;rec.lastVerification=null;
+     rec.progressionState=emptyProgress();
+     for(const entry of history){if(entry.before)entry.before.progressionState=emptyProgress();if(entry.after)entry.after.progressionState=emptyProgress();if(entry.plan?.stateSnapshot)entry.plan.stateSnapshot.progressionState=emptyProgress();}
      rec.visibilityStateV1={key:stamp,status:'applied'};
      return {chat:rec,history};
     },current);

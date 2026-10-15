@@ -119,17 +119,3 @@ export function commitVerifiedPlan(rec, pendingPlan, verification) {
     rec.lastStateInput = pendingPlan.inputKey;
     return { committed: Object.keys(committedEffects).length > 0, committedEffects, verification };
 }
-
-export function updateProgressionPressure(rec, pendingPlan, verification, { activeThread = false } = {}) {
-    rec.progressionState ||= { turnsSinceMeaningfulProgress: 0, lastOutputFingerprint: '' };
-    const fingerprint = String(pendingPlan?.outputFingerprint || '');
-    if (!fingerprint || rec.progressionState.lastOutputFingerprint === fingerprint) return rec.progressionState;
-    const outcome = verification?.progress || 'not_applicable';
-    const prior = Math.max(0, Number(rec.progressionState.turnsSinceMeaningfulProgress) || 0);
-    if (outcome === 'fulfilled') rec.progressionState.turnsSinceMeaningfulProgress = 0;
-    else if (outcome === 'partial') rec.progressionState.turnsSinceMeaningfulProgress = Math.max(0, prior - 1);
-    else if (outcome === 'missed' && activeThread) rec.progressionState.turnsSinceMeaningfulProgress = Math.min(8, prior + 1);
-    else if (outcome === 'missed') rec.progressionState.turnsSinceMeaningfulProgress = 0;
-    rec.progressionState.lastOutputFingerprint = fingerprint;
-    return rec.progressionState;
-}

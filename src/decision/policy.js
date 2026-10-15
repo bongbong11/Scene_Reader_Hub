@@ -1,6 +1,6 @@
 import {additionVerificationQuestions} from '../scene/opportunity-policy.js';
 import {optionalProbability} from '../adapters/jev-answer-normalizer.js';
-export const DECISION_CONTRACT_VERSION = 2;
+export const DECISION_CONTRACT_VERSION = 3;
 export const OBSERVATION_KEYS = new Set([
     'event_closure', 'advanced_world_rules', 'scene_state', 'conflict_state', 'relationship_motion', 'trust_signal',
     'intimacy_signal', 'romance_evidence', 'counterevidence',
@@ -76,11 +76,9 @@ const EFFECT_LABELS = {
 
 export function buildVerificationQuestions(pendingPlan) {
     if (!pendingPlan?.outputText || !Array.isArray(pendingPlan.effects)) return {};
-    return {...additionVerificationQuestions(pendingPlan),...Object.fromEntries(pendingPlan.effects.map((effect) => [`verification_${effect}`, {
+    return {...additionVerificationQuestions(pendingPlan),...Object.fromEntries(pendingPlan.effects.filter(effect=>effect!=='progress').map((effect) => [`verification_${effect}`, {
         type: 'choice',
-        instructions: effect === 'progress'
-            ? 'Evaluate only the immediately following CHARACTER output. Material progress means that the output actually changes an active exchange, feeling, thought, decision, relationship pressure, event, access condition, knowledge state, action, or consequence. A quiet but specific new emotional or internal development counts; loud action is not required. Rephrasing, atmosphere, preparation, warning, repeated questions, or handing the turn back without a concrete step is not progress. Do not use the current USER reaction as proof.'
-            : `Compare the prior pending plan with the immediately following CHARACTER output. Verify only actual execution of the planned ${EFFECT_LABELS[effect] || effect}. A mention, intention, atmosphere, or setup without material execution is not fulfillment. Do not use the current USER reaction as proof that the prior output executed the plan.`,
+        instructions: `Compare the prior pending plan with the immediately following CHARACTER output. Verify only actual execution of the planned ${EFFECT_LABELS[effect] || effect}. A mention, intention, atmosphere, or setup without material execution is not fulfillment. Do not use the current USER reaction as proof that the prior output executed the plan.`,
         criteria: {
             fulfilled: 'The prior CHARACTER output materially executed the planned effect.',
             partial: 'The prior CHARACTER output executed a real but incomplete part of the planned effect.',

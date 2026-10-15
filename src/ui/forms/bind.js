@@ -103,7 +103,7 @@ function bindForm() {
     deps.document.getElementById('sr-relationship-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('relationshipPace', event.target.value)));
     deps.document.getElementById('sr-resolution-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('resolutionPace', event.target.value)));
     deps.document.getElementById('sr-physical-intimacy-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('physicalIntimacyPace', event.target.value)));
-    for (const [id, key] of [['sr-negative-priority', 'negativePriority'], ['sr-fight-sustain', 'fightSustain'], ['sr-social-enabled', 'socialEnabled'], ['sr-world-hostility', 'worldHostility'], ['sr-npc-user', 'npcToUser'], ['sr-user-misfortune', 'userMisfortune']]) {
+    for (const [id, key] of [['sr-world-agency', 'worldAgencyEnabled'], ['sr-negative-priority', 'negativePriority'], ['sr-fight-sustain', 'fightSustain'], ['sr-social-enabled', 'socialEnabled'], ['sr-world-hostility', 'worldHostility'], ['sr-npc-user', 'npcToUser'], ['sr-user-misfortune', 'userMisfortune']]) {
         deps.document.getElementById(id)?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference(key, event.target.checked)));
     }
     deps.document.getElementById('sr-private-prompt-enabled')?.addEventListener('change', (event) => deps.runUiTask((async () => {

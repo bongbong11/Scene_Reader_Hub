@@ -1,3 +1,4 @@
+import {PROGRESS_QUESTION} from '../scene/progress-tracking.js';
 import { BASIC_MOVES, DEVELOPMENT_GUIDANCE, normalizeDevelopmentPreferences } from './settings.js';
 import { buildAdvancedQuestions } from "../world/advanced-library.js";
 
@@ -309,7 +310,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
     }));
     if (preferences.developmentStyle) {
         delete questions.response_cadence;
-        questions.progress_need = {type:'choice', instructions:'Compare actual recent CHARACTER outputs with their preceding exchanges. Did anything meaningful change in dialogue, feelings, thoughts, a choice, action, or consequence? Quiet relational/emotional movement counts. Use stalled only for repeated content or preparation without a new step; waiting for a necessary user choice is not failure. Never demand that every issue be resolved.', criteria:{flowing:'Meaningful interaction or change is continuing.',stalled:'Actual outputs keep repeating, preparing, or deferring without a meaningful step.',unclear:'Not enough comparable outputs.'}};
+        questions.progress_need = structuredClone(PROGRESS_QUESTION);
         questions.basic_move = { type:'choice', instructions:`Choose how the current RP should keep moving, including inside an advanced event. ${DEVELOPMENT_GUIDANCE[preferences.developmentStyle]} This is the manner of carrying the selected main beat, not an extra independent plot. Respect the main prompt's narrative speed, genre, and style.`, criteria:BASIC_MOVES };
         // Basic movement continues without drawing a separate event.
         if (!preferences.advancedEnabled) delete questions.primary_focus.criteria.new_event;

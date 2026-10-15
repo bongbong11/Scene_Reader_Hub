@@ -1,3 +1,4 @@
+import {emptyProgress} from '../scene/progress-tracking.js';
 import {clone, digest, object} from '../storage/shared-document.js';
 import {latestStateForChat} from '../character/state-contract.js';
 import {roomPreferences} from '../storage/common-preferences.js';
@@ -21,6 +22,7 @@ export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef=''}
         const source=object(before)?before:record;
         if(Object.hasOwn(source,key))result[key]=clone(source[key]);
     }
+    result.progressionState=emptyProgress();
     if(result.sceneIntimacy){delete result.sceneIntimacy.contextEndIndex;delete result.sceneIntimacy.contextKey;delete result.sceneIntimacy.inputKey;}
     if(result.opportunities)result.opportunities.current=null;
     // Values are portable, message indices and raw outputs are not.

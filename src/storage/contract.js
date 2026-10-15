@@ -46,6 +46,7 @@ export const CHAT_DEFAULTS = {
     newGenerationEnabled: true,
     spontaneousMode: 'off',
     developmentStyle: 'balanced',
+    worldAgencyEnabled: false,
     progressionMode: 'natural',
     judgmentStyle: 'balanced',
     injectionMode: 'depth',

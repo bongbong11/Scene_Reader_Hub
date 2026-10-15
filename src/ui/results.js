@@ -48,7 +48,7 @@ const characterCardOpen = new Map();
 
 
 const RESULT_GROUPS = {
-    'sr-scene-relation': ['scene_state', 'context_change_source', 'progress_need', 'basic_move', 'unresolved', 'relationship_motion', 'trust_signal', 'intimacy_signal', 'romance_evidence', 'counterevidence', 'relationship_direction', 'relationship_pacing', 'relationship_beat'],
+    'sr-scene-relation': ['scene_state', 'context_change_source', 'world_npc_activity', 'world_physical_opposition', 'progress_need', 'basic_move', 'unresolved', 'relationship_motion', 'trust_signal', 'intimacy_signal', 'romance_evidence', 'counterevidence', 'relationship_direction', 'relationship_pacing', 'relationship_beat'],
     'sr-event-npc': ['primary_focus', 'secondary_focus', 'direct_execution', 'event_state', 'event_valence', 'event_blocker', 'resolution_readiness', 'event_route', 'progression_move', 'resolution_pacing', 'npc_presence', 'npc_valence', 'npc_route', 'arrival_mode', 'npc_target', 'npc_identity_route', 'npc_role', 'npc_weight', 'npc_knowledge', 'npc_disclosure', 'npc_followthrough', 'npc_knowledge_fit', 'villain_route', 'npc_autonomy'],
     'sr-advanced-judgment': ['advanced_entry', 'advanced_route', 'advanced_cause', 'advanced_element', 'advanced_move'],
     'sr-conflict-quality': ['world_direction', 'conflict_state', 'fight_sustain', 'negative_priority', 'world_hostility', 'npc_guard', 'misfortune', 'hesitation_drag', 'refusal_stall', 'circularity', 'user_handoff', 'input_echo', 'repetitive_ending', 'action_evasion', 'directive_followthrough', 'scene_cutoff'],

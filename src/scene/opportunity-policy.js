@@ -22,7 +22,7 @@ export function opportunityDetail(answer,offer) {
     const effective=valid?choice:'invalid_selection';
     return {selected:effective,effective,policyEffective:effective,coordinatorFinal:effective,adjusted:!valid,certainty:optionalProbability(answer?.confidence),threshold:0,policy:'routing',fallbackApplied:!valid,rule:'신규 전개 재료 선택 · 추가 확신도 탈락 없음'};
 }
-export function resolveOpportunities(offers,answers) {
+export function resolveOpportunities(offers,answers,{worldAgencyEnabled=false}={}) {
     const additions=[];
     for(const feature of ['event','person']) {
         const offer=offers[feature];
@@ -44,8 +44,8 @@ export function resolveOpportunities(offers,answers) {
                 phase:'introduced',status:'pending',progress:0,createdAt:new Date().toISOString()};
         }
         if(feature==='person') {
-            const profile={id:`appearance-${offers.key}`,status:'pending',mode:'natural',role:candidate.label,access:candidate.condition,
-                aim:`Preserve the person's own immediate purpose established by the verified ${candidate.label} encounter. The original entrance is not a recurring task.`,contribution:candidate.effect,entry:'valid selected package',stake:'their own immediate purpose',constraint:'established access and knowledge',
+            const profile={id:`appearance-${offers.key}`,...(worldAgencyEnabled?{composition:'individual_or_connected_group'}:{}),status:'pending',mode:'natural',role:candidate.label,access:candidate.condition,
+                aim:`Preserve the arriving participant or connected group’s own immediate purpose established by the verified ${candidate.label} encounter. The original entrance is not a recurring task.`,contribution:candidate.effect,entry:'valid selected package',stake:'their own immediate purpose',constraint:'established access and knowledge',
                 leverage:'bounded situational access',competence:'ordinary role competence',demeanor:'individual and proportionate',reliability:'limited by direct experience',duration:'while the immediate interaction matters',
                 turningCondition:'a concrete change in circumstances',motive:'their own immediate interest',method:candidate.action,composure:'individual and proportionate'};
             addition.profile=profile;

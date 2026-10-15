@@ -7,6 +7,7 @@ import { createDraws } from '../../src/scene/draws.js';
 import { createRecordBank } from '../../src/characters/records.js';
 import { buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection } from '../../character-library.js';
 import { fixture } from './audit-v012.mjs';
+import {PROGRESS_BOOST} from '../../src/injection/world-agency.js';
 
 const record = prefs => ({preferences:normalizeDevelopmentPreferences({advancedElements:['daily'],relationshipPace:'slow',resolutionPace:'slow',...prefs}),pacingState:{relationship:{closer:0,distant:0},event:{qualifiedSteps:0}},progressionState:{turnsSinceMeaningfulProgress:2},sceneOpportunity:1});
 let matrix=0;
@@ -27,7 +28,7 @@ for(const developmentStyle of ['static','balanced','dynamic']) for(const progres
     assert.equal(decisions.basic_move,'action','valid bounded expression is not rejected by a second confidence threshold');
     assert.equal(decisions.primary_focus,'direct');
     const payload=buildInjection({settings:rec.preferences,decisions});
-    assert.match(payload,/BASIC_DEVELOPMENT/);assert.match(payload,/Be more forthcoming in ONE fitting way/);
+    assert.match(payload,/BASIC_DEVELOPMENT/);assert.ok(!payload.includes(PROGRESS_BOOST),'one stalled verdict does not immediately boost');
     assert.doesNotMatch(payload,/NARRATIVE_CADENCE/);assert.equal(decisions.relationship_pacing,'hold');
     assert.doesNotMatch(payload,/GENRE_NPC|PERSON_ARRIVAL/);
     matrix++;
@@ -38,7 +39,7 @@ for(const intensity of [0.5,1,1.5]) {
     const d={...FALLBACKS,basic_move:'emotion',progress_need:'flowing'};
     coordinateDecisions(rec,{},d);
     assert.equal(d.basic_move,'emotion');assert.equal(d.progress_need,'flowing');
-    assert.doesNotMatch(buildInjection({settings:rec.preferences,decisions:d}),/Be more forthcoming/);
+    assert.ok(!buildInjection({settings:rec.preferences,decisions:d}).includes(PROGRESS_BOOST));
 }
 const draws=createDraws(()=>({id:'current',name:'Current'}));
 for(const style of ['static','dynamic']) {

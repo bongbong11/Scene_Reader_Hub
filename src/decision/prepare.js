@@ -1,3 +1,5 @@
+import {activityQuestions} from './activity-questions.js';
+import {progressComparison} from '../scene/progress-tracking.js';
 import {selectActiveContinuity, confirmedContinuity} from '../continuity/selection.js';
 import {continuityActors} from '../continuity/actors.js';
 import {makeOpportunities} from '../scene/opportunities.js';
@@ -38,7 +40,8 @@ if (frame.prefs.settingsContract >= 3) {
         pacingState: { ...frame.rec.pacingState, progression: frame.rec.progressionState },
     }));
     if (frame.prefs.advancedEnabled) frame.questions.advanced_world_rules = {type:'choice',instructions:'From explicit current world rules, recent RP and supplied memory only: are supernatural mechanisms established? A horror label alone does not establish ghosts, curses or exorcism. This is world evidence, never an invitation to invent.',criteria:{mundane:'No supported supernatural mechanics.',supernatural:'Supernatural mechanics are established and compatible with this setting.',unclear:'Insufficient world evidence.'}};
-    Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan));
+    Object.assign(frame.questions, deps.buildVerificationQuestions(frame.rec.pendingPlan), activityQuestions(frame.prefs.worldAgencyEnabled));
+    frame.progressComparison=progressComparison(deps.getContext().chat, {excluded:frame.rec.nonRpOutputIndices||[],selected:frame.context.selected,transcript:frame.transcript,blockedTurn:frame.rec.progressionState?.blockedTurn});
     frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1);
     frame.continuityActors=continuityActors(deps.characterStore,deps.getContext(),frame.transcript,frame.sceneGate.participantIds);
     frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});

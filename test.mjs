@@ -13,7 +13,7 @@ import { appendPendingUserMessage, buildInputKey, buildRecentContext, buildRecen
 import { sha256Fallback, sha256Hex } from './security-utils.js';
 import { buildCharacterInjection, buildCharacterTurnQuestions, buildLiveCharacterPlan, resolveLiveCharacterPlan, currentProfileItems, profileStatus, chunkSheet, defaultCharacterStore, normalizeCharacterStore, selectActiveEntries, selectRelevantChunks } from './character-library.js';
 import { applyDecisionPolicy, buildVerificationQuestions, decisionPolicyKind, pendingPlanEffects, stableFingerprint, verificationSummary } from './decision-engine.js';
-import { commitObservedState, commitVerifiedPlan, updateProgressionPressure } from './state-engine.js';
+import { commitObservedState, commitVerifiedPlan } from './state-engine.js';
 import { selectActionPlan, nextDeferredRoutes } from './action-coordinator.js';
 import { coordinateDecisions, coordinateActionBudget } from './src/scene/coordinator.js';
 import { applyPolicy } from './src/scene/policy.js';
@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.16');
+assert.equal(manifest.version, '0.2.17');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -234,7 +234,7 @@ assert.equal(relationshipActive.threshold, relationshipBalanced.threshold, 'acti
 const pendingFixture = { outputText: 'He finally acted.', effects: ['relationship', 'event', 'direct'] };
 const verificationQuestions = buildVerificationQuestions(pendingFixture);
 assert.deepEqual(Object.keys(verificationQuestions), ['verification_relationship', 'verification_event', 'verification_direct']);
-assert.match(buildVerificationQuestions({ outputText: 'A reply', effects: ['progress'] }).verification_progress.instructions, /Material progress/);
+assert.equal(buildVerificationQuestions({ outputText: 'A reply', effects: ['progress'] }).verification_progress, undefined, 'progress uses the single observation question');
 assert.deepEqual(verificationSummary(pendingFixture, { verification_relationship: 'missed', verification_event: 'partial', verification_direct: 'fulfilled' }), { relationship: 'missed', event: 'partial', direct: 'fulfilled' });
 assert.deepEqual(pendingPlanEffects({ relationship_pacing: 'hold', relationship_beat: 'none', event_route: 'none', progression_move: 'hold', resolution_pacing: 'continue', primary_focus: 'direct', direct_execution: 'yes' }), ['progress', 'direct']);
 const actionSettings = { progressionMode: 'investigation', resolutionPace: 'fast', relationshipPace: 'medium', judgmentStyle: 'active' };
@@ -303,13 +303,7 @@ assert.equal(activePendingCandidates([pendingCandidate], { chatKey: 'chat-a', ch
 assert.ok(candidateDecisions(validCandidates).continuity_candidate_0==='followup_only');
 assert.equal(verifiedSecondaryCandidates(validCandidates, { continuity_candidate_0: 'reject' }).length, 1);
 assert.equal(verifiedSecondaryCandidates(validCandidates, { continuity_candidate_0: 'accept' }).length, 1);
-const pressureState = { progressionState: { turnsSinceMeaningfulProgress: 0, lastOutputFingerprint: '' } };
-updateProgressionPressure(pressureState, { outputFingerprint: 'output-a' }, { progress: 'missed' }, { activeThread: true });
-assert.equal(pressureState.progressionState.turnsSinceMeaningfulProgress, 1);
-updateProgressionPressure(pressureState, { outputFingerprint: 'output-a' }, { progress: 'missed' }, { activeThread: true });
-assert.equal(pressureState.progressionState.turnsSinceMeaningfulProgress, 1, 'the same output cannot create additional stall pressure');
-updateProgressionPressure(pressureState, { outputFingerprint: 'output-b' }, { progress: 'fulfilled' }, { activeThread: true });
-assert.equal(pressureState.progressionState.turnsSinceMeaningfulProgress, 0, 'actual verified progress releases stall pressure');
+// Completed-output progression and replay handling are covered by hub-world-agency.mjs.
 const oocFiltered = filterNonRpHistory([
     { is_user: true, mes: 'Open the door.' },
     { is_user: false, mes: 'She opens it.' },
@@ -685,7 +679,7 @@ assert.match(charPayload, /Treat \{\{user\}\}'s input as already established/);
 assert.match(charPayload, /Do not substitute repeated questions/);
 assert.match(charPayload, /Change one concrete action, fact, consequence|Begin with a response or consequence/);
 assert.ok(charPayload.indexOf('<NARRATIVE_CADENCE') < charPayload.indexOf('<CHARACTER_EXECUTION>'));
-assert.match(charPayload, /one primary beat/);
+assert.match(charPayload, /one main development/);
 const allCorrectionsPayload = buildInjection({
     settings: { worldDirection:'natural', relationshipDirection:'dynamic', progressionMode:'off', roleplayPace:'medium' },
     decisions: {

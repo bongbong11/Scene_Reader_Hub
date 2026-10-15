@@ -1,3 +1,4 @@
+import {GROUP_ARRIVAL} from './world-agency.js';
 export const COMMON_EXECUTION = `Silent scene directions for this IC response. Do not quote, name or discuss these directions.
 Respond to the present interaction through character-consistent speech, thought, decision or action. Treat the user's input as already established instead of recapping it. Keep that response as the base while carrying out each explicitly selected addition below.
 An addition marked EXECUTE_NOW must start as an observable action, interaction or changed condition in this response. Do not replace it with intention, a vague sign, atmosphere, a possible future event, or an invitation to choose whether the event should exist. The event starting does not imply that it succeeds or is resolved.
@@ -19,7 +20,7 @@ export const DIRECTIONS = {
 };
 export const KEEP_ONGOING_EVENT = `The stored central event remains in progress. Let this addition change one local circumstance within that event or current interaction. Do not replace its goal, erase consequences, or create another persistent central event.`;
 export const COMBINE_ADDITIONS = `Both additions are selected. When their access, setting and purpose genuinely fit, let the selected person perform or respond to the selected event, keeping one shared scene. If they are unrelated, execute each briefly without inventing shared history or dropping either. Neither addition requires immediate resolution.`;
-export const PERSON_EXECUTION = `Introduce the selected person through the specified valid route and one actual interaction. Give them their own immediate purpose and one readable action or line of speech that has an effect. Being brief does not mean remaining unseen, only being mentioned, or asking the user to invent the entrance. Keep knowledge bounded by direct perception and established role competence. Retain the person’s identity after their arrival is verified; do not turn an existing person into someone new.`;
+export const PERSON_EXECUTION = `Introduce the selected person through the specified valid route and an actual interaction. Give them their own immediate purpose and consequential speech or action. Being brief does not mean remaining unseen, only being mentioned, or asking the user to invent the entrance. Keep knowledge bounded by direct perception and established role competence. Retain the person’s identity after their arrival is verified; do not turn an existing person into someone new.`;
 export const ANTAGONIST_EXECUTION = `The selected arrival is an antagonist. Express the selected immediate interest through one concrete, proportionate opposed move. Resistance may be social, practical or procedural; it need not be violence. Use only available access and means. Do not create prior fixation, attraction, intimacy, secret knowledge, automatic success or user helplessness. A private room is not permission to materialize inside it.`;
 export const NORMAL_EVENT_EXECUTION = `Connect the selected action to the current activity, established objective, world condition or unresolved consequence. Execute its first material step now; it need not be urgent or indispensable. Do not invent a past cause to justify it.`;
 export const SPONTANEOUS_EVENT_EXECUTION = `The selected small happening may begin through ordinary plausible chance without prior foreshadowing. Make its concrete action or changed condition occur now, then show an immediate non-user response where appropriate. Do not substitute generic unease, a ringing phone, an unexplained knock or an arrival merely because a fresh development was requested. Use only the selected package and established setting.`;
@@ -28,10 +29,10 @@ export const PERSON_MODE = {
   spontaneous:'A plausible coincidental encounter or routine arrival is permitted even without prior narrative setup. Establish the new interaction now without inventing a past relationship.',
 };
 
-export function renderAddition(candidate,{kind,spontaneous=false,style='balanced',direction='natural',ongoing=false,antagonist=false}={}) {
+export function renderAddition(candidate,{kind,spontaneous=false,style='balanced',direction='natural',ongoing=false,antagonist=false,groupAllowed=false}={}) {
   if(!candidate || !['event','person'].includes(kind))throw new Error('INVALID_ADDITION');
   const local=kind==='event'?(spontaneous?SPONTANEOUS_EVENT_EXECUTION:NORMAL_EVENT_EXECUTION):`${PERSON_EXECUTION}\n${PERSON_MODE[spontaneous?'spontaneous':'normal']}\n${antagonist?ANTAGONIST_EXECUTION:''}`;
-  return [`<SCENE_ADDITION kind="${kind}" action="EXECUTE_NOW">`,local,
+  return [`<SCENE_ADDITION kind="${kind}" action="EXECUTE_NOW">`,local,kind==='person'&&groupAllowed?GROUP_ARRIVAL:'',
     `Access and prerequisites: ${candidate.condition}`,
     `Selected action: ${candidate.action}`,`Required immediate effect: ${candidate.effect}`,
     DEVELOPMENT[style]||DEVELOPMENT.balanced,DIRECTIONS[direction]||DIRECTIONS.natural,

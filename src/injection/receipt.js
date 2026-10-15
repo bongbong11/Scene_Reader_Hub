@@ -1,6 +1,7 @@
 import {injectionSourceCurrent} from './source-validity.js';
 import {stableFingerprint} from '../decision/policy.js';
 import {rememberOpportunity} from '../scene/opportunities.js';
+import {activityBlocks} from './world-agency.js';
 
 function promptText(data) {
     if(typeof data === 'string')return data;
@@ -8,7 +9,7 @@ function promptText(data) {
     if(!data||typeof data!=='object')return '';
     return [promptText(data.prompt),promptText(data.input),promptText(data.messages),promptText(data.chat)].filter(Boolean).join('\n');
 }
-export function observePromptReceipt(data,{payload='',worldPayload='',additionBlocks=[],cycleId='',dryRun=false,userName='',characterName=''}={}) {
+export function observePromptReceipt(data,{payload='',worldPayload='',additionBlocks=[],activity={},cycleId='',dryRun=false,userName='',characterName=''}={}) {
     if(dryRun)return {cycleId,status:'dry_run',observed:false};
     const text=promptText(data).replaceAll('\r\n','\n');
     const check=value=>{
@@ -22,6 +23,7 @@ export function observePromptReceipt(data,{payload='',worldPayload='',additionBl
         return /\{\{[^}]+\}\}/.test(rendered)?'unverifiable':'unconfirmed';
     };
     return {cycleId,status:text?'observed':'unavailable',observed:Boolean(text),promptHash:text?stableFingerprint(text):'',promptChars:text.length,scene:check(payload),world:check(worldPayload),payloadChars:payload.length,worldChars:worldPayload.length,
+        activity:activityBlocks(activity).map(({id,text})=>({id,status:check(text)})),
         additions:additionBlocks.map(({id,feature,templateId,text})=>({id,feature,templateId,status:check(text)}))};
 }
 
@@ -36,6 +38,12 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
         if(expected.slotResults)receipt.slots=expected.slotResults.map(item=>`${item.kind}:${item.status}${item.reason?':'+item.reason:''}`);
         for(const kind of ['scene','world'])if(expected[kind+'Preset'] && receipt[kind]!=='not_expected' && expected.slotResults?.find(item=>item.kind===kind)?.status==='missing')receipt[kind]='unconfirmed';
         report('injection.consume','PROMPT_OBSERVED',receipt);
+        if(phase==='request')for(const item of receipt.activity) {
+            const marker=`${receipt.cycleId}:activity:${item.id}:${item.status}`;
+            if(reported.has(marker))continue;
+            reported.add(marker);
+            report('injection.consume','SCENE_ACTIVITY_RECEIPT',{module:'src/injection/receipt.js',feature:item.id,resultStatus:item.status,status:item.status==='unconfirmed'?'degraded':'info'});
+        }
         if(phase==='request')for(const item of receipt.additions) {
             const reasonCode=item.status==='confirmed'?'request_included':item.status==='unconfirmed'?'request_missing':'request_unobservable';
             const marker=`${receipt.cycleId}:${item.id}:${reasonCode}`;

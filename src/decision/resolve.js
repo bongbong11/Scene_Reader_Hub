@@ -1,3 +1,5 @@
+import {fixedDecision} from './answers.js';
+import {observeProgress, progressVerification} from '../scene/progress-tracking.js';
 import {opportunityDetail, resolveOpportunities} from '../scene/opportunity-policy.js';
 import {opportunitySummary, reportOpportunities} from '../debug/opportunity-events.js';
 import {archiveCurrentEvent} from '../scene/state-effects.js';
@@ -24,6 +26,14 @@ async function resolveDecision(run,frame) {
         }
         resolveCharacterPresence(frame.liveCharacters,frame.details,frame.data.answers,frame.sceneGate?.participationObservations||{});
         (frame.decisions = deps.effectiveMap(frame.details));
+        frame.progressStatus=observeProgress(frame.rec,frame.progressComparison,frame.decisions.progress_need,deps.getContext().chat);
+        frame.decisions.progress_boost=frame.progressStatus.boost?'yes':'no';
+        if(frame.rec.pendingPlan?.effects?.includes('progress')) {
+            const value=progressVerification(frame.progressComparison,frame.decisions.progress_need,frame.rec.pendingPlan);
+            frame.details.verification_progress={...fixedDecision(value),rule:'동일 출력의 단일 진행 판독에서 계산'};
+            frame.decisions.verification_progress=value;
+        }
+        deps.noteDiagnostic?.('progress_observed',{module:'src/scene/progress-tracking.js',status:'succeeded',outcome:frame.progressStatus.outcome,count:frame.progressStatus.count,boost:frame.progressStatus.boost,comparisonCount:frame.progressComparison?.turns.length||0});
         (frame.priorVerification = await deps.commitPriorVerification(frame.rec, frame.decisions, run));
         (frame.verifiedExternalCandidates = deps.verifiedSecondaryCandidates(frame.pendingCandidates));
         await deps.commitContinuityCandidates(frame.rec, frame.pendingCandidates, frame.decisions, frame.details, run);
@@ -126,7 +136,7 @@ async function resolveDecision(run,frame) {
             for (const key of ['npc_role', 'npc_weight', 'npc_knowledge', 'npc_disclosure']) deps.overrideDecision(frame.details, frame.decisions, key, 'none', frame.decisions.npc_route === 'waiting' ? '인물 등장 추첨 대기' : '이번 응답 NPC 실행 없음');
         }
         
-        frame.additions=frame.opportunityOffers?resolveOpportunities(frame.opportunityOffers,frame.data.answers):[];
+        frame.additions=frame.opportunityOffers?resolveOpportunities(frame.opportunityOffers,frame.data.answers,frame.prefs):[];
         if(frame.opportunityOffers){
             frame.rec.appearanceOffer={...frame.opportunityOffers.person,candidates:undefined};
             frame.rec.lastNpcRoll={...frame.rec.appearanceOffer};

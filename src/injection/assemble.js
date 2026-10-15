@@ -1,3 +1,5 @@
+import {worldAgencyParts, PROGRESS_BOOST} from './world-agency.js';
+import {COMMON_EXECUTION} from './opportunity-prompts.js';
 import {LANGUAGE_SCOPE} from './language-scope.js';
 import { BASIC_MOVES, DEVELOPMENT_GUIDANCE, normalizeDevelopmentPreferences } from '../decision/settings.js';
 import { LEGACY_PROMPTS as L } from "../decision/legacy-prompts.js";
@@ -8,9 +10,11 @@ import {buildAntagonistExecution} from './npc-execution.js';
 
 export const COMMON_META = `(Meta: Silent OOC hard-execution directive for this IC response. Do not acknowledge, quote, explain, summarize, or discuss it; apply only the active enclosed directives and output only the resulting IC continuation.
 
-Treat the user's input as established context: begin with the non-user characters' response, action, consequence, or next development; never quote, translate, paraphrase, enumerate, reenact, recalculate, or indirectly restate it merely to show recognition. Limit independent plot developments to one primary beat and at most one naturally dependent secondary beat; relationship expression, present NPC conduct, ongoing conflict, dialogue, emotion, atmosphere, and incidental touch within that beat do not consume another event slot. Do not treat directives as a checklist, rush time, cut an active interaction short, or change scenes merely to comply.
+Treat the user's input as established context: begin with the non-user characters' response, action, consequence, or next development; never quote, translate, paraphrase, enumerate, reenact, recalculate, or indirectly restate it merely to show recognition. Keep one main development with naturally dependent support; allow related dialogue, reactions, present NPC conduct, ongoing activity, emotion, atmosphere, and incidental touch within it. Do not treat directives as a checklist, rush time, cut an active interaction short, or change scenes merely to comply.
 
 Do not append a question, menu of alternatives, permission request, invented deadline, or demand that {{user}} decide the next beat merely to hand back the turn. Let non-user characters first execute their own available intent. A natural in-character question may end the response only when {{user}} is genuinely the next unresolved participant and the question itself materially advances the live interaction.`;
+
+export const ADDITION_META = `(Meta: ${COMMON_EXECUTION}\n\n${COMMON_META.split('\n\n').at(-1)}`;
 
 export const META_OPEN = '(Meta: Silent OOC directive for this IC response. Do not acknowledge, quote, explain, summarize, or discuss it; output only the resulting IC continuation.';
 
@@ -75,7 +79,7 @@ export function selectExecutionCorrections(decisions = {}, details = {}) {
     return { ...selection, lines: selection.selectedKeys.map(key => EXECUTION_CORRECTIONS[key] || AUXILIARY_EXECUTION_CORRECTIONS[key]) };
 }
 
-export const NPC_COMMON_PROMPT = 'Keep the active NPC self-directed within their own motive, knowledge, access, and immediate stake. Give them one proportionate choice or action; do not make them a mouthpiece, a group mind, or a substitute for the primary character.';
+export const NPC_COMMON_PROMPT = 'Keep the active NPC self-directed within their own motive, knowledge, access, and immediate stake. Let their choices and actions follow that stake; do not make them a mouthpiece, a group mind, or a substitute for the primary character.';
 
 export const NPC_ROLE_PROMPTS = {
     participant: 'Let the NPC act as a directly affected participant with something concrete to gain, lose, decide, or protect.',
@@ -94,8 +98,8 @@ export const NPC_ROLE_PROMPTS = {
 
 export const NPC_WEIGHT_PROMPTS = {
     background: 'Keep the NPC present and consistent without giving them a new major intervention.',
-    brief: 'Give the NPC one proportionate reaction without redirecting the scene.',
-    supporting: 'Let the NPC materially affect the active matter through one action, decision, condition, or consequence while keeping the primary interaction central.',
+    brief: 'Keep their contribution brief without softening its intent or effect.',
+    supporting: 'Let the NPC materially affect the active matter through relevant actions, decisions, conditions, or consequences while keeping the primary interaction central.',
     primary: 'The NPC has the strongest causal reason to make the main move now; execute it directly without resolving unrelated material.',
     exit: 'Let the NPC leave, withdraw, lose access, or return to their own concern through a concrete cause while preserving unfinished consequences.',
 };
@@ -205,7 +209,7 @@ export function antagonistPrompt(profile, first) {
 
 export function genreNpcPrompt(profile, route) {
     if (!profile) return '';
-    if (route === 'background') return `<RP_NPC_ROUTING mode="${profile.mode}" state="background">Keep the established genre NPC offstage for this response without erasing or replacing them.</RP_NPC_ROUTING>`;
+    if (route === 'background') return `<RP_NPC_ROUTING mode="${profile.mode}" state="background">Keep the established NPC in their supported background role; let them take part when the scene gives them a reason. Do not summon an absent person.</RP_NPC_ROUTING>`;
     const state = ['create', 'replace'].includes(route) && profile.status === 'pending' ? 'new' : 'return';
     const stake = profile.stake || 'their immediate interest';
     const constraint = profile.constraint || 'their established access and ability';
@@ -215,16 +219,17 @@ export function genreNpcPrompt(profile, route) {
         : `Reuse the established ${profile.role}: aim ${profile.aim}; stake ${stake}; constraint ${constraint}; contribution ${profile.contribution}; competence ${profile.competence}; demeanor ${profile.demeanor}; reliability ${profile.reliability}; stance changes if ${turningCondition}.`;
     return `<RP_NPC_ROUTING mode="${profile.mode}" state="${state}">
 ${profileText}
+${profile.composition === 'individual_or_connected_group' ? 'Preserve the individual or connected group actually established at this arrival, including distinct member roles; do not collapse a group into one person or invent extra members.' : ''}
 ${state === 'new' ? 'Introduce them through an actual interaction and keep this profile fixed after appearance.' : 'Do not replace them with a new NPC.'}
 </RP_NPC_ROUTING>`;
 }
 
-export function npcExecutionPrompt(decisions, establishedTarget = false) {
+export function npcExecutionPrompt(decisions, establishedTarget = false, activity = '') {
     const routeActive = ['create', 'replace', 'reuse'].includes(decisions.npc_route) || establishedTarget;
     const weight = NPC_WEIGHT_PROMPTS[decisions.npc_weight] || NPC_WEIGHT_PROMPTS.brief;
-    if (!routeActive) return '';
-    const lines = [NPC_COMMON_PROMPT, NPC_ROLE_PROMPTS[decisions.npc_role] || NPC_ROLE_PROMPTS.participant, weight, NPC_KNOWLEDGE_PROMPTS[decisions.npc_knowledge] || NPC_KNOWLEDGE_PROMPTS.none, NPC_DISCLOSURE_PROMPTS[decisions.npc_disclosure]].filter(Boolean);
-    if (decisions.npc_presence === 'multiple') lines.push('Keep NPC judgments distinct rather than making the group a single chorus; use only the one or two reactions with the strongest immediate cause to matter.');
+    if (!routeActive) return activity ? `<NPC_SCENE_EXECUTION>${activity}</NPC_SCENE_EXECUTION>` : '';
+    const lines = [activity || NPC_COMMON_PROMPT, NPC_ROLE_PROMPTS[decisions.npc_role] || NPC_ROLE_PROMPTS.participant, weight, NPC_KNOWLEDGE_PROMPTS[decisions.npc_knowledge] || NPC_KNOWLEDGE_PROMPTS.none, NPC_DISCLOSURE_PROMPTS[decisions.npc_disclosure]].filter(Boolean);
+    if (decisions.npc_presence === 'multiple') lines.push('Give relevant NPCs distinct reactions; avoid a roll call or a repetitive chorus.');
     return `<NPC_SCENE_EXECUTION role="${decisions.npc_role}" weight="${decisions.npc_weight}" knowledge="${decisions.npc_knowledge}" disclosure="${decisions.npc_disclosure}">
 ${lines.join('\n')}
 </NPC_SCENE_EXECUTION>`;
@@ -265,8 +270,10 @@ export const SCENE_FOCUS_LABELS = {
     villain: 'the selected antagonist involvement', continuity: 'the selected continuity consequence',
 };
 
-export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], activeWorldName = '', correctionDetails = {} }) {
+export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], activeWorldName = '', correctionDetails = {}, hasAdditions = false }) {
     if (settings.developmentStyle) settings = normalizeDevelopmentPreferences(settings);
+    const agency = worldAgencyParts(settings, decisions);
+    const boosting = settings.developmentStyle!=='static' && decisions.progress_boost==='yes';
     const castNames = new Set(sheetCastNames.map(name => String(name || '').trim().toLocaleLowerCase()).filter(Boolean));
     const generatedName = String(npcProfile?.name || npcProfile?.identityName || npcProfile?.characterName || '').trim().toLocaleLowerCase();
     const npcIsSheetCast = Boolean(generatedName && castNames.has(generatedName));
@@ -278,16 +285,16 @@ export function buildInjection({ settings, decisions, villainProfile, npcProfile
     const secondary = SCENE_FOCUS_LABELS[decisions.secondary_focus];
     if (focus) blocks.push(`<SCENE_FOCUS>Primary development: ${focus}.${secondary ? ` Dependent support: ${secondary}.` : ''} The following progression and reaction instructions belong to this same scene, not separate tasks.</SCENE_FOCUS>`);
     const cadencePrompts = {
-        compress: 'Execute one primary beat; include at most one directly dependent secondary reaction. Compress repetition, connective steps, minor remarks, and already-understood context. Continue through the single detail, action, or question that most changes the immediate scene.',
-        natural: 'Give ordinary space to one primary beat. Include at most one secondary reaction and only when it follows directly; let incidental input pass implicitly.',
-        linger: 'Stay close to one decisive action, revelation, sensation, or emotional turn. Include at most one directly dependent secondary reaction; do not broaden the response into coverage of every input point.',
+        compress: 'Keep one main development with its related reactions. Compress repetition, connective steps, minor remarks, and already-understood context. Continue through the single detail, action, or question that most changes the immediate scene.',
+        natural: 'Give ordinary space to the main development and its related reactions; let incidental input pass implicitly.',
+        linger: 'Stay close to one decisive action, revelation, sensation, or emotional turn. Include related reactions; do not broaden the response into coverage of every input point.',
     };
-    if (settings.developmentStyle) blocks.push(`<BASIC_DEVELOPMENT tendency="${settings.developmentStyle}">\n${DEVELOPMENT_GUIDANCE[settings.developmentStyle]}\n${BASIC_MOVES[decisions.basic_move] || BASIC_MOVES.continue}\n${decisions.progress_need === 'stalled' ? 'Recent output repeated or deferred without movement. Be more forthcoming in ONE fitting way: change the conversational approach, express a relevant feeling/thought, attempt an available action, or propose movement. Select one; do not complete every issue, invent success, or skip another participant’s choice.' : 'Let the present exchange yield a specific fresh response, feeling, attempt, or small consequence. Do not force a new plot merely to demonstrate progress.'} Apply this within the selected main beat, not as an additional independent action. This tendency guides in-world movement, not prose pacing. Keep the current interaction moving within any advanced event; do not introduce a separate event to fill a quota.\n</BASIC_DEVELOPMENT>`);
-    else blocks.push(`<NARRATIVE_CADENCE pace="${settings.roleplayPace || 'medium'}" mode="${decisions.response_cadence || 'natural'}">\n${cadencePrompts[decisions.response_cadence] || cadencePrompts.natural}\n</NARRATIVE_CADENCE>`);
+    if (settings.developmentStyle) blocks.push(`<BASIC_DEVELOPMENT tendency="${settings.developmentStyle}">\n${DEVELOPMENT_GUIDANCE[settings.developmentStyle]}\n${BASIC_MOVES[decisions.basic_move] || BASIC_MOVES.continue}\n${boosting ? PROGRESS_BOOST : 'Let the present exchange yield a specific fresh response, feeling, attempt, or consequence. Do not invent an unselected plot merely to demonstrate progress.'} Apply this within the ongoing scene; explicitly selected additions remain required. This guides in-world movement, not prose pacing.${agency.basic ? '\n'+agency.basic : ''}\n</BASIC_DEVELOPMENT>`);
+    else blocks.push(`<NARRATIVE_CADENCE pace="${settings.roleplayPace || 'medium'}" mode="${decisions.response_cadence || 'natural'}">\n${cadencePrompts[decisions.response_cadence] || cadencePrompts.natural}${agency.basic?'\n'+agency.basic:''}\n</NARRATIVE_CADENCE>`);
     const corrections = selectExecutionCorrections(decisions, correctionDetails).lines;
 
     if (decisions.direct_execution === 'yes') blocks.push(`<DIRECT_SCENE_EXECUTION>
-Within the selected scene or event, answer the current interaction through a concrete, character-consistent response, decision, refusal, action, or immediate consequence. Do not recap the input, stop at intention when a supported step can be executed, or end on a question merely to hand back the turn. Do not add a separate event merely to answer. Leave {{user}}'s response and any outcome that depends on it open.
+Within the selected scene or event, answer the current interaction through a concrete, character-consistent response, decision, refusal, action, or immediate consequence. Do not recap the input, stop at intention when a supported step can be executed, or end on a question merely to hand back the turn. Do not invent an unselected event merely to answer; explicitly selected additions remain required. Leave {{user}}'s response and any outcome that depends on it open.
 </DIRECT_SCENE_EXECUTION>`);
 
     const relationshipMoves = {
@@ -331,7 +338,7 @@ Within the selected scene or event, answer the current interaction through a con
     const npc = npcIsSheetCast ? '' : genreNpcPrompt(npcProfile, decisions.npc_route);
     if (npc && ['create', 'replace', 'reuse', 'background'].includes(decisions.npc_route)) blocks.push(npc);
     if (sheetNpcTarget && decisions.npc_route === 'reuse') blocks.push(`<SHEET_NPC_SCENE>Let ${sheetNpcTarget} perform one scene-relevant ${decisions.npc_role || 'participant'} function at ${decisions.npc_weight || 'brief'} weight. Follow established characterization and any selected stored records for motive, knowledge, and response.</SHEET_NPC_SCENE>`);
-    const npcExecution = npcExecutionPrompt(decisions, presentSheetNpcNames.length===1 && decisions.npc_role && decisions.npc_role!=='none');
+    const npcExecution = npcExecutionPrompt(decisions, presentSheetNpcNames.length===1 && decisions.npc_role && decisions.npc_role!=='none', agency.npc);
     const actionTarget=sheetNpcTarget||(presentSheetNpcNames.length===1?presentSheetNpcNames[0]:'');
     if (npcExecution) blocks.push(actionTarget ? `<SHEET_NPC_ACTION_TARGET>${actionTarget}: Apply the following role guidance to this registered person using their own characterization.</SHEET_NPC_ACTION_TARGET>\n${npcExecution}` : npcExecution);
 
@@ -346,11 +353,12 @@ Within the selected scene or event, answer the current interaction through a con
     if (decisions.villain_route === 'replace' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, true));
     if (decisions.villain_route === 'continue' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, false));
     if (decisions.fight_sustain === 'yes') fightBlocks.push(L.SUSTAINED_INTERPERSONAL_CONFLICT);
-    if (fightBlocks.length || ['tension','active'].includes(decisions.conflict_state)) blocks.push(`<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[L.CONFLICT_EXECUTION, ...fightBlocks].join('\n\n')}\n</CONFLICT_PROGRESSION>`);
+    const existingConflict = fightBlocks.length || ['tension','active'].includes(decisions.conflict_state);
+    if (existingConflict || agency.conflict) blocks.push(`<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[existingConflict ? L.CONFLICT_EXECUTION : '', ...fightBlocks, agency.conflict].filter(Boolean).join('\n\n')}\n</CONFLICT_PROGRESSION>`);
 
     if (String(characterBlock || '').trim()) blocks.push('<SHEET_CAST_SCOPE>Apply the following specific boundaries to their named people within the selected scene, event, conflict, and world constraints. Those broader constraints do not rewrite their established knowledge, relationships, or characterization; these individual boundaries do not cancel valid scene progression.</SHEET_CAST_SCOPE>', String(characterBlock).trim());
     if (String(sexualBlock || '').trim()) blocks.push(String(sexualBlock).trim());
     if (corrections.length) blocks.push(`<EXECUTION_CORRECTION>\nRepair these issues in the selected scene within character limits; do not revive a superseded route or add an independent task.\n${corrections.join('\n')}\n</EXECUTION_CORRECTION>`);
 
-    return `${COMMON_META}\n\n${blocks.join('\n\n')}\n\n${META_CLOSE}\n)`;
+    return `${hasAdditions ? ADDITION_META : COMMON_META}\n\n${blocks.join('\n\n')}\n\n${META_CLOSE}\n)`;
 }

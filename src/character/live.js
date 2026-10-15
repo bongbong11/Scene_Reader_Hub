@@ -15,8 +15,8 @@ const ACCESS_LABELS = { observed: 'Directly perceived', reported: 'Was told', pu
 const CHARACTER_INJECTION_PREAMBLE='Scoped character constraints, not scripted actions. Preserve belief, report, ignorance and time scope; expertise does not require a lecture.';
 const AFFECT_CHOICES = {
     none: 'The previous output state does not affect this person in the next response.',
-    inward: 'Carry the relevant feeling in viewpoint thought or restraint, if this viewpoint is available.',
-    visible: 'Let the relevant feeling color speech, attention, or a small action in the ongoing scene.',
+    inward: "Let this feeling inform the character's perspective; outward expression follows their personality.",
+    visible: 'Express this feeling in character through speech or behavior.',
     active: 'Let the relevant feeling contribute to a character-led action that fits the current scene and established limits.',
 };
 function affectSummary(state, selectedFields = null) {
@@ -216,7 +216,7 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         for (const expression of ['inward', 'visible', 'active']) {
             const fields = (person.affectSelections || []).filter(item => item.expression === expression).map(item => item.field);
             if (!fields.length) continue;
-            const phrasing = { inward: 'through available viewpoint thought or restraint', visible: 'through speech, attention, or a small action', active: 'through a fitting character-led action' }[expression];
+            const phrasing = { inward: 'through available viewpoint; outward expression follows their personality', visible: 'through speech or behavior', active: 'through a fitting character-led action' }[expression];
             chosen.push({ priority: 68, text: `${person.name}: Prior state ${affectSummary(person.priorState, fields)}. Let it register ${phrasing} within the current interaction; respect established limits and do not turn a feeling into automatic consent or relationship change.` });
         }
         if (person.kind === 'npc') {

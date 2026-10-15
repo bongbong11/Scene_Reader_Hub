@@ -1,3 +1,4 @@
+import {checkWorldAgency} from './browser-world-agency.mjs';
 import {checkRecordFiles} from './browser-record-files.mjs';
 import {checkRoomBackups} from './browser-room-backups.mjs';
 import {checkCharacterDeletion} from './browser-character-deletion.mjs';
@@ -1026,6 +1027,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
     await checkRecoverySettings(page,store,requests,setViewportSize);
     await checkOpportunitySettings(page,store,requests,setViewportSize,root);
+    await checkWorldAgency(page,store,requests,setViewportSize,root);
     await checkCurrentStatus(page,requests,setViewportSize,root);
     assert.deepEqual(errors,[]);
     await checkRoomBackups(page,setViewportSize);

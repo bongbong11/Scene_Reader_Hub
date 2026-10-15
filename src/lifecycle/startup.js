@@ -1,3 +1,4 @@
+import {stopProgress} from '../scene/progress-tracking.js';
 import {registerEmptyLegacyMacros} from '../injection/legacy-cleanup.js';
 import {recentTurnCount} from '../context/turn-settings.js';
 // Lifecycle coordination only; feature implementation lives in its module.
@@ -51,6 +52,8 @@ async function init() {
     }
     if (deps.event_types.GENERATION_STOPPED) deps.eventSource.on(deps.event_types.GENERATION_STOPPED, () => {
         deps.resetPresetRequest?.();
+        const stoppedRecord=deps.record(), stoppedKey=deps.stateChatKey();
+        stopProgress(stoppedRecord,deps.getContext().chat,deps.pendingGenerationType);
         deps.invalidateReasonerJobs({reason:'generation_stopped'});
         deps.updateActivity('생성이 중단되어 판독을 정리했습니다.', {done:true});
         const wasDebug = deps.activeGenerationCycle?.mode === 'ooc_debug';
@@ -59,6 +62,7 @@ async function init() {
         deps.activeGenerationCycle = { mode: 'rp', inputKey: '', startedAt: '' };
         if (deps.debugInjectionArmed) deps.debugInjectionArmed = false;
         deps.runEventTask(deps.clearInjection, wasDebug ? '중단된 검사용 주입을 비우지 못했습니다.' : '중단된 생성의 주입을 비우지 못했습니다.');
+        if(stoppedRecord)deps.runEventTask(()=>deps.persistChat(stoppedKey,stoppedRecord),'중단된 생성의 진행 상태를 저장하지 못했습니다.');
     });
     if (deps.event_types.GENERATION_ENDED) deps.eventSource.on(deps.event_types.GENERATION_ENDED, () => { deps.resetPresetRequest?.();deps.pendingGenerationType = '';deps.hub?.endCycle(); });
     await deps.clearInjection();

@@ -1,3 +1,4 @@
+import {completeProgress} from '../scene/progress-tracking.js';
 import {isMessageHidden} from '../context/visibility.js';
 import {selectedStateSwipe} from "../character/state-contract.js";
 import {captureDiagnostic} from '../character/state-coverage.js';
@@ -9,6 +10,7 @@ async function processCharacterMessageReceived(messageId) {
     const cycleMode = deps.activeGenerationCycle?.mode || deps.generationMode || 'rp';
     const outputIndex = Number.isInteger(Number(messageId)) ? Number(messageId) : (deps.getContext().chat || []).length - 1;
     const output = (deps.getContext().chat || [])[outputIndex];
+    if(cycleMode==='rp'&&deps.activeGenerationCycle?.startedAt&&(!deps.activeGenerationCycle.chatKey||deps.activeGenerationCycle.chatKey===chatKey))completeProgress(rec,outputIndex);
     const roster = deps.activeGenerationCycle?.stateRoster || [];
     const collectorMode = deps.activeGenerationCycle?.stateCollectorMode || deps.STATE_COLLECTOR_MODE;
     const stateCollectionPaused = deps.activeGenerationCycle?.stateCollectionPaused === true;

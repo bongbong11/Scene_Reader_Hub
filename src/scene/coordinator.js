@@ -43,10 +43,6 @@ export function coordinateDecisions(rec, details, decisions, {presentNpc=false}=
             if (decisions.primary_focus === 'new_event') overrideDecision(details, decisions, 'primary_focus', 'direct', '기본 흐름은 새 이벤트를 생성하지 않음');
         }
     }
-    if (rec.preferences.settingsContract >= 3 && decisions.basic_move === 'continue' && decisions.progress_need === 'stalled') {
-        const fallback = rec.preferences.developmentStyle === 'dynamic' ? 'action' : 'dialogue';
-        overrideDecision(details, decisions, 'basic_move', fallback, '반복이 확인되어 현재 상호작용의 작은 시도·대화 전환으로 연결');
-    }
     let focus = decisions.primary_focus || 'direct';
     if (!rec.preferences.advancedEnabled && rec.preferences.progressionMode === 'off' && focus === 'new_event') {
         overrideDecision(details, decisions, 'primary_focus', 'direct', '자동 RP 진행 꺼짐');
@@ -109,7 +105,6 @@ export function coordinateDecisions(rec, details, decisions, {presentNpc=false}=
     } else {
         if (['create', 'replace'].includes(decisions.npc_route) && ['background', 'exit'].includes(decisions.npc_weight)) overrideDecision(details, decisions, 'npc_weight', 'brief', '새 인물의 첫 등장은 짧은 실제 참여로 제한');
         if (decisions.npc_weight === 'primary' && !['npc', 'event', 'conflict'].includes(focus)) overrideDecision(details, decisions, 'npc_weight', 'supporting', '주요 장면 초점 보존');
-        if (focus === 'relationship' && ['primary', 'supporting'].includes(decisions.npc_weight)) overrideDecision(details, decisions, 'npc_weight', 'brief', '관계 장면 비중 보존');
         if (decisions.npc_knowledge === 'none' && decisions.npc_disclosure !== 'none') overrideDecision(details, decisions, 'npc_disclosure', 'none', '사용 가능한 NPC 정보 없음');
         if (decisions.npc_role === 'information' && decisions.npc_knowledge === 'none') overrideDecision(details, decisions, 'npc_role', 'participant', '정보 보유 근거 없음');
     }

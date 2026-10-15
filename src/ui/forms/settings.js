@@ -1,3 +1,4 @@
+import {emptyProgress} from '../../scene/progress-tracking.js';
 import {renderOpportunitySettings} from '../opportunity-settings.js';
 import { recentTurnCount, renderRecentTurns } from '../../context/turn-settings.js';
 import { renderRetrievalSettings, refreshRetrievalSecret } from '../retrieval-settings.js';
@@ -19,6 +20,7 @@ function setFormValues() {
     setValue('sr-relationship-direction', prefs.relationshipDirection);
     setChecked('sr-negative-priority', prefs.negativePriority);
     setValue('sr-development-style', prefs.developmentStyle);
+    setChecked('sr-world-agency', prefs.worldAgencyEnabled);
     setValue('sr-character-volume', prefs.characterVolume || 'generous');
     setValue('sr-npc-record-limit', prefs.npcRecordLimit || 3);
     setValue('sr-world-profile', prefs.selectedWorldId);
@@ -66,8 +68,8 @@ function setFormValues() {
 
     const advancedNote = deps.document.getElementById('sr-basic-progression-note');
     if (advancedNote) advancedNote.textContent = prefs.advancedEnabled
-        ? '고급 이벤트에도 기본 전개 성향을 함께 적용합니다. 글의 호흡은 프리셋 지침을 참고합니다.'
-        : '기본 전개는 유지됩니다. 새 사건·인물과 돌발은 아래에서 조절하세요.';
+        ? '고급 이벤트에도 적용합니다. 균형·동적에서는 같은 반응이 반복되면 진행을 보강합니다. 글의 호흡은 프리셋을 따릅니다.'
+        : '균형·동적에서는 같은 반응이 반복되면 진행을 보강합니다. 새 사건·인물과 돌발은 아래에서 조절하세요.';
     const advancedResults = deps.document.getElementById('sr-advanced-results');
     if (advancedResults) advancedResults.hidden = !prefs.advancedEnabled;
     renderOpportunitySettings(deps);
@@ -142,14 +144,16 @@ async function savePreference(key, value) {
     const mutationCurrent=deps.nextMutation(rec,key);
     const current=()=>mutationCurrent() && deps.chatRecords.get(chatKey)===rec;
     if (chatKey === deps.stateChatKey()) deps.invalidateReasonerJobs();
-    const previous = { preference: rec.preferences[key], preferences:JSON.stringify(rec.preferences), pendingPlan: rec.pendingPlan, lastJudgment: rec.lastJudgment };
+    const previous = { preference: rec.preferences[key], preferences:JSON.stringify(rec.preferences), pendingPlan: rec.pendingPlan, lastJudgment: rec.lastJudgment, progressionState: rec.progressionState };
     if (!rec.pendingPlan?.outputText) rec.pendingPlan = null;
     rec.preferences[key] = value;
+    if(key==='developmentStyle' && previous.preference!==value)rec.progressionState=emptyProgress();
     rec.lastJudgment = null;
     try { await deps.persistChat(chatKey,rec); }
     catch (error) {
         if (current()) {
             rec.preferences[key] = previous.preference;
+            if(key==='developmentStyle')rec.progressionState = previous.progressionState;
             if (JSON.stringify(rec.preferences) === previous.preferences) {
                 rec.pendingPlan = previous.pendingPlan;
                 rec.lastJudgment = previous.lastJudgment;

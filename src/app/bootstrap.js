@@ -65,7 +65,7 @@ import {ADVANCED_STYLES, ADVANCED_ELEMENTS, ADVANCED_DEFAULT_ELEMENTS, BUILTIN_W
 import {allWorlds, isFranchiseWorld, loadCustomWorlds, saveCustomWorlds} from "../world/catalog.js";
 import {buildInputKey, buildRecentContext, filterNonRpHistory, generationCycleSalt, isVisibleRoleplayMessage, pendingComposerText, splitOocText} from "../context/messages.js";
 import {buildVerificationQuestions, pendingPlanEffects, stableFingerprint, verificationSummary} from "../decision/policy.js";
-import {archiveCurrentEvent, commitObservedState, commitVerifiedPlan, updateProgressionPressure} from "../scene/state-effects.js";
+import {archiveCurrentEvent, commitObservedState, commitVerifiedPlan} from "../scene/state-effects.js";
 import {actionPlanSummary, selectActionPlan, nextDeferredRoutes} from "../decision/action-budget.js";
 import {activePendingCandidates, verifiedSecondaryCandidates} from "../continuity/candidates.js";
 import {applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity} from "../continuity/engine.js";
@@ -780,7 +780,6 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     get storagePost() { return storagePost; },
     get storageVersion() { return runtime.storageVersion; }, set storageVersion(value) { runtime.storageVersion = value; },
     get updateActivity() { return updateActivity; },
-    get updateProgressionPressure() { return updateProgressionPressure; },
     get updateStatus() { return updateStatus; },
     get validateBackstage() { return validateBackstage; },
     get verificationSummary() { return verificationSummary; },
@@ -943,7 +942,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.16',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.17',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
