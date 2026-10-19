@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,mkdir,writeFile,readFile,rm,rename,readdir} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {createHash} from 'node:crypto';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url),{install,findRoot,validateManifest}=require('../downloads/update-scene-reader-plugin.cjs');
+const root=await mkdtemp(path.join(tmpdir(),'sr-updater-'));
+const json=value=>JSON.stringify(value),hash=data=>createHash('sha256').update(data).digest('hex');
+const files={'index.cjs':Buffer.from('module.exports={};'), 'package.json':Buffer.from(json({name:'scene-reader-jev-plugin',version:'0.9.0'})),'retrieval/test.cjs':Buffer.from('module.exports=1;')};
+const manifest={name:'scene-reader-jev-plugin',version:'0.9.0',files:Object.entries(files).map(([name,data])=>({path:name,sha256:hash(data),bytes:data.length}))};
+try{
+    await writeFile(path.join(root,'package.json'),json({name:'sillytavern'}));await writeFile(path.join(root,'server.js'),'');
+    assert.equal(await findRoot(root),root);
+    await mkdir(path.join(root,'data'),{recursive:true});await writeFile(path.join(root,'data','secret'),'preserve');
+    await mkdir(path.join(root,'plugins','other-plugin'),{recursive:true});await writeFile(path.join(root,'plugins','other-plugin','index.cjs'),'other');
+    const plugin=path.join(root,'plugins','scene-reader-jev');await mkdir(plugin);
+    await writeFile(path.join(plugin,'package.json'),json({name:'scene-reader-jev-plugin',version:'0.8.1'}));await writeFile(path.join(plugin,'index.cjs'),'old');
+    await assert.rejects(install({root,manifest,getFile:async()=>Buffer.from('corrupt')}),/verification/);
+    assert.equal(await readFile(path.join(plugin,'index.cjs'),'utf8'),'old','failed preparation keeps existing code');
+    const lock=path.join(root,'backups','scene-reader-plugin','update.lock');
+    await writeFile(lock,'');await assert.rejects(install({root,manifest,getFile:async name=>files[name]}),/Another update/);await rm(lock);
+    for(const name of ['../escape','a/../../escape','C:/escape','/absolute','a\\escape'])assert.throws(()=>validateManifest({...manifest,files:[{...manifest.files[0],path:name}]}));
+    const result=await install({root,manifest,getFile:async name=>files[name]});
+    assert.equal(result.version,'0.9.0');assert.equal(await readFile(path.join(result.backup,'index.cjs'),'utf8'),'old');
+    assert.equal(await readFile(path.join(root,'data','secret'),'utf8'),'preserve');assert.equal(await readFile(path.join(root,'plugins','other-plugin','index.cjs'),'utf8'),'other');
+    assert.ok(!(await readdir(path.join(root,'plugins'))).some(name=>name.includes('previous')),'backup must not load as a second plugin');
+    const newCopy=path.join(root,'backups','new-copy');await rename(plugin,newCopy);await rename(result.backup,plugin);
+    assert.equal(await readFile(path.join(plugin,'index.cjs'),'utf8'),'old','code rollback without data changes');
+    await install({root,manifest,getFile:async name=>files[name]});assert.equal(await readFile(path.join(plugin,'index.cjs'),'utf8'),files['index.cjs'].toString());
+    console.log('Plugin updater passed: verified replacement, failed download preservation, path rejection, isolated backup, unchanged data/other plugins and rollback/reinstall.');
+}finally{await rm(root,{recursive:true,force:true});}

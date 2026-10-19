@@ -53,7 +53,7 @@ async function prepareGate(run,frame) {
     frame.retrievalTranscript=[frame.transcript,storylineRetrievalCue(frame.storylineReference)].filter(Boolean).join('\n');
     (frame.worldRecords = frame.world?.advanced?.records || []);
     (frame.worldRetrieval = frame.world?.advanced && frame.worldRecords.length
-        ? await deps.vectorRetrieval.search({kind:'world',bankId:bankIdentity('world',frame.world.id,frame.worldRecords,Boolean(frame.rec.sharedSource)),items:frame.worldRecords,transcript: frame.retrievalTranscript,limit:10,signal:run.controller.signal})
+        ? await deps.vectorRetrieval.search({kind:'world',bankId:bankIdentity('world',frame.world.id,frame.worldRecords,Boolean(frame.rec.sharedSource)),items:frame.worldRecords,transcript: frame.retrievalTranscript,sharedTranscript:frame.retrievalTranscript,limit:10,signal:run.controller.signal})
         : {indices:[],status:'plain'});
     run.assert();
     (frame.worldRecordCandidates = addWorldQuestions(frame.gateRequest, frame.world, frame.transcript, frame.worldRetrieval.indices));

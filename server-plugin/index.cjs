@@ -8,6 +8,7 @@ const legacyV2=require('./storage/legacy.cjs');
 const backupsV2=require('./storage/backups.cjs');
 const backupLabel=require('./storage/backup-label.cjs');
 const transactionsV2=require('./storage/transactions.cjs');
+const {registerRetrieval}=require('./retrieval/routes.cjs');
 
 const UPSTREAM = 'https://api.typesafe.ai/v1/systemone';
 const MODEL = 'jev-latest';
@@ -137,6 +138,7 @@ async function migrateChatIdentity(request, chatKey, legacyChatKey) {
     await scheduleCleanup(files.root,request.user.directories,{collections:changedCharacterCollections(legacyChatKey,previousCharacters,null)});
 }
 async function init(router) {
+    registerRetrieval(router);
     storageV2.register(router,{safeRoot,serialize});
     router.get('/health', (_request, response) => response.json({ ok: true, service: 'scene-reader-jev', model: MODEL, storage: true }));
 

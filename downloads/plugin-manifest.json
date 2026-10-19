@@ -1,0 +1,136 @@
+{
+  "name": "scene-reader-jev-plugin",
+  "version": "0.9.0",
+  "files": [
+    {
+      "path": "index.cjs",
+      "bytes": 18654,
+      "sha256": "001f6de5faefb62f6c61b710b55bd5801c73527f25c06c9217025c5e9f444357"
+    },
+    {
+      "path": "package.json",
+      "bytes": 126,
+      "sha256": "37c142126cfe96fba989cfe2ad7383ece0106f98414fced1d0aa0576a2dbafcd"
+    },
+    {
+      "path": "retrieval/host.cjs",
+      "bytes": 5139,
+      "sha256": "5b73ea689c51ec22e6a8e12b80ac04873f86a4844cbeb58bfcfeb7353fd820e1"
+    },
+    {
+      "path": "retrieval/routes.cjs",
+      "bytes": 3127,
+      "sha256": "a5e3dc52883b7439c5a94188b1bc764a2741367ac2805a5acf8558a896e78a5e"
+    },
+    {
+      "path": "retrieval/scene-cache.cjs",
+      "bytes": 2105,
+      "sha256": "ebd7e179b607b20805766ea8a5d6e54d5d3a1eb2bb3ee4d6744349ae6e86d986"
+    },
+    {
+      "path": "retrieval-cache.cjs",
+      "bytes": 3847,
+      "sha256": "fe3546ae43881614d52f668a30ce70281657eb38d8237f8608a31d9435873066"
+    },
+    {
+      "path": "storage/backup-label.cjs",
+      "bytes": 769,
+      "sha256": "20304836423cb82a422578d87b52354e0f28fb9f90c569c3bbf9b3d158fd4bcf"
+    },
+    {
+      "path": "storage/backups.cjs",
+      "bytes": 9206,
+      "sha256": "70521acad7baa1c03fa460bd6cfbb730eab048b02fc6e1945d59efab7b15f208"
+    },
+    {
+      "path": "storage/canonical.cjs",
+      "bytes": 424,
+      "sha256": "1271a361a01a0fd52f3757fb2909756cb3a1e512650af5560c7b6c6b4a78c1a0"
+    },
+    {
+      "path": "storage/character-export.cjs",
+      "bytes": 3112,
+      "sha256": "bd1683f6f56f9ad0e63d05f6cc7bd176367de59605b7199fed15ae14c7e38bb9"
+    },
+    {
+      "path": "storage/character-import-worker.mjs",
+      "bytes": 1581,
+      "sha256": "149104a40af96fb869ddf05a85205fb26af506dcdf8e27fa6ad73738197eb617"
+    },
+    {
+      "path": "storage/character-import.cjs",
+      "bytes": 4737,
+      "sha256": "5f31903c9a0bc3ad145f4a58f3ea8dbee986ea7ef967ea0d70765ca8be54109b"
+    },
+    {
+      "path": "storage/character-packer.cjs",
+      "bytes": 2260,
+      "sha256": "27b1eae0a9cf6c6a52e7b8f1767db97e8650cc48ec39fd98a04b5ab54763f97c"
+    },
+    {
+      "path": "storage/character-records.cjs",
+      "bytes": 4132,
+      "sha256": "634e8d722a5091c446c4cdb0ba57b81cfc20895a2d59cf59cc8c9f4233f60720"
+    },
+    {
+      "path": "storage/character-stream.cjs",
+      "bytes": 1691,
+      "sha256": "ce2d37b2320b82dc4e01951e77c15a161fbe1d4da598f06460b0f2b4d91d652e"
+    },
+    {
+      "path": "storage/chunks.cjs",
+      "bytes": 9146,
+      "sha256": "31fa221fb4134bda90db71424d5a1d140a8c369a46283b00da5e9065a53ee699"
+    },
+    {
+      "path": "storage/cleanup.cjs",
+      "bytes": 1146,
+      "sha256": "acde61bfb3fa3cd230483688b48065e185b67a179cf992993dfc8c89b97d80d3"
+    },
+    {
+      "path": "storage/legacy.cjs",
+      "bytes": 1763,
+      "sha256": "72cd0d08b34ed563460b85838b2aea6431c0f0e00d9a84f2057ebe8cd5b4297a"
+    },
+    {
+      "path": "storage/limits.cjs",
+      "bytes": 306,
+      "sha256": "450c6b8beed00e1d9377d66274125a22adebb7b63b43092fbe3678d60884f49e"
+    },
+    {
+      "path": "storage/migration.cjs",
+      "bytes": 3948,
+      "sha256": "04b891dd94b485e40e31af7659c54ddc672a262a4f7810a5ec96c94b79734d11"
+    },
+    {
+      "path": "storage/paths.cjs",
+      "bytes": 4820,
+      "sha256": "fb2c6f58e41e954229b17cf0d512ca065314e558cb556d1c9b29cb0c8e6ee58c"
+    },
+    {
+      "path": "storage/routes.cjs",
+      "bytes": 10228,
+      "sha256": "06b2368fe83ba93fb3467f860c846f7327b94d6df39a39655765d464b9f86e25"
+    },
+    {
+      "path": "storage/transactions.cjs",
+      "bytes": 5993,
+      "sha256": "91ba3d4caf106dc19039c1a746d4dab9c5b71d8ccb8dcbcfe4b2404be67e2dbd"
+    },
+    {
+      "path": "storage/world-library.cjs",
+      "bytes": 1552,
+      "sha256": "7ff6af39cbad208a277cebae247be542a865914f7d100f411cc9fc102ab0d1b5"
+    },
+    {
+      "path": "storage.cjs",
+      "bytes": 6702,
+      "sha256": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873"
+    },
+    {
+      "path": "vendor/character-core.mjs",
+      "bytes": 23150,
+      "sha256": "57958076cb49fbc4c5bec8f4ef30f4570fa9ee7c07d34bb43cdb4d84045787b7"
+    }
+  ]
+}

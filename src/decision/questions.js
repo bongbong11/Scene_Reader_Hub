@@ -57,7 +57,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
         },
         counterevidence: {
             type: 'choice',
-            instructions: 'Does observed RP contain concrete evidence that limits a proposed increase in trust, intimacy, romance, or relationship closeness? Judge the observation only; an OOC direction or desired next beat is not evidence.',
+            instructions: 'Does observed RP contain evidence limiting the proposed character-to-user relationship increase? Clear means a direct contradiction of that SAME proposed change, not unrelated hostility, a different relationship, or the negative-direction setting itself. Mixed feelings or a reservation can coexist with a small change. Judge the observation only; an OOC direction or desired next beat is not evidence.',
             criteria: {
                 none: 'No material limiting evidence is present.',
                 limited: 'A specific reservation or contrary cue limits the size or meaning of the change.',

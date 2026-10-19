@@ -10,6 +10,8 @@ const errorCode = event => /^[A-Z][A-Z0-9_]{0,70}$/.test(event.errorKind || '') 
 
 function advice(id,event) {
     const code=errorCode(event);
+    if(code==='EMBEDDING_BUSY')return '앞선 임베딩 작업이 아직 끝나지 않았습니다. 잠시 후 다시 시도하세요.';
+    if(code==='EMBEDDING_DIMENSION_MISMATCH')return '현재 모델과 저장된 벡터의 차원이 다릅니다. 해당 자료의 임베딩을 다시 준비하세요.';
     if (/CREDENTIAL|AUTH|FORBIDDEN/.test(code) || [401,403].includes(event.httpStatus)) return '설정에서 발급처와 저장된 키를 확인해 주세요.';
     if (/RATE|QUOTA/.test(code) || event.httpStatus===429) return '사용 한도와 요금을 확인한 뒤 잠시 후 다시 시도해 주세요.';
     if (/^ANALYSIS_(?:INPUT_)?CAPACITY$/.test(code)) return '추가 분석 자료 한도에 도달했습니다. 기존 자료와 기본 판독은 유지합니다. 전체 로그로 입력·누적 한도를 확인하세요.';
@@ -25,9 +27,9 @@ function advice(id,event) {
 }
 
 export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
-    let entries=new Map(),cycleId='',settled=false,valid=false;
+    let entries=new Map(),cycleId='',settled=false,valid=false,sharedSearch='';
     const pendingFailures=new Map();
-    function reset() {entries.clear();pendingFailures.clear();cycleId='';settled=false;valid=false;}
+    function reset() {entries.clear();pendingFailures.clear();cycleId='';settled=false;valid=false;sharedSearch='';}
     function rememberFailures(id) {
         for(const row of entries.values())if(row.state==='failed' && (!id||row.id===id))pendingFailures.set(row.id,row);
     }
@@ -62,12 +64,14 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
             set('embedding',event,{key:'maintenance',message:event.status==='succeeded'?`확인 완료 · 재사용 ${event.reusedCount || 0}개 · 생성 ${event.generatedCount || 0}개`:''});return;
         }
         if(event.stage==='retrieval_request') {
+            if(event.phase==='shared_search'){sharedSearch=event.code==='SHARED_VECTOR_ENABLED'?'공유 검색':'기존 검색 · 공유 검색은 플러그인 업데이트와 호스트 지원이 필요합니다.';return;}
+            if(event.phase==='scene_vector'){set('embedding',event,{key:'scene-vector',message:event.cache==='miss'?'장면 임베딩 생성 완료':'장면 임베딩 재사용'});return;}
             if(event.phase==='connection_test')return; // A test does not verify the current record bank.
             if(event.phase==='index_sync'&&event.status==='deferred') {
                 set('embedding',event,{key:`${event.bankHash||''}:pending`,state:'needs_setup',message:'임베딩 재시도로 준비할 기록이 있습니다. 이번 판독은 기록 매칭으로 진행합니다.'});return;
             }
             const id=event.phase==='query'?'search':'embedding';
-            const message=event.status==='succeeded'?(event.phase==='list'?'저장 색인 확인 완료':event.phase==='query'?'관련 기록 검색 완료':event.phase==='insert'?'요청한 기록 저장 응답 확인':'색인 정리 완료'):'';
+            const message=event.status==='succeeded'?(event.phase==='list'?'저장 색인 확인 완료':event.phase==='query'?`관련 기록 검색 완료${sharedSearch?' · '+sharedSearch:''}`:event.phase==='insert'?'요청한 기록 저장 응답 확인':'색인 정리 완료'):'';
             set(id,event,{key:`${event.bankHash || ''}:${event.phase}`,message});return;
         }
         if(event.stage==='jev_request') {

@@ -34,7 +34,9 @@ export function commitObservedState(rec, decisions, evidenceKey) {
     if (['positive', 'negative', 'mixed'].includes(decisions.intimacy_signal)) relationship.intimacy = decisions.intimacy_signal;
     if (['established', 'attraction', 'counter', 'mixed'].includes(decisions.romance_evidence)) relationship.romance = decisions.romance_evidence;
     if (decisions.unresolved && !['none', 'unclear'].includes(decisions.unresolved)) rec.sceneState.unresolved = decisions.unresolved;
-    if (changed && evidenceKey && ['closer', 'distant'].includes(decisions.relationship_motion)) {
+    // Do not bank an explicitly contradicted increase as future evidence.
+    // Keep observed conduct; an attempted repair may occur without reconciliation.
+    if (changed && evidenceKey && ['closer', 'distant'].includes(decisions.relationship_motion) && !(decisions.relationship_motion==='closer'&&decisions.counterevidence==='clear')) {
         addQualifiedEvidence(rec.pacingState.relationship, decisions.relationship_motion, evidenceKey, 1);
     }
     if (rec.eventProfile) {

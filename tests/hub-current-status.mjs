@@ -75,3 +75,14 @@ for (const [status, expected] of [['succeeded','success'],['cancelled','cancelle
 console.log('Current status: embedding/search separation, retained failures, request receipt, cancellation, repair, privacy and reset passed.');
 
 for(const code of ['ANALYSIS_CAPACITY','ANALYSIS_INPUT_CAPACITY','ANALYSIS_BUSY_TIMEOUT','PROFILE_TIMEOUT']){const analysisStatus=createCurrentStatusModel();analysisStatus.accept({stage:'analysis_failed',status:'failed',reasonCode:code});const text=analysisStatus.snapshot().rows.find(r=>r.id==='profile').message;assert.match(text,code.includes('CAPACITY')?/한도/:code==='ANALYSIS_BUSY_TIMEOUT'?/대기를 종료/:/응답 시간이 초과/);}
+{
+    const view=createCurrentStatusModel();
+    view.accept({stage:'retrieval_request',phase:'shared_search',code:'SHARED_VECTOR_UNAVAILABLE',status:'fallback'});
+    view.accept({stage:'retrieval_request',phase:'query',status:'succeeded'});
+    assert.match(view.snapshot().rows.find(row=>row.id==='search').message,/기존 검색/);
+    view.accept({stage:'retrieval_request',phase:'shared_search',code:'SHARED_VECTOR_ENABLED',status:'ready'});
+    view.accept({stage:'retrieval_request',phase:'scene_vector',status:'succeeded',cache:'hit'});
+    assert.match(view.snapshot().rows.find(row=>row.id==='embedding').message,/재사용/);
+    view.accept({stage:'retrieval_request',phase:'query',status:'failed',errorKind:'EMBEDDING_BUSY',httpStatus:429});
+    assert.doesNotMatch(view.snapshot().rows.find(row=>row.id==='search').message,/요금|키/);
+}

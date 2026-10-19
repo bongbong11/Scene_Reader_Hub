@@ -2,11 +2,11 @@
 
 캐릭터의 성격과 설정을 지키며, 대화·관계·사건이 자연스럽게 이어지도록 돕는 SillyTavern 확장입니다. Jev가 최근 롤플레잉 대화를 판독하고, 다음 답변에 필요한 진행 방향과 인물 기록을 골라 전달합니다.
 
-**Hub 0.2.21 · Jev 서버 플러그인 0.8.1**
+**Hub 0.2.22 · Jev 서버 플러그인 0.9.0**
 
 실제 이야기는 채팅 모델이 작성합니다. 판독 결과가 전달되어도 모델이 지시를 놓치거나 다르게 표현할 수 있습니다. 씬판독기의 결과 화면에서는 **주입 준비 → 실제 요청 포함 → 답변에서 실행됐는지 확인**을 구분합니다.
 
-이번 버전은 **확장만 업데이트하고 새로고침**하면 됩니다. 이미 플러그인 0.8.1을 사용 중이라면 재설치나 자료 이사가 필요 없습니다. 자세한 변경 사항은 [업데이트 내역](CHANGELOG.md)을 확인하세요.
+이번 버전의 **장면 임베딩 공유·재사용**을 이용하려면 화면 확장과 서버 플러그인을 함께 업데이트하세요. 기존 인물 JSON을 다시 만들거나 자료를 이사할 필요는 없습니다. 옛 플러그인에서는 기존 검색 방식으로 작동합니다. 자세한 변경 사항은 [업데이트 내역](CHANGELOG.md)을 확인하세요.
 
 ## 처음 시작하기
 
@@ -32,7 +32,25 @@ https://github.com/bongbong11/Scene_Reader_Hub.git
 
 ### 서버 플러그인
 
-**[서버 플러그인 0.8.1 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.8.1.zip)**
+**[서버 플러그인 0.9.0 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.9.0.zip)**
+
+압축을 직접 풀지 않고 아래 명령으로 설치하거나 업데이트할 수도 있습니다. **SillyTavern을 종료한 뒤, SillyTavern 폴더에서** 해당 명령 한 줄을 실행하세요. Node.js와 curl이 필요합니다. 완료 후에는 SillyTavern을 다시 시작하세요.
+
+**휴대전화 · Termux**
+
+```bash
+curl -fL "https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/update-scene-reader-plugin.cjs" -o "$TMPDIR/scene-reader-update.cjs" && node "$TMPDIR/scene-reader-update.cjs"
+```
+
+**컴퓨터 · Windows CMD**
+
+```bat
+curl.exe -fL "https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/update-scene-reader-plugin.cjs" -o "%TEMP%\scene-reader-update.cjs" && node "%TEMP%\scene-reader-update.cjs"
+```
+
+파일을 모두 내려받아 확인한 뒤 해당 플러그인만 교체합니다. 이전 플러그인은 `SillyTavern/backups/scene-reader-plugin`에 보관하며, 키·저장 자료·다른 플러그인은 변경하지 않습니다. 다른 폴더에서 실행해야 한다면 마지막 명령 뒤에 SillyTavern 폴더 경로를 따옴표로 감싸 추가하세요. 처음 설치할 때는 아래의 `enableServerPlugins` 설정도 필요합니다.
+
+ZIP으로 직접 설치하려면:
 
 1. SillyTavern을 완전히 종료합니다.
 2. 압축 안의 **scene-reader-jev 폴더 전체**를 SillyTavern의 **plugins** 폴더에 넣습니다. 이미 설치했다면 같은 폴더에 덮어씁니다.
@@ -54,6 +72,8 @@ SillyTavern/plugins/scene-reader-jev/storage.cjs
 화면 확장과 서버 플러그인은 설치 위치가 다릅니다. 휴대전화에서도 **서버가 실행되는 SillyTavern 폴더**에 넣어야 하며, 다운로드만 해서는 설치되지 않습니다. 다른 사람이 운영하는 서버라면 관리자에게 설치를 요청하세요. 기존 사용자 데이터 폴더는 삭제하지 마세요. `enableCorsProxy`는 켤 필요가 없습니다.
 
 직접 다운로드가 되지 않으면 GitHub의 **Code → Download ZIP**으로 저장소를 받은 뒤, 안의 `server-plugin` 폴더를 `scene-reader-jev`로 이름을 바꾸어 위 위치에 넣어도 됩니다.
+
+공유 검색은 같은 장면의 임베딩을 세계관·인물 검색에 재사용합니다. 각 인물의 기록은 따로 고르며, 내용이나 모델이 달라지면 다시 계산합니다. 서버 재시작이나 캐시 만료 뒤에는 새로 계산할 수 있습니다. 지원하지 않는 SillyTavern 환경에서는 기존 검색을 사용하고, 상단 현재 상태에서 검색 방식을 확인할 수 있습니다.
 
 ### 기존 씬판독기에서 교체하기
 

@@ -18,6 +18,13 @@ for relative, expected in provenance['sharedPluginFiles'].items():
 assert hashlib.sha256((root/'server-plugin/vendor/character-core.mjs').read_bytes()).hexdigest() == lock['sha256']
 assert set(provenance['sharedPluginFiles']) == {str(file.relative_to(root)).replace('\\', '/') for file in (root/'server-plugin').rglob('*') if file.is_file()}
 plugin_zip = root/'downloads'/f"scene-reader-jev-plugin-v{plugin['version']}.zip"
+updater_manifest = json.loads((root/'downloads/plugin-manifest.json').read_text(encoding='utf-8'))
+assert updater_manifest['version'] == plugin['version']
+assert updater_manifest['name'] == plugin['name']
+assert {entry['path'] for entry in updater_manifest['files']} == {p.removeprefix('server-plugin/') for p in provenance['sharedPluginFiles']}
+for entry in updater_manifest['files']:
+    data = (root/'server-plugin'/entry['path']).read_bytes().replace(b'\r\n', b'\n')
+    assert len(data) == entry['bytes'] and hashlib.sha256(data).hexdigest() == entry['sha256']
 with zipfile.ZipFile(plugin_zip) as archive:
     assert archive.testzip() is None
     expected_names = {'scene-reader-jev/'+name.removeprefix('server-plugin/') for name in provenance['sharedPluginFiles']}

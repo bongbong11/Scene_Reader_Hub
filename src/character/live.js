@@ -89,7 +89,8 @@ export function buildLiveCharacterPlan(entries = [], { selected = [], transcript
         const recordMode = canonicalOnly || Boolean(entry.recordBank);
         const prefilterStats={};
         const retrieved = retrievalResults.get(entry.id) || { indices: [], status: 'lexical' };
-        const profileCandidates = recordMode ? selectRecordCandidates(entry, transcript,{limit:Math.min(bounds.candidates,slots+8),maxChars:bounds.candidateChars,stats:prefilterStats,semanticIndices:retrieved.indices,categoryHints}) : currentProfileItems(entry).map(item => ({
+        const selectionText=[transcript,retrieved.retrievalCue].filter(Boolean).join('\n');
+        const profileCandidates = recordMode ? selectRecordCandidates(entry, selectionText,{limit:Math.min(bounds.candidates,slots+8),maxChars:bounds.candidateChars,stats:prefilterStats,semanticIndices:retrieved.indices,categoryHints}) : currentProfileItems(entry).map(item => ({
             id: item.id, kind: item.kind, topic: item.topic, target: item.target, rule: item.rule,
         }));
         let protectedCandidateIds = [];

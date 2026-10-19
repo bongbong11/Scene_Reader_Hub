@@ -310,6 +310,7 @@ Answer the current interaction through character-consistent speech, a decision, 
     };
     const relationshipRelevant = decisions.relationship_pacing !== 'hold' || Boolean(RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]);
     if (relationshipRelevant && relationshipMoves[decisions.relationship_pacing]) blocks.push(`<RELATIONSHIP_PACING mode="${settings.relationshipPace}">\n${relationshipMoves[decisions.relationship_pacing]}\n</RELATIONSHIP_PACING>`);
+    if(settings.relationshipDirection==='hostile'&&relationshipRelevant)blocks.push('Apply this relationship beat within CHARACTER_TO_USER_DEFAULT. Cooperation or a repair attempt need not soften the established attitude; preserve the difference between the act, its motive, and its acceptance.');
     if (RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]) blocks.push(`<RELATIONSHIP_BEAT type="${decisions.relationship_beat}">\n${RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]}\n</RELATIONSHIP_BEAT>`);
 
     const resolutionMoves = {

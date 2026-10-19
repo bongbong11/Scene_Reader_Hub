@@ -3,6 +3,7 @@ import {continuityAnalysisContext} from '../continuity/analysis-context.js';
 import {ROUTING_SCOPE} from './opportunity-questions.js';
 import {CONTINUATION_POLICY} from '../context/storyline-reference.js';
 import {publishKnowledgeVault, knowledgeVaultDecisionState} from '../integration/knowledge-vault.js';
+import {negativeContext} from './negative-context.js';
 
 export function createDecisionRequest(deps) {
 async function requestDecision(run,frame) {
@@ -22,6 +23,7 @@ async function requestDecision(run,frame) {
                     policy: 'Current OOC may direct the next route or impose facts and constraints, but it is never RP evidence. Past OOC is not a current instruction queue. Use past OOC only when it is still an active continuity fact, knowledge restriction, persistent character or relationship state, or explicitly ongoing constraint. One-turn and scene-specific progression requests expire after their applicable turn or scene. Ignore prose style, wording, length, format, translation, and language instructions for judgment. Never copy raw OOC into the scene-reader injection.',
                 },
                 controls: { ...frame.prefs, world: { id: frame.world?.id, name: frame.world?.name, hint: frame.world?.hint } },
+                ...negativeContext(frame.prefs),
                 seasonal_context: frame.seasonalContext || null,
                 applicable_world_rules: frame.appliedWorldRecords.map(({ id, category, when, rule }) => ({ id, category, when, rule })),
                 world_rule_selection: { status: frame.worldSelection.status, scope: 'Rules constrain only scenes meeting their stated conditions. If world selection fails, only fixed rules remain; conditional rules are not presumed active. No rule alone establishes an event or character knowledge.' },
@@ -47,6 +49,7 @@ async function requestDecision(run,frame) {
         if(frame.questions.event_opportunity||frame.questions.person_opportunity)frame.jevRequest.state.scope=ROUTING_SCOPE;
         if(frame.storylineReference){frame.jevRequest.state.continuation_reference=frame.storylineReference;frame.jevRequest.state.scope+=' '+CONTINUATION_POLICY;}
         frame.jevRequest.state.new_opportunities=frame.opportunityOffers?{key:frame.opportunityOffers.key,event:{mode:frame.opportunityOffers.event.spontaneous?'spontaneous':'normal',scope:frame.opportunityOffers.event.scope},person:{mode:frame.opportunityOffers.person.spontaneous?'spontaneous':'normal',kind:frame.opportunityOffers.person.kind}}:null;
+        deps.noteDiagnostic?.('negative_context',{module:'src/decision/negative-context.js',status:'info',activeDirectives:Object.keys(frame.jevRequest.state.active_negative_directives?.originals||{}),priority:Boolean(frame.prefs.negativePriority)});
         (frame.data = await deps.callJev(frame.jevRequest, 30000, run.controller.signal));
         run.assert();
         (frame.missingAnswerCount = frame.data.answerDiagnostics?.invalidKeys?.length||0);

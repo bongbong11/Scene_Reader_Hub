@@ -69,6 +69,7 @@ export function coordinateDecisions(rec, details, decisions, {presentNpc=false}=
         if (decisions.advanced_route === 'continue' && decisions.advanced_move === 'quiet') overrideDecision(details, decisions, 'advanced_move', 'advance', '선택한 기존 사건을 한 단계 실행');
     }
     const relation = decisions.relationship_pacing || 'hold';
+    if(relation==='closer_incremental'&&decisions.counterevidence==='clear')overrideDecision(details,decisions,'relationship_pacing','hold','같은 관계 변화에 대한 명시적 반대 근거 반영 · 행동과 화해 시도는 유지');
     // Relationship expression and the amount of change are independent facets.
     if (relation.endsWith('_significant')) {
         const direction = relation.startsWith('closer_') ? 'closer' : 'distant';
