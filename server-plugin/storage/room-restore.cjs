@@ -35,24 +35,59 @@ async function load(root,id){
     const value=async key=>snapshot.documents[key]?nodes.value(snapshot.documents[key].root):null;
     return {backup,nodes,documents:snapshot.documents,value};
 }
+async function sharedValue(saved,key){
+    const direct=await saved.value(key);
+    if(direct)return direct.hubDocument?.data;
+    // Earlier shared records were stored as reserved chat documents.
+    const ref=hash(key),session=await saved.value(sessionKey(ref));
+    return (session?.chat||await saved.value('legacy:chats/'+ref+'.json'))?.hubDocument?.data;
+}
+async function sharedRoom(saved,link){
+    const story=await sharedValue(saved,PREFIX+'storyline|'+link.storylineId);
+    const active=story?.activeChatRef===link.chatRef&&story?.epoch===link.epoch;
+    const baseline=await sharedValue(saved,PREFIX+'baseline|'+link.baselineId+':'+(active?story.baselineRevision:link.baselineRevision));
+    const asset=baseline&&await sharedValue(saved,PREFIX+'asset|'+baseline.assetId);
+    const checkpoint=story?.checkpoints?.[active?story.headCheckpointId:link.checkpointId];
+    if(!baseline||!asset||!checkpoint)throw failure('STORAGE_PART_MISSING','이야기의 인물 자료나 진행 기준점이 없습니다.');
+    return {baseline,asset,checkpoint};
+}
+function characterSummary(store){
+    const entries=[...(store?.characters||[]),...(store?.npcs||[]),...[store?.persona].filter(Boolean)];
+    const versions=(store?.recordGroups||[]).flatMap(group=>group.versions||[]).filter(version=>version.bank);
+    const named=[...entries.map(entry=>entry.name),...(store?.recordGroups||[]).map(group=>group.name)];
+    const characterNames=[...new Set(named.filter(name=>typeof name==='string'&&name.trim()).map(name=>name.trim()))];
+    const fileCount=versions.length+entries.filter(entry=>entry.recordBank&&!versions.some(version=>
+        version.id===entry.appliedRecordVersion||Boolean(entry.recordBank.analysisId&&version.bank.analysisId===entry.recordBank.analysisId))).length;
+    return {characterNames,characterCount:entries.length,fileCount};
+}
 async function inventory(root,{id,targetChatKey},loaded){
     validTarget(targetChatKey);
     const saved=loaded||await load(root,id),names=new Map(),rows=[];
+    const addCatalog=catalog=>{for(const room of catalog?.rooms||[])if(room.chatRef)names.set(room.chatRef,{title:room.title,chatKey:room.chatKey,ownerRef:catalog.ownerRef});};
     for(const key of Object.keys(saved.documents).filter(key=>key.startsWith(PREFIX+'catalog|'))){
-        const catalog=(await saved.value(key))?.hubDocument?.data;
-        for(const room of catalog?.rooms||[])if(room.chatRef)names.set(room.chatRef,{title:room.title,chatKey:room.chatKey,ownerRef:catalog.ownerRef});
+        addCatalog(await sharedValue(saved,key));
+    }
+    const refs=new Set(Object.keys(saved.documents).flatMap(key=>/^legacy:(?:sessions|chats|characters)\/([a-f0-9]{64})\.json$/.exec(key)?.[1]||[])),sessions=new Map();
+    for(const ref of refs){
+        const session=await saved.value(sessionKey(ref))||{chat:await saved.value('legacy:chats/'+ref+'.json')};
+        // Reserved shared documents are not user rooms.
+        if(session.chat?.hubDocument){if(session.chat.hubDocument.kind==='catalog')addCatalog(session.chat.hubDocument.data);continue;}
+        sessions.set(ref,session);
     }
     const source=saved.backup.source||{};
+    let preferredRef=source.chatKey?hash(source.chatKey):null;
     if(source.chatKey)names.set(hash(source.chatKey),{title:source.chatName,chatKey:source.chatKey,ownerRef:owner(source.chatKey)});
     // Old backups have names only. Match the full owner + room key, never names alone.
-    if(source.chatName){const candidate=targetChatKey.split('|chat:')[0]+'|chat:'+source.chatName;if(saved.documents[sessionKey(hash(candidate))])names.set(hash(candidate),{title:source.chatName,chatKey:candidate,ownerRef:owner(candidate)});}
-    const refs=new Set(Object.keys(saved.documents).flatMap(key=>/^legacy:(?:sessions|chats|characters)\/([a-f0-9]{64})\.json$/.exec(key)?.[1]||[]));
-    for(const ref of refs){
-        const session=await saved.value(sessionKey(ref))||{chat:await saved.value('legacy:chats/'+ref+'.json'),history:await saved.value('legacy:history/'+ref+'.json')||[]};
+    if(source.chatName){const candidate=targetChatKey.split('|chat:')[0]+'|chat:'+source.chatName;if(sessions.has(hash(candidate))){names.set(hash(candidate),{title:source.chatName,chatKey:candidate,ownerRef:owner(candidate)});preferredRef ||=hash(candidate);}}
+    for(const [ref,session] of sessions){
         const named=names.get(ref),identity=session.chat?.sharedLinkV1?.ownerRef||named?.ownerRef;
-        rows.push({ref,title:named?.title||'이름 없는 방 · '+ref.slice(0,8),sameOwner:identity===owner(targetChatKey),ownerKnown:Boolean(identity)});
+        let summary,unavailable=false;
+        try{const store=session.chat?.sharedLinkV1?(await sharedRoom(saved,session.chat.sharedLinkV1)).asset.characters:await saved.value('legacy:characters/'+ref+'.json');summary=characterSummary(store);}
+        catch(error){if(error.code!=='STORAGE_PART_MISSING')throw error;unavailable=true;}
+        rows.push({ref,title:named?.title||'방 이름 없음 · '+ref.slice(0,8),sameOwner:identity===owner(targetChatKey),ownerKnown:Boolean(identity),...summary,unavailable});
     }
-    return {rooms:rows.sort((a,b)=>Number(b.sameOwner)-Number(a.sameOwner)),backup:saved.backup};
+    if(!rows.some(row=>row.ref===preferredRef))preferredRef=null;
+    return {rooms:rows.sort((a,b)=>Number(b.ref===preferredRef)-Number(a.ref===preferredRef)||Number(b.sameOwner)-Number(a.sameOwner)),preferredRef,backup:saved.backup};
 }
 async function restore(root,{id,sourceRef,targetChatKey,confirmOwner=false,operationId,source}){
     validTarget(targetChatKey);
@@ -67,12 +102,7 @@ async function restore(root,{id,sourceRef,targetChatKey,confirmOwner=false,opera
     let chat=structuredClone(session.chat||{}),characters=await saved.value('legacy:characters/'+sourceRef+'.json');
     const link=chat.sharedLinkV1;
     if(link){
-        const story=(await saved.value(PREFIX+'storyline|'+link.storylineId))?.hubDocument?.data;
-        const active=story?.activeChatRef===link.chatRef&&story?.epoch===link.epoch;
-        const baseline=(await saved.value(PREFIX+'baseline|'+link.baselineId+':'+(active?story.baselineRevision:link.baselineRevision)))?.hubDocument?.data;
-        const asset=baseline&&(await saved.value(PREFIX+'asset|'+baseline.assetId))?.hubDocument?.data;
-        const checkpoint=story?.checkpoints?.[active?story.headCheckpointId:link.checkpointId];
-        if(!baseline||!asset||!checkpoint)throw failure('STORAGE_PART_MISSING','이야기의 인물 자료나 진행 기준점이 없습니다.');
+        const {baseline,asset,checkpoint}=await sharedRoom(saved,link);
         const state=structuredClone(checkpoint.state||{});
         chat={...state,...chat.overlay,...chat.runtime,preferences:{...baseline.defaultPreferences,...chat.runtime?.preferences},
             companionStores:{...state.companionStores,...chat.overlay?.companionStores,...chat.runtime?.companionStores},

@@ -54,22 +54,28 @@ export async function checkRoomBackups(page,setViewportSize) {
     await page.evaluate(async()=>{
         const {openBackupRestore}=await import('/scripts/extensions/third-party/Scene_Reader_Hub/src/ui/backup-restore.js');
         window.restoreCalls=[];window.restoreInvalidated=0;
-        window.restoreResult=openBackupRestore({document,getContext:()=>({chatId:'new-room',name2:'Synthetic',characterId:0,characters:[{avatar:'Synthetic.png'}]}),invalidate:()=>window.restoreInvalidated++,
+        window.restorePreferred='c'.repeat(64);
+        window.beginRestore=()=>openBackupRestore({document,getContext:()=>({chatId:'new-room',name2:'Synthetic',characterId:0,characters:[{avatar:'Synthetic.png'}]}),invalidate:()=>window.restoreInvalidated++,
             post:async(route,body)=>{
                 window.restoreCalls.push({route,body});
                 if(route==='v2/capabilities')return {features:['room-backup-restore']};
-                if(route==='v2/backup/rooms')return {rooms:[{ref:'a'.repeat(64),title:'Earlier room',sameOwner:true},{ref:'b'.repeat(64),title:'Other character',sameOwner:false}]};
+                if(route==='v2/backup/rooms')return {preferredRef:window.restorePreferred,rooms:[{ref:'a'.repeat(64),title:'Empty room',sameOwner:true,characterNames:[],fileCount:0},{ref:'c'.repeat(64),title:'방 이름 없음',sameOwner:true,characterNames:['Saved actor','Saved NPC'],fileCount:3},{ref:'b'.repeat(64),title:'Other character',sameOwner:false,characterNames:['Other actor'],fileCount:1}]};
                 if(!body.confirmOwner&&body.sourceRef==='b'.repeat(64))throw new Error('가져올 자료를 확인해 주세요.');
                 return {restored:true};
             }},'synthetic');
+        window.restoreResult=window.beginRestore();
     });
     const recovery=page.locator('dialog.sr-story-dialog[open]');
     await recovery.getByRole('heading',{name:'백업 복원',exact:true}).waitFor();
+    assert.equal(await recovery.getByLabel('복구할 원본 방').inputValue(),'c'.repeat(64),'backup source wins over the first same-owner room');
+    assert.match(await recovery.locator('[data-restore-contents]').textContent(),/Saved actor, Saved NPC.*파일 3개/);
     assert.equal(await recovery.getByRole('checkbox').count(),0,'same-owner recovery does not show the cross-character confirmation');
     for(const width of [320,390,1280]){
         await setViewportSize({width,height:850});
         assert.equal(await recovery.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true);
     }
+    await recovery.getByLabel('복구할 원본 방').selectOption('a'.repeat(64));
+    assert.match(await recovery.locator('[data-restore-contents]').textContent(),/인물 파일은 가져오지 않습니다/);
     await recovery.getByLabel('복구할 원본 방').selectOption('b'.repeat(64));
     await recovery.getByRole('button',{name:'이 방으로 복원',exact:true}).click();
     await recovery.getByRole('alert').filter({hasText:'가져올 자료를 확인'}).waitFor();
@@ -78,6 +84,13 @@ export async function checkRoomBackups(page,setViewportSize) {
     assert.equal((await page.evaluate(()=>window.restoreResult)).restored,true);
     assert.equal(await recovery.count(),0);
     assert.equal(await page.evaluate(()=>window.restoreCalls.some(call=>call.route==='backup/restore')),false,'room recovery never invokes all-room restore');
+    await page.evaluate(()=>{window.restorePreferred=null;window.restoreCalls=[];window.restoreResult=window.beginRestore();});
+    await recovery.getByRole('heading',{name:'백업 복원',exact:true}).waitFor();
+    assert.equal(await recovery.getByLabel('복구할 원본 방').inputValue(),'','unidentified backup source is never chosen arbitrarily');
+    await recovery.getByRole('button',{name:'이 방으로 복원',exact:true}).click();
+    await recovery.getByRole('alert').filter({hasText:'먼저 선택'}).waitFor();
+    assert.equal(await page.evaluate(()=>window.restoreCalls.some(call=>call.route==='v2/backup/restore-room')),false);
+    await recovery.getByRole('button',{name:'닫기',exact:true}).click();
     await page.evaluate(async()=>{
         const {createSharedStorageUi}=await import('/scripts/extensions/third-party/Scene_Reader_Hub/src/ui/shared-storage.js');
         window.storyDeleted=false;
