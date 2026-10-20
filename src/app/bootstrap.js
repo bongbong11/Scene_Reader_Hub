@@ -358,6 +358,8 @@ let {init} = createStartup({
     get hub() { return hub; },
     initPresetRequest:presetRequest.init,
     resetPresetRequest:presetRequest.reset,
+    finishPresetRequest:presetRequest.finish,
+    clearTransmissionPreview:presetRequest.preview.clear,
     observeGenerationStart:(...args)=>{presetRequest.start(...args);promptObserver.start(...args);},
     observeFinalPrompt:(...args)=>{presetRequest.observeAssembly(...args);return promptObserver.observe(...args);},
     observeBackendRequest:data=>presetRequest.observeRequest(data)?promptObserver.inspectPrepared(data):promptObserver.observeRequest(data),
@@ -823,6 +825,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
     noteDiagnostic,
     embeddingMaintenance,
     presetPrompts:presetRequest.prompts,
+    macroTransmissionPreview:presetRequest.preview,
     get hub() { return hub; },
     collectCurrentEmotion,
     get vectorRetrieval() { return vectorRetrieval; },
@@ -940,8 +943,8 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 
-hub.commands.register('judge',options=>runJudge(options));
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.23',copyText:value=>copyText(value)});
+hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.24',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

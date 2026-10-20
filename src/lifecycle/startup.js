@@ -32,9 +32,9 @@ async function init() {
     deps.eventSource.on(deps.event_types.CHAT_CHANGED, () => {deps.resetPresetRequest?.();return deps.runEventTask(deps.onChatChanged, '채팅 상태를 불러오지 못했습니다.');});
     if (deps.event_types.MESSAGE_SENT) deps.eventSource.on(deps.event_types.MESSAGE_SENT, (messageId) => deps.runEventTask(() => deps.onUserMessageSent(messageId), 'OOC 입력 상태를 처리하지 못했습니다.'));
     if (deps.event_types.MESSAGE_RECEIVED) deps.eventSource.on(deps.event_types.MESSAGE_RECEIVED, (messageId) => deps.runEventTask(() => deps.onCharacterMessageReceived(messageId), '생성 결과의 이행 검증 대기를 저장하지 못했습니다.'));
-    if (deps.event_types.MESSAGE_SWIPED) deps.eventSource.on(deps.event_types.MESSAGE_SWIPED, (messageId) => deps.runEventTask(() => deps.onAssistantOutputChanged(messageId, 'swiped'), '리롤 상태를 복원하지 못했습니다.'));
-    if (deps.event_types.MESSAGE_EDITED) deps.eventSource.on(deps.event_types.MESSAGE_EDITED, (messageId) => deps.runEventTask(() => deps.onAssistantOutputChanged(messageId, 'edited'), '수정된 출력 상태를 반영하지 못했습니다.'));
-    if (deps.event_types.MESSAGE_DELETED) deps.eventSource.on(deps.event_types.MESSAGE_DELETED, (messageId) => deps.runEventTask(() => deps.onAssistantOutputChanged(messageId, deps.pendingGenerationType === 'regenerate' ? 'regenerated' : 'deleted'), '삭제된 출력 상태를 복원하지 못했습니다.'));
+    if (deps.event_types.MESSAGE_SWIPED) deps.eventSource.on(deps.event_types.MESSAGE_SWIPED, (messageId) => {deps.clearTransmissionPreview?.();return deps.runEventTask(() => deps.onAssistantOutputChanged(messageId, 'swiped'), '리롤 상태를 복원하지 못했습니다.');});
+    if (deps.event_types.MESSAGE_EDITED) deps.eventSource.on(deps.event_types.MESSAGE_EDITED, (messageId) => {deps.clearTransmissionPreview?.();return deps.runEventTask(() => deps.onAssistantOutputChanged(messageId, 'edited'), '수정된 출력 상태를 반영하지 못했습니다.');});
+    if (deps.event_types.MESSAGE_DELETED) deps.eventSource.on(deps.event_types.MESSAGE_DELETED, (messageId) => {deps.clearTransmissionPreview?.();return deps.runEventTask(() => deps.onAssistantOutputChanged(messageId, deps.pendingGenerationType === 'regenerate' ? 'regenerated' : 'deleted'), '삭제된 출력 상태를 복원하지 못했습니다.');});
     if (deps.event_types.CONNECTION_PROFILE_CREATED) deps.eventSource.on(deps.event_types.CONNECTION_PROFILE_CREATED, () => { void deps.loadReasonerProfiles(); });
     for (const type of [deps.event_types.CONNECTION_PROFILE_UPDATED, deps.event_types.CONNECTION_PROFILE_DELETED].filter(Boolean)) {
         deps.eventSource.on(type, (...profiles) => deps.runEventTask(async () => {
@@ -64,7 +64,7 @@ async function init() {
         deps.runEventTask(deps.clearInjection, wasDebug ? '중단된 검사용 주입을 비우지 못했습니다.' : '중단된 생성의 주입을 비우지 못했습니다.');
         if(stoppedRecord)deps.runEventTask(()=>deps.persistChat(stoppedKey,stoppedRecord),'중단된 생성의 진행 상태를 저장하지 못했습니다.');
     });
-    if (deps.event_types.GENERATION_ENDED) deps.eventSource.on(deps.event_types.GENERATION_ENDED, () => { deps.resetPresetRequest?.();deps.pendingGenerationType = '';deps.hub?.endCycle(); });
+    if (deps.event_types.GENERATION_ENDED) deps.eventSource.on(deps.event_types.GENERATION_ENDED, () => { (deps.finishPresetRequest||deps.resetPresetRequest)?.();deps.pendingGenerationType = '';deps.hub?.endCycle(); });
     await deps.clearInjection();
     deps.initVisibility?.();
     console.info('[씬판독기] loaded');

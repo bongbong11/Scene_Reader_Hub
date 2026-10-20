@@ -16,6 +16,13 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     await page.locator('#sr-character-macro').evaluate(e=>e.closest('details').open=true);
     await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-macro').check()]);
     assert.equal(store.settings.global.characterMacroEnabled,true);
+    async function previewText() {
+        await page.locator('#sr-character-macro-preview').click();
+        const text=await page.locator('#sr-macro-preview').innerText();
+        return text;
+    }
+    assert.match(await previewText(),/아직 전송 전/);
+    await page.locator('#sr-macro-preview button').click();
     for(const width of [390,1280]) {
         await setViewportSize({width,height:850});
         const box=await page.locator('#sr-character-macro-panel').boundingBox();
@@ -62,6 +69,21 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
         const sent=requests.filter(r=>r.url.endsWith('/api/backends/chat-completions/generate')).at(-1).body;
         assert.equal(full(sent),text,'the inspected body is actually transmitted');
     }
+    await page.evaluate(async()=>{await mock.emit('GENERATION_ENDED');});
+    await page.locator('#sr-settings-button').click();
+    assert.match(await previewText(),/매크로 반영 확인/);
+    assert.equal(await page.locator('#sr-macro-preview pre').textContent(),
+        full(requests.filter(r=>r.url.endsWith('/api/backends/chat-completions/generate')).at(-1).body).match(/\[SCENE_READER_CHARACTER\][\s\S]*?\[\/SCENE_READER_CHARACTER\]/)[0]);
+    for(const width of [320,390,1280]) {
+        await setViewportSize({width,height:720});
+        const box=await page.locator('#sr-macro-preview').boundingBox();
+        assert.ok(box.x>=0 && box.x+box.width<=width+1,'transmission dialog fits mobile and desktop');
+    }
+    await page.evaluate(async()=>{await mock.emit('GENERATION_STARTED','normal',{},false);});
+    assert.match(await page.locator('#sr-macro-preview').innerText(),/아직 전송 전/);
+    assert.equal(await page.locator('#sr-macro-preview pre').textContent(),'','an open preview drops old content immediately');
+    await page.locator('#sr-macro-preview button').click();
+    await page.locator('#sr-settings-button').click();
     const absent=await outbound({macro:false});
     assert.ok(full(absent.body).includes(selected));
     assert.ok(!full(absent.body).includes('[SCENE_READER_CHARACTER]'));

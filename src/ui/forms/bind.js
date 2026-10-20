@@ -1,4 +1,5 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
+import {openMacroPreview} from '../macro-preview.js';
 import {normalizeChance} from '../../scene/opportunity-settings.js';
 import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
 import {backupSource, backupFilename} from '../../storage/backup-label.js';
@@ -99,10 +100,12 @@ function bindForm() {
     });
     deps.document.getElementById('sr-character-macro')?.addEventListener('change',event=>deps.runUiTask((async()=>{
         if(!deps.ownerUnlocked()){event.target.checked=false;return;}
+        deps.macroTransmissionPreview.clear();
         await deps.saveGlobal('characterMacroEnabled',event.target.checked);
         deps.renderAll();
     })(),'인물 매크로 설정을 저장하지 못했습니다.'));
     deps.document.getElementById('sr-character-macro-copy')?.addEventListener('click',()=>{if(deps.ownerUnlocked())deps.runUiTask(deps.copyText('{{scene-reader-character}}'));});
+    deps.document.getElementById('sr-character-macro-preview')?.addEventListener('click',()=>{if(deps.ownerUnlocked())openMacroPreview({document:deps.document,preview:deps.macroTransmissionPreview});});
     deps.document.getElementById('sr-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveInjectionMode(event.target.value)));
     deps.document.getElementById('sr-world-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveWorldInjectionMode(event.target.value)));
     deps.document.getElementById('sr-relationship-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('relationshipPace', event.target.value)));

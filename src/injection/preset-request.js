@@ -1,4 +1,5 @@
 import {createCharacterMacro,routeCharacterMacro} from './character-macro.js';
+import {createTransmissionPreview} from './transmission-preview.js';
 import {activePresetPrompts} from './preset-catalog.js';
 import {applyPresetSlots, slotBlock} from './preset-position.js';
 import {injectionSourceCurrent, captureOwnedBlocks, stripOwnedBlocks} from './source-validity.js';
@@ -18,7 +19,8 @@ export function createPresetRequest(deps) {
     const prepared=new Map(),certified=new Set();
     const cycle=()=>deps.getCycle();
     const characterMacro=createCharacterMacro({getContext:deps.getContext,isEnabled:()=>deps.isEnabled()&&deps.isCharacterMacroEnabled?.(),isActive:()=>active&&Boolean(expected()?.payload)});
-    function reset(){characterMacro.reset();active=false;pending=null;ready=null;invalidated=null;owned=[];prepared.clear();certified.clear();}
+    const preview=createTransmissionPreview({isCurrent:value=>injectionSourceCurrent(value,{chat:deps.getContext().chat,chatKey:deps.getChatKey()}),enabled:()=>deps.isEnabled()&&deps.isCharacterMacroEnabled?.(),render:names});
+    function reset({keepPreview=false}={}){if(!keepPreview)preview.clear();characterMacro.reset();active=false;pending=null;ready=null;invalidated=null;owned=[];prepared.clear();certified.clear();}
     function capture() {
         const manager=host.promptManager || deps.getContext().promptManager;
         const original=manager?.preparePrompt;
@@ -56,6 +58,7 @@ export function createPresetRequest(deps) {
         if(typeof previous!=='function' || previous[CHAIN]?.includes(fetchOwner))return;
         deps.window.fetch=ownedHook(previous,fetchOwner,async function(input,options,...rest){
             let request=input,init=options;
+            let receipt=null;
             const address=typeof input==='string'?input:String(input?.url || input?.href || '');
             const method=String(options?.method || input?.method || '').toUpperCase();
             if(active && method==='POST' && /\/api\/backends\/chat-completions\/generate(?:[?#]|$)/.test(address)) {
@@ -83,15 +86,20 @@ export function createPresetRequest(deps) {
                                 else init={...options,body:JSON.stringify(body)};
                             }
                             track(body,requestOwner);deps.verifyRequest(body);requestOwner.requestSent=true;
+                            if(characterMacro.enabled)receipt=preview.capture(body,requestOwner);
                         }
                     }
                 } catch(error){deps.report('injection.slot','PRESET_SLOT_SEND_ERROR',{errorKind:error.code || error.name || 'Error'});if(error.code==='HUB_STALE_INJECTION')throw error;}
             }
-            return previous.call(this,request,init,...rest);
+            const response=previous.call(this,request,init,...rest);
+            if(!receipt)return response;
+            preview.sent(receipt);
+            return Promise.resolve(response).then(result=>{if(result?.ok===false)preview.failed(receipt);return result;},error=>{preview.failed(receipt);throw error;});
         });
     }
     function start(type,options={},dryRun=false) {
-        reset();active=!dryRun && !options?.dryRun && !options?.quiet_prompt && TYPES.has(String(type || 'normal'));
+        const main=!dryRun && !options?.dryRun && !options?.quiet_prompt && TYPES.has(String(type || 'normal'));
+        reset({keepPreview:!main});active=main;
         if(active){characterMacro.start();capture();installFetch();}
     }
     function observeAssembly(data,dryRun=false) {
@@ -116,5 +124,5 @@ export function createPresetRequest(deps) {
         try{host=await (deps.loadHost?deps.loadHost():import('/scripts/openai.js'));}catch{host={};}
         capture();installFetch();
     }
-    return {init,start,observeAssembly,observeRequest,reset,invalidate:value=>{invalidated=value||ready||pending?.expected;},prompts:()=>activePresetPrompts(host,deps.getContext())};
+    return {init,start,observeAssembly,observeRequest,reset,preview,finish:()=>reset({keepPreview:true}),invalidate:value=>{preview.clear();invalidated=value||ready||pending?.expected;},prompts:()=>activePresetPrompts(host,deps.getContext())};
 }

@@ -5,6 +5,7 @@ import {CHARACTER_MACRO,characterEnvelope,routeCharacterMacro} from '../src/inje
 import {createPresetRequest} from '../src/injection/preset-request.js';
 import {observePromptReceipt} from '../src/injection/receipt.js';
 import {CHAT_DEFAULTS} from '../src/storage/contract.js';
+import {createTransmissionPreview} from '../src/injection/transmission-preview.js';
 
 const characterBlock='<CHARACTER_EXECUTION>\nAlex: Preserved record.\nIf Blair enters, apply their knowledge limits.\n</CHARACTER_EXECUTION>';
 const sexualBlock='<PERSON_STATE>Alex: Prior state is not present consent.</PERSON_STATE>';
@@ -107,18 +108,26 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
     async function sendGenerationRequest(body){return sendOpenAIRequest(body);}
     for(const type of ['normal','regenerate','swipe','continue'])for(const preset of [false,true]) {
         const {body,location}=prepare(type,preset);
+        assert.equal(runtime.preview.read(),null,'assembly is not a transmission receipt');
         assert.equal(count(flatten(body),characterBlock),1);
         assert.ok(flatten(body).includes(`PREFIX\n${wrapped}\nSUFFIX`));
         await sendGenerationRequest(body);
         assert.deepEqual(sent.at(-1),body);
         assert.ok(!flatten(sent.at(-1)).includes(location));
         assert.equal(count(flatten(sent.at(-1)),characterBlock),1);
+        assert.equal(runtime.preview.read().status,'included');
+        assert.equal(runtime.preview.read().text,wrapped);
+        assert.ok(flatten(sent.at(-1)).includes(runtime.preview.read().text));
+        runtime.finish();cycle.injection=null;
+        assert.equal(runtime.preview.read().text,wrapped,'normal completion retains the last actual transmission');
     }
     {
         const {body}=prepare();
         body.messages=body.messages.filter(m=>!m.content.includes('PREFIX'));
         await sendGenerationRequest(body);
         assert.ok(flatten(sent.at(-1)).includes(full),'late removal restores integrated delivery');
+        assert.equal(runtime.preview.read().status,'fallback');
+        assert.equal(runtime.preview.read().text,'');
     }
     {
         const {body}=prepare();
@@ -134,6 +143,7 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
         assert.ok(!flatten(sent.at(-1)).includes(characterBlock));
         assert.ok(!flatten(sent.at(-1)).includes(delivery.scenePayload));
         assert.ok(flatten(sent.at(-1)).includes('PREFIX'),'invalidation preserves surrounding preset');
+        assert.equal(runtime.preview.read(),null);
     }
     {
         const {body}=prepare();ctx.chat=[{mes:'hidden now',is_system:true}];
@@ -161,5 +171,21 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
     assert.equal(generateQuietPrompt(),'','auxiliary call inside an active main cycle has no marker');
     runtime.reset();assert.equal(handler(),'');
     assert.ok(!JSON.stringify(events).includes(characterBlock),'diagnostics contain no analysis text');
+}
+{
+    let valid=true;
+    const preview=createTransmissionPreview({isCurrent:()=>valid,enabled:()=>true,render:String});
+    const owner={payload:full,characterRoute:'macro',characterPayload:wrapped};
+    const body={messages:[{role:'system',content:wrapped}]};
+    const first=preview.capture(body,owner);
+    assert.equal(preview.read(),null);
+    preview.sent(first);assert.equal(preview.read().text,wrapped);
+    preview.failed(first);assert.equal(preview.read().status,'failed');assert.equal(preview.read().text,'');
+    preview.clear();const next=preview.capture(body,owner);preview.sent(next);
+    preview.failed(first);assert.equal(preview.read().status,'included','late failure cannot erase a later receipt');
+    valid=false;assert.equal(preview.read(),null);
+    valid=true;preview.clear();assert.equal(preview.read(),null);
+    preview.sent(preview.capture({messages:[]},owner));assert.equal(preview.read().status,'unconfirmed');
+    preview.sent(preview.capture({messages:[{role:'system',content:wrapped+wrapped}]},owner));assert.equal(preview.read().status,'unconfirmed');
 }
 console.log('Character macro: original assembly parity, exact placement, all actor scopes, no Meta, missing/duplicate/off/legacy/empty fallback, final-request inclusion, retries, stale/hidden/chat invalidation and auxiliary isolation passed.');
