@@ -251,19 +251,25 @@ export function activeWorldReference(name) {
     return value ? `Active world: ${value}.` : '';
 }
 
-export function fixedSceneSettings(settings, privatePrompt, includePerspectives = false, decisions = {}) {
-    const directions = [LANGUAGE_SCOPE, WORLD_PROMPTS[settings.worldDirection] || WORLD_PROMPTS.natural];
-    if (settings.relationshipDirection !== 'hostile') directions.push(RELATIONSHIP_PROMPTS[settings.relationshipDirection] || RELATIONSHIP_PROMPTS.dynamic);
+export function fixedSceneSettings(settings, privatePrompt, includePerspectives = false, decisions = {}, delivery = null) {
+    const part = (text, character = false) => ({text, character});
+    const directions = [part(LANGUAGE_SCOPE), part(WORLD_PROMPTS[settings.worldDirection] || WORLD_PROMPTS.natural)];
+    if (settings.relationshipDirection !== 'hostile') directions.push(part(RELATIONSHIP_PROMPTS[settings.relationshipDirection] || RELATIONSHIP_PROMPTS.dynamic, true));
     const fixed = [];
-    if (settings.worldHostility) fixed.push(L.WORLD_HOSTILITY);
-    if (settings.relationshipDirection === 'hostile') fixed.push(L.CHARACTER_TO_USER_DEFAULT);
-    if (String(privatePrompt || '').trim()) fixed.push(String(privatePrompt).trim());
-    if (settings.npcToUser) fixed.push(L.NPC_TO_USER_DEFAULT);
-    if (settings.userMisfortune) fixed.push(L.USER_MISFORTUNE);
-    if (fixed.length && includePerspectives) directions.push(L.INDEPENDENT_PERSPECTIVES);
+    if (settings.worldHostility) fixed.push(part(L.WORLD_HOSTILITY));
+    if (settings.relationshipDirection === 'hostile') fixed.push(part(L.CHARACTER_TO_USER_DEFAULT, true));
+    if (String(privatePrompt || '').trim()) fixed.push(part(String(privatePrompt).trim()));
+    if (settings.npcToUser) fixed.push(part(L.NPC_TO_USER_DEFAULT, true));
+    if (settings.userMisfortune) fixed.push(part(L.USER_MISFORTUNE));
+    if (fixed.length && includePerspectives) directions.push(part(L.INDEPENDENT_PERSPECTIVES, true));
     directions.push(...fixed);
     const priority = negativePriorityInstruction(settings,privatePrompt,decisions);
-    return `<FIXED_SCENE_SETTINGS>\n${priority}These ongoing settings govern the current scene. They do not establish completed events or override a named person's established facts, relationships, or knowledge boundaries.\n${directions.join('\n\n')}\n</FIXED_SCENE_SETTINGS>`;
+    const wrap = values => `<FIXED_SCENE_SETTINGS>\n${priority}These ongoing settings govern the current scene. They do not establish completed events or override a named person's established facts, relationships, or knowledge boundaries.\n${values.map(value=>value.text).join('\n\n')}\n</FIXED_SCENE_SETTINGS>`;
+    if (delivery) Object.assign(delivery, {
+        text: directions.filter(value=>value.character).map(value=>value.text).join('\n\n'),
+        scene: wrap(directions.filter(value=>!value.character)),
+    });
+    return wrap(directions);
 }
 
 export const SCENE_FOCUS_LABELS = {
@@ -280,7 +286,20 @@ export function buildInjection({ settings, decisions, villainProfile, npcProfile
     const castNames = new Set(sheetCastNames.map(name => String(name || '').trim().toLocaleLowerCase()).filter(Boolean));
     const generatedName = String(npcProfile?.name || npcProfile?.identityName || npcProfile?.characterName || '').trim().toLocaleLowerCase();
     const npcIsSheetCast = Boolean(generatedName && castNames.has(generatedName));
-    const blocks = [activeWorldReference(activeWorldName), fixedSceneSettings(settings, privatePrompt, true, decisions)].filter(Boolean);
+    // Keep integrated order and wording. Route structured parts, never search/strip
+    // the finished prompt: user records may contain the same tags or sentences.
+    const blocks = [], sceneParts = new Map(), characterParts = new Map();
+    const split = (full, scene, character) => {
+        const index = blocks.length;
+        blocks.push(full);
+        sceneParts.set(index, scene);
+        characterParts.set(index, character);
+    };
+    const personal = (...values) => values.forEach(value=>split(value, '', value));
+    if (activeWorldReference(activeWorldName)) blocks.push(activeWorldReference(activeWorldName));
+    const fixedParts = {};
+    const fixedText = fixedSceneSettings(settings, privatePrompt, true, decisions, fixedParts);
+    split(fixedText, fixedParts.scene, fixedParts.text);
     if (String(continuityBlock || '').trim()) blocks.push(String(continuityBlock).trim());
     if (sheetCastNames.length) blocks.push(`<SHEET_CAST_OWNERSHIP>Registered identities: ${[...new Set(sheetCastNames)].join(', ')}. Do not recreate them as new NPCs, even when absent or their record analysis is disabled, stale, or empty. Use their established characterization when no record is selected.</SHEET_CAST_OWNERSHIP>`);
     if (castNames.size && (['create','replace','reuse'].includes(decisions.npc_route) || settings.npcToUser || decisions.npc_autonomy === 'yes')) blocks.push('<NPC_CAST_SCOPE>Generated NPC defaults apply only to unregistered people. Scene roles may guide registered NPCs without replacing their personality, relationships, or knowledge.</NPC_CAST_SCOPE>');
@@ -293,8 +312,10 @@ export function buildInjection({ settings, decisions, villainProfile, npcProfile
         natural: 'Give ordinary space to the main development and its related reactions; let incidental input pass implicitly.',
         linger: 'Stay close to one decisive action, revelation, sensation, or emotional turn. Include related reactions; do not broaden the response into coverage of every input point.',
     };
-    if (settings.developmentStyle) blocks.push(`<BASIC_DEVELOPMENT tendency="${settings.developmentStyle}">\n${DEVELOPMENT_GUIDANCE[settings.developmentStyle]}\n${BASIC_MOVES[decisions.basic_move] || BASIC_MOVES.continue}${boosting ? '\n'+PROGRESS_BOOST : ''}\nThis guides scene movement, not prose pacing; explicitly selected additions still apply.${agency.basic ? '\n'+agency.basic : ''}\n</BASIC_DEVELOPMENT>`);
-    else blocks.push(`<NARRATIVE_CADENCE pace="${settings.roleplayPace || 'medium'}" mode="${decisions.response_cadence || 'natural'}">\n${cadencePrompts[decisions.response_cadence] || cadencePrompts.natural}${agency.basic?'\n'+agency.basic:''}\n</NARRATIVE_CADENCE>`);
+    const basicBlock = activity => settings.developmentStyle
+        ? `<BASIC_DEVELOPMENT tendency="${settings.developmentStyle}">\n${DEVELOPMENT_GUIDANCE[settings.developmentStyle]}\n${BASIC_MOVES[decisions.basic_move] || BASIC_MOVES.continue}${boosting ? '\n'+PROGRESS_BOOST : ''}\nThis guides scene movement, not prose pacing; explicitly selected additions still apply.${activity ? '\n'+activity : ''}\n</BASIC_DEVELOPMENT>`
+        : `<NARRATIVE_CADENCE pace="${settings.roleplayPace || 'medium'}" mode="${decisions.response_cadence || 'natural'}">\n${cadencePrompts[decisions.response_cadence] || cadencePrompts.natural}${activity?'\n'+activity:''}\n</NARRATIVE_CADENCE>`;
+    split(basicBlock(agency.basic), basicBlock(''), agency.basic);
     const corrections = selectExecutionCorrections(decisions, correctionDetails).lines;
 
     if (decisions.direct_execution === 'yes') blocks.push(`<DIRECT_SCENE_EXECUTION>
@@ -309,9 +330,9 @@ Answer the current interaction through character-consistent speech, a decision, 
         distant_significant: 'Permit a clear move toward rupture, hostility, or distance only through the decisive cause present now. Carry the resulting change into conduct and consequences without erasing prior facts.',
     };
     const relationshipRelevant = decisions.relationship_pacing !== 'hold' || Boolean(RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]);
-    if (relationshipRelevant && relationshipMoves[decisions.relationship_pacing]) blocks.push(`<RELATIONSHIP_PACING mode="${settings.relationshipPace}">\n${relationshipMoves[decisions.relationship_pacing]}\n</RELATIONSHIP_PACING>`);
-    if(settings.relationshipDirection==='hostile'&&relationshipRelevant)blocks.push('Apply this relationship beat within CHARACTER_TO_USER_DEFAULT. Cooperation or a repair attempt need not soften the established attitude; preserve the difference between the act, its motive, and its acceptance.');
-    if (RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]) blocks.push(`<RELATIONSHIP_BEAT type="${decisions.relationship_beat}">\n${RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]}\n</RELATIONSHIP_BEAT>`);
+    if (relationshipRelevant && relationshipMoves[decisions.relationship_pacing]) personal(`<RELATIONSHIP_PACING mode="${settings.relationshipPace}">\n${relationshipMoves[decisions.relationship_pacing]}\n</RELATIONSHIP_PACING>`);
+    if(settings.relationshipDirection==='hostile'&&relationshipRelevant)personal('Apply this relationship beat within CHARACTER_TO_USER_DEFAULT. Cooperation or a repair attempt need not soften the established attitude; preserve the difference between the act, its motive, and its acceptance.');
+    if (RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]) personal(`<RELATIONSHIP_BEAT type="${decisions.relationship_beat}">\n${RELATIONSHIP_BEAT_PROMPTS[decisions.relationship_beat]}\n</RELATIONSHIP_BEAT>`);
 
     const resolutionMoves = {
         continue: 'Keep the active event, goal, conflict, or mystery unresolved while its current actions and consequences continue.',
@@ -346,11 +367,11 @@ Answer the current interaction through character-consistent speech, a decision, 
     const boundIds=new Set(eventActors.map(actor=>actor.actorId).filter(Boolean));
     const boundGeneral=boundNames.has(sheetNpcTarget)||Boolean(npcProfile?.id&&boundIds.has(npcProfile.id))||eventActors.some(actor=>actor.kind==='scene_existing');
     const npc = npcIsSheetCast || boundGeneral ? '' : genreNpcPrompt(npcProfile, decisions.npc_route);
-    if (npc && ['create', 'replace', 'reuse', 'background'].includes(decisions.npc_route)) blocks.push(npc);
+    if (npc && ['create', 'replace', 'reuse', 'background'].includes(decisions.npc_route)) personal(npc);
     if (sheetNpcTarget && !boundGeneral && decisions.npc_route === 'reuse') blocks.push(`<SHEET_NPC_SCENE>Let ${sheetNpcTarget} perform one scene-relevant ${decisions.npc_role || 'participant'} function at ${decisions.npc_weight || 'brief'} weight. Follow established characterization and any selected stored records for motive, knowledge, and response.</SHEET_NPC_SCENE>`);
     const npcExecution = npcExecutionPrompt(decisions, presentSheetNpcNames.length===1 && decisions.npc_role && decisions.npc_role!=='none', agency.npc);
     const actionTarget=sheetNpcTarget||(presentSheetNpcNames.length===1?presentSheetNpcNames[0]:'');
-    if (npcExecution && !boundGeneral && !boundNames.has(actionTarget)) blocks.push(actionTarget ? `<SHEET_NPC_ACTION_TARGET>${actionTarget}: Apply the following role guidance to this registered person using their own characterization.</SHEET_NPC_ACTION_TARGET>\n${npcExecution}` : npcExecution);
+    if (npcExecution && !boundGeneral && !boundNames.has(actionTarget)) personal(actionTarget ? `<SHEET_NPC_ACTION_TARGET>${actionTarget}: Apply the following role guidance to this registered person using their own characterization.</SHEET_NPC_ACTION_TARGET>\n${npcExecution}` : npcExecution);
 
     // Current conflict actions follow the scene plan; persistent settings are above.
     // Preserve the supplied wording and order inside each source group.
@@ -364,17 +385,22 @@ Answer the current interaction through character-consistent speech, a decision, 
     if (decisions.villain_route === 'continue' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, false));
     if (decisions.fight_sustain === 'yes') fightBlocks.push(L.SUSTAINED_INTERPERSONAL_CONFLICT);
     const existingConflict = fightBlocks.length || ['tension','active'].includes(decisions.conflict_state);
-    if (existingConflict || agency.conflict) blocks.push(`<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[existingConflict ? L.CONFLICT_EXECUTION : '', ...fightBlocks, agency.conflict].filter(Boolean).join('\n\n')}\n</CONFLICT_PROGRESSION>`);
+    if (existingConflict || agency.conflict) {
+        const conflictBlock = values => `<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[existingConflict ? L.CONFLICT_EXECUTION : '', ...values, agency.conflict].filter(Boolean).join('\n\n')}\n</CONFLICT_PROGRESSION>`;
+        split(conflictBlock(fightBlocks), conflictBlock([]), fightBlocks.join('\n\n'));
+    }
 
-    const characterStart=blocks.length;
-    if (String(characterContextBlock || '').trim()) blocks.push(String(characterContextBlock).trim());
-    if (String(characterBlock || '').trim()) blocks.push('<SHEET_CAST_SCOPE>The following records constrain their named people within the selected scene. Scene directions do not overwrite these facts; the records do not cancel compatible progression.</SHEET_CAST_SCOPE>', String(characterBlock).trim());
-    if (String(sexualBlock || '').trim()) blocks.push(String(sexualBlock).trim());
-    const characterEnd=blocks.length;
-    if (corrections.length) blocks.push(`<EXECUTION_CORRECTION>\nRepair these issues in the selected scene within character limits; do not revive a superseded route or add an independent task.\n${corrections.join('\n')}\n</EXECUTION_CORRECTION>`);
+    if (String(characterContextBlock || '').trim()) personal(String(characterContextBlock).trim());
+    if (String(characterBlock || '').trim()) personal('<SHEET_CAST_SCOPE>The following records constrain their named people within the selected scene. Scene directions do not overwrite these facts; the records do not cancel compatible progression.</SHEET_CAST_SCOPE>', String(characterBlock).trim());
+    if (String(sexualBlock || '').trim()) personal(String(sexualBlock).trim());
+    if (corrections.length) {
+        const knowledge = corrections.filter(value=>value===AUXILIARY_EXECUTION_CORRECTIONS.npc_knowledge_fit);
+        const correctionBlock = values => values.length ? `<EXECUTION_CORRECTION>\nRepair these issues in the selected scene within character limits; do not revive a superseded route or add an independent task.\n${values.join('\n')}\n</EXECUTION_CORRECTION>` : '';
+        split(correctionBlock(corrections), correctionBlock(corrections.filter(value=>!knowledge.includes(value))), knowledge.join('\n'));
+    }
 
     const compose=items=>`${hasAdditions ? ADDITION_META : COMMON_META}\n\n${items.join('\n\n')}\n\n${META_CLOSE}\n)`;
-    if(delivery)Object.assign(delivery,{version:1,text:blocks.slice(characterStart,characterEnd).join('\n\n'),
-        scenePayload:compose([...blocks.slice(0,characterStart),...blocks.slice(characterEnd)])});
+    if(delivery)Object.assign(delivery,{version:1,text:[...characterParts.values()].filter(Boolean).join('\n\n'),
+        scenePayload:compose(blocks.map((value,index)=>sceneParts.has(index)?sceneParts.get(index):value).filter(Boolean))});
     return compose(blocks);
 }

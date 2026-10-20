@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {buildInjection} from '../src/injection/assemble.js';
+import {buildInjection,antagonistPrompt,genreNpcPrompt,RELATIONSHIP_PROMPTS,NPC_KNOWLEDGE_PROMPTS,NPC_DISCLOSURE_PROMPTS,AUXILIARY_EXECUTION_CORRECTIONS} from '../src/injection/assemble.js';
+import {LEGACY_PROMPTS as L} from '../src/decision/legacy-prompts.js';
+import {INITIATIVE,NPC_ACTIVITY,PHYSICAL_OPPOSITION,PROGRESS_BOOST} from '../src/injection/world-agency.js';
 import {CHARACTER_MACRO,characterEnvelope,routeCharacterMacro} from '../src/injection/character-macro.js';
 import {createPresetRequest} from '../src/injection/preset-request.js';
 import {observePromptReceipt} from '../src/injection/receipt.js';
@@ -14,7 +16,8 @@ const input={settings:{...CHAT_DEFAULTS},decisions:{primary_focus:'direct',relat
 const delivery={};
 const full=buildInjection({...input,delivery});
 assert.equal(full,buildInjection(input),'requesting parts cannot alter the ordinary injection');
-assert.equal(delivery.scenePayload,buildInjection({...input,characterBlock:'',sexualBlock:'',characterContextBlock:''}),'scene part is the same assembly without person blocks');
+assert.doesNotMatch(delivery.scenePayload,/CHARACTER_TO_USER_DIRECTION|CHARACTER_EXECUTION|CHARACTER_CONTINUITY|PERSON_STATE/);
+assert.ok(delivery.text.includes(RELATIONSHIP_PROMPTS.dynamic),'relationship direction moves even without a selected record');
 assert.match(delivery.text,/SHEET_CAST_SCOPE/);
 assert.ok(delivery.text.includes(characterBlock)&&delivery.text.includes(sexualBlock));
 const wrapped=characterEnvelope(delivery.text);
@@ -27,6 +30,68 @@ const marker='[SYNTHETIC_MACRO_LOCATION]';
 const value=()=>({payload:full,characterDelivery:structuredClone(delivery)});
 const flatten=body=>body.messages.flatMap(m=>typeof m.content==='string'?[m.content]:m.content.filter(p=>p.type==='text').map(p=>p.text)).join('\n');
 const count=(text,part)=>text.split(part).length-1;
+// Route whole selected guidance, including the paths omitted by the old slice.
+for(const relationshipDirection of ['dynamic','positive','hostile']) {
+    const parts={};
+    const fixture={...input,settings:{...CHAT_DEFAULTS,relationshipDirection,worldHostility:true,
+        npcToUser:true,userMisfortune:true,worldAgencyEnabled:true,negativePriority:true,developmentStyle:'dynamic'},
+        decisions:{...input.decisions,relationship_pacing:'closer_incremental',relationship_beat:'vulnerability',
+            npc_route:'reuse',npc_role:'information',npc_weight:'supporting',npc_knowledge:'reported',npc_disclosure:'selective',
+            npc_presence:'multiple',npc_autonomy:'yes',fight_sustain:'yes',conflict_state:'active',
+            world_npc_activity:'active',world_physical_opposition:'active',progress_boost:'yes',
+            npc_knowledge_fit:'overreach',input_echo:'yes',event_route:'continue',primary_focus:'event',resolution_pacing:'partial'},
+        sheetNpcTarget:'Blair',presentSheetNpcNames:['Blair'],sheetCastNames:['Alex','Blair'],
+        eventProfile:{mode:'natural',phase:'active',prompt:'The bridge remains closed.'}};
+    const integrated=buildInjection({...fixture,delivery:parts});
+    const moved=[RELATIONSHIP_PROMPTS[relationshipDirection],L.INDEPENDENT_PERSPECTIVES,L.NPC_TO_USER_DEFAULT,
+        L.AUTONOMOUS_NPC_DYNAMICS,L.SUSTAINED_INTERPERSONAL_CONFLICT,INITIATIVE,NPC_ACTIVITY,
+        NPC_KNOWLEDGE_PROMPTS.reported,NPC_DISCLOSURE_PROMPTS.selective,AUXILIARY_EXECUTION_CORRECTIONS.npc_knowledge_fit,
+        '<RELATIONSHIP_PACING','<RELATIONSHIP_BEAT','<SHEET_NPC_ACTION_TARGET>'];
+    const retained=[L.WORLD_HOSTILITY,L.USER_MISFORTUNE,PHYSICAL_OPPOSITION,PROGRESS_BOOST,
+        '<SHEET_NPC_SCENE>','<EVENT_RESOLUTION_PACING','<SCENE_FOCUS>'];
+    for(const text of moved) {
+        assert.equal(count(parts.text,text),1,`macro must contain all selected guidance: ${text.slice(0,60)}`);
+        assert.equal(count(parts.scenePayload,text),0,'moved guidance must not remain in scene');
+        assert.equal(count(integrated,text),1,'integrated delivery retains each source');
+    }
+    for(const text of retained) {
+        assert.equal(count(parts.scenePayload,text),1,'event/world execution remains in scene');
+        assert.equal(count(parts.text,text),0);
+    }
+    for(const enabled of [true,false])for(const anchor of [true,false]) {
+        const owner={payload:integrated,characterDelivery:structuredClone(parts)};
+        const body={messages:[{role:'system',content:anchor?marker:'PRESET'},{role:'system',content:integrated}]};
+        routeCharacterMacro(body,owner,{marker,enabled});
+        for(const text of [...moved,...retained]) assert.equal(count(flatten(body),text),1,'one copy after final routing/fallback');
+        const receipt=observePromptReceipt(body,{payload:owner.deliveryPayload,
+            characterPayload:owner.characterPayload,activity:{ids:['initiative','npc_activity','physical_opposition'],progressBoost:true}});
+        assert.ok(receipt.activity.every(item=>item.status==='confirmed'),'activity verification follows both locations');
+    }
+}
+{
+    const parts={};
+    buildInjection({...input,privatePrompt:RELATIONSHIP_PROMPTS.dynamic,delivery:parts});
+    assert.ok(parts.scenePayload.includes(RELATIONSHIP_PROMPTS.dynamic),'a private prompt is not removed just because its text matches a routed instruction');
+}
+for(const route of ['create','replace','reuse','background']) {
+    const profile={status:'pending',mode:'ordinary',role:'courier',aim:'deliver the letter',access:'public street',
+        stake:'payment',constraint:'closed gate',contribution:'delivery',leverage:'receipt',competence:'trained',
+        demeanor:'brisk',reliability:'known',entry:'delivery route',duration:'brief',turningCondition:'the gate opens'};
+    const parts={};
+    buildInjection({...input,npcProfile:profile,decisions:{...input.decisions,npc_route:route,arrival_mode:'visit'},delivery:parts});
+    assert.ok(parts.text.includes(genreNpcPrompt(profile,route)),'generated and returning NPC profiles move whole');
+    assert.doesNotMatch(parts.scenePayload,/<RP_NPC_ROUTING/);
+    if(['create','replace'].includes(route))assert.match(parts.scenePayload,/<PERSON_ARRIVAL>/);
+}
+for(const route of ['create','replace','continue']) {
+    const profile={access:'public desk',leverage:'permit',motive:'retain office',method:'delay',competence:'trained',composure:'steady'};
+    const parts={};
+    buildInjection({...input,villainProfile:profile,decisions:{...input.decisions,villain_route:route},delivery:parts});
+    const source=antagonistPrompt(profile,route!=='continue');
+    assert.ok(parts.text.includes(source),'antagonist characterization is moved without rewriting the fixed source');
+    assert.ok(!parts.scenePayload.includes(source));
+    assert.match(parts.scenePayload,/<NPC_CONFLICT_ACTION/,'selected confrontation still executes through scene direction');
+}
 for(const role of ['system','developer','user'])for(const multimodal of [false,true]) {
     const body={messages:[{role,content:multimodal?[{type:'text',text:`BEFORE\n${marker}\nAFTER`},{type:'image_url',image_url:{url:'fixture'}}]:`BEFORE\n${marker}\nAFTER`},{role:'system',content:full}]};
     const v=value();

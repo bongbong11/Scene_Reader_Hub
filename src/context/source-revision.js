@@ -29,7 +29,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         decisionContract: DECISION_CONTRACT_VERSION,
         continuityContract: 4,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 8,
-        injectionAssemblyContract: 14,
+        injectionAssemblyContract: 15,
         characterStateContract: 2,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,
         sceneGateContract: 4,

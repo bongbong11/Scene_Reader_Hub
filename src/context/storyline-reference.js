@@ -20,7 +20,7 @@ export function storylineReference(record) {
     }
     return reference;
 }
-export function storylineInjection(record, represented = {}) {
+export function storylineInjection(record, represented = {}, delivery = null) {
     const reference=storylineReference(record);
     if(!reference)return '';
     // Only remove exact selected copies already rendered in character context.
@@ -29,7 +29,20 @@ export function storylineInjection(record, represented = {}) {
         const copies=new Set((items || []).map(item=>JSON.stringify(item)));
         reference[field]=reference[field].filter(item=>!copies.has(JSON.stringify(item)));
     }
-    return '[LINKED STORY — CONTINUATION REFERENCE]\n'+JSON.stringify(reference)+'\nDo not narrate this reference as a new event. Continue from current RP.';
+    const render = value => '[LINKED STORY — CONTINUATION REFERENCE]\n'+JSON.stringify(value)+'\nDo not narrate this reference as a new event. Continue from current RP.';
+    if (delivery) {
+        const scene = clone(reference), character = {};
+        for (const field of ['relationship','knowledge','character_states']) {
+            if (Object.keys(reference[field]).length) character[field]=reference[field];
+            delete scene[field];
+        }
+        const owned = reference.confirmed_facts.filter(item=>item.owners?.length);
+        if (owned.length) character.confirmed_facts=owned;
+        scene.confirmed_facts=reference.confirmed_facts.filter(item=>!item.owners?.length);
+        delivery.text=Object.keys(character).length ? '[LINKED STORY — CHARACTER REFERENCE]\n'+JSON.stringify(character) : '';
+        delivery.scene=render(scene);
+    }
+    return render(reference);
 }
 export function inheritedStates(record,current=[]) {
     const byId=new Map((record?.sharedReference?.characterStates || []).map(item=>[item.id,clone(item)]));

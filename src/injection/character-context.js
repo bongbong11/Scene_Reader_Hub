@@ -17,14 +17,17 @@ export function splitCharacterContext(selected, people = [], deliveredKnowledge 
     const owners = item => {
         if (!item.owners?.length) return null;
         const found = item.owners.map(find);
-        return found.every(Boolean) ? [...new Set(found.map(person=>person.name))] : null;
+        // Preserve the supplied owners even when they have no registered sheet.
+        // Routing existing context is not another actor eligibility decision.
+        const names = [...new Set(found.map((person,index)=>person?.name || text(item.owners[index])))].filter(Boolean);
+        return names.length ? names : null;
     };
     let duplicateKnowledge = 0;
     for (const item of selected?.knowledge || []) {
         const person = item.characterId ? byId.get(item.characterId) : find(item.character);
         const rendered = continuityLines({knowledge:[item]});
-        if (!person || !rendered.length) { scene.knowledge.push(item); continue; }
-        const duplicate = deliveredKnowledge.some(other=>other.characterId===person.id &&
+        if (!rendered.length) { scene.knowledge.push(item); continue; }
+        const duplicate = person && deliveredKnowledge.some(other=>other.characterId===person.id &&
             text(other.subject)===text(item.factId) && text(other.text)===text(item.summary) &&
             other.source===(item.source || 'verified_continuity') &&
             text(other.sourceType)===text(item.source_type || item.sourceType) &&
@@ -42,9 +45,9 @@ export function splitCharacterContext(selected, people = [], deliveredKnowledge 
     for (const item of selected?.dependencies || []) {
         const related = moved.items.find(other=>other.id===item.stateId);
         const names = owners(item) || (related ? owners(related) : null);
-        if (!names) { scene.dependencies.push(item); continue; }
+        if (!names && item.stateId!=='relationship:current') { scene.dependencies.push(item); continue; }
         moved.dependencies.push(item);
-        lines.push(`${names.join(', ')} — ${continuityLines({dependencies:[item]})[0]}`);
+        lines.push(`${names ? names.join(', ')+' — ' : ''}${continuityLines({dependencies:[item]})[0]}`);
     }
     return {scene, moved, duplicateKnowledge,
         text:lines.length ? `<CHARACTER_CONTINUITY>\n${lines.join('\n')}\nThese are scoped prior states, not proof of present participation or completed off-screen actions.\n</CHARACTER_CONTINUITY>` : ''};

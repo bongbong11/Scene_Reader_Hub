@@ -27,7 +27,8 @@ assert.equal(execution.deliveredKnowledge.length,1);
 const split=splitCharacterContext(selected,[person],execution.deliveredKnowledge);
 assert.equal(split.duplicateKnowledge,1);
 assert.deepEqual(split.scene.items,[shared]);
-assert.deepEqual(split.scene.dependencies,[globalPressure],'unscoped relationship pressure stays in the scene');
+assert.deepEqual(split.scene.dependencies,[],'relationship context moves without inventing a named pair');
+assert.match(split.text,/relationship:current remains.*An unresolved disagreement/);
 assert.deepEqual(split.scene.knowledge,[]);
 assert.match(split.text,/Alex — Deliver the sealed letter: active; pressure=at_risk; The bridge is closed/);
 assert.match(split.text,/Alex — promise remains in its established lifecycle/);
@@ -70,11 +71,14 @@ for(const change of [{sourceType:'belief'},{source:'observed'},{occurredAt:'prev
     assert.equal(splitCharacterContext(selected,[person],[{...context,...change}]).duplicateKnowledge,0,'do not merge different truth/time/source scopes');
 }
 const ambiguous=splitCharacterContext(selected,[person,{...person,id:'other',name:'Alex'}]);
-assert.deepEqual(ambiguous.scene.knowledge,[fact],'an ambiguous name is retained, not guessed');
-assert.deepEqual(splitCharacterContext(selected,[]).scene.items,selected.items);
+assert.deepEqual(ambiguous.scene.knowledge,[],'selected knowledge moves without requiring a registered identity');
+assert.match(ambiguous.text,/Alex has told information/,'keep the supplied name without choosing an identity');
+assert.deepEqual(splitCharacterContext(selected,[]).scene.items,[shared]);
 assert.equal(splitCharacterContext(null,[person]).text,'');
 const unknown={...promise,owners:['Alex','Unknown']};
-assert.deepEqual(splitCharacterContext({items:[unknown]},[person]).scene.items,[unknown],'shared ownership is not narrowed');
+assert.match(splitCharacterContext({items:[unknown]},[person]).text,/Alex, Unknown — Deliver/,'shared ownership is retained without another eligibility gate');
+const nameless={...promise,owners:[' ']};
+assert.deepEqual(splitCharacterContext({items:[nameless]},[person]).scene.items,[nameless],'an empty owner does not manufacture personal attribution');
 
 const record={sharedSource:{id:'previous'},sharedReference:{summary:'An ongoing trip.'},continuity:structuredClone(selected)};
 const recordBefore=JSON.stringify(record),before=storylineReference(record);
@@ -85,6 +89,16 @@ assert.match(carried,/ongoing trip/);
 assert.deepEqual(storylineReference(record),before);
 assert.equal(JSON.stringify(record),recordBefore);
 assert.match(storylineInjection(record,{items:[{...promise,lifecycle:'completed'}]}),/Deliver the sealed letter/,'do not remove a different state with the same ID');
+{
+    const prior={...record,relationshipState:{tension:'high'},sharedReference:{...record.sharedReference,characterStates:[{id:'alex',fear:30}]}};
+    const parts={};
+    assert.equal(storylineInjection(prior,{},parts),storylineInjection(prior),'splitting carry-over does not change integrated output');
+    assert.match(parts.text,/"tension":"high"/);
+    assert.match(parts.text,/"fear":30/);
+    assert.match(parts.text,/west gate|Deliver the sealed letter/);
+    assert.doesNotMatch(parts.scene,/west gate|Deliver the sealed letter|"tension":"high"|"fear":30/);
+    assert.match(parts.scene,/market|ongoing trip/);
+}
 
 // Actual preparation must connect the split to saved and pending delivery.
 const diagnostics=[];
@@ -95,10 +109,12 @@ const deps={characterStore:{enabled:true,characters:[person],npcs:[]},settings:{
     stableFingerprint:JSON.stringify,ownerPrompt:()=>'',actionPlanSummary:()=>({}),pendingPlanEffects:()=>({}),
     isVisibleRoleplayMessage:()=>true,reversibleStateSnapshot:()=>({}),JEV_MODEL:'synthetic'};
 const frame={details:{},prefs:settings,decisions:{...FALLBACKS},liveCharacters:[person],continuityContext:selected,
-    chosenContinuity:followup,chosenEventFollowups:[],rec:{},questions:{},data:{answers:{}},
+    chosenContinuity:followup,chosenEventFollowups:[],rec:{...record,relationshipState:{tension:'high'}},questions:{},data:{answers:{}},
     staged:{},memory:{status:'unused'},context:{contextKey:'synthetic'},additions:[],npcTargets:[]};
 await createInjectionPreparation(deps).prepareInjection({identity:'synthetic'},frame);
 assert.ok(frame.rec.lastJudgment.characterDelivery.text.includes(promise.label));
+assert.match(frame.rec.lastJudgment.characterDelivery.text,/"tension":"high"/);
+assert.doesNotMatch(frame.rec.lastJudgment.characterDelivery.scenePayload,/"tension":"high"/);
 assert.ok(frame.rec.pendingPlan.judgment.characterDelivery.text.includes(promise.label));
 assert.equal(frame.payload.split(fact.summary).length-1,1);
 assert.ok(!frame.characterDelivery.scenePayload.includes(promise.label));

@@ -58,6 +58,7 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     }
     const full=body=>body.messages.map(m=>m.content).join('\n');
     const selected=store.chat.lastJudgment.characterDelivery.text.replaceAll('{{user}}','User').replaceAll('{{char}}','Hunter');
+    const integrated=store.chat.lastJudgment.payload.replaceAll('{{user}}','User').replaceAll('{{char}}','Hunter');
     for(const type of ['normal','regenerate','swipe','continue']) {
         const result=await outbound({type,duplicates:true});
         const text=full(result.body);
@@ -66,6 +67,9 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
         assert.match(text,/\[\/SCENE_READER_CHARACTER\]\nInterpretation after/);
         assert.doesNotMatch(text,/SR_CHARACTER_SLOT_/);
         const envelope=text.match(/\[SCENE_READER_CHARACTER\]([\s\S]*?)\[\/SCENE_READER_CHARACTER\]/)[1];
+        assert.match(envelope,/CHARACTER_TO_USER_DIRECTION|CHARACTER_TO_USER_DEFAULT/,'relationship interpretation accompanies records');
+        const sceneOnly=result.body.messages.filter(m=>!m.content.includes('[SCENE_READER_CHARACTER]')).map(m=>m.content).join('\n');
+        assert.doesNotMatch(sceneOnly,/<CHARACTER_TO_USER_DIRECTION|<CHARACTER_TO_USER_DEFAULT/,'moved interpretation leaves no scene duplicate');
         assert.doesNotMatch(envelope,/[가-힣]|\(Meta:/,'transmitted macro instructions are English without a second Meta');
         assert.equal(result.receipt.resultStatus,'confirmed');
         const sent=requests.filter(r=>r.url.endsWith('/api/backends/chat-completions/generate')).at(-1).body;
@@ -87,14 +91,14 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     await page.locator('#sr-macro-preview button').click();
     await page.locator('#sr-settings-button').click();
     const absent=await outbound({macro:false});
-    assert.ok(full(absent.body).includes(selected));
+    assert.ok(full(absent.body).includes(integrated));
     assert.ok(!full(absent.body).includes('[SCENE_READER_CHARACTER]'));
     assert.equal(absent.receipt.reasonCode,'missing');
     await page.locator('#sr-settings-button').click();
     await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-macro').uncheck()]);
     await page.locator('#sr-settings-button').click();
     const off=await outbound();
-    assert.ok(full(off.body).includes(selected));
+    assert.ok(full(off.body).includes(integrated));
     assert.ok(!full(off.body).includes('[SCENE_READER_CHARACTER]'));
     assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length,countBefore,'switching delivery and rendering macros never judges again');
     console.log('Browser character macro passed: unlocked collapsible integration, separate developer lock, saved setting, mobile/desktop bounds, actual request placement, duplicated/missing/off modes, all regeneration types and zero extra Jev calls.');
