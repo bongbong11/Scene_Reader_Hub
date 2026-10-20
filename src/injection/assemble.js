@@ -273,7 +273,7 @@ export const SCENE_FOCUS_LABELS = {
     villain: 'the selected antagonist involvement', continuity: 'the selected continuity consequence',
 };
 
-export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], storyDirection = null, activeWorldName = '', correctionDetails = {}, hasAdditions = false, delivery = null }) {
+export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', characterContextBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], storyDirection = null, activeWorldName = '', correctionDetails = {}, hasAdditions = false, delivery = null }) {
     if (settings.developmentStyle) settings = normalizeDevelopmentPreferences(settings);
     const agency = worldAgencyParts(settings, decisions);
     const boosting = settings.developmentStyle!=='static' && decisions.progress_boost==='yes';
@@ -367,6 +367,7 @@ Answer the current interaction through character-consistent speech, a decision, 
     if (existingConflict || agency.conflict) blocks.push(`<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[existingConflict ? L.CONFLICT_EXECUTION : '', ...fightBlocks, agency.conflict].filter(Boolean).join('\n\n')}\n</CONFLICT_PROGRESSION>`);
 
     const characterStart=blocks.length;
+    if (String(characterContextBlock || '').trim()) blocks.push(String(characterContextBlock).trim());
     if (String(characterBlock || '').trim()) blocks.push('<SHEET_CAST_SCOPE>The following records constrain their named people within the selected scene. Scene directions do not overwrite these facts; the records do not cancel compatible progression.</SHEET_CAST_SCOPE>', String(characterBlock).trim());
     if (String(sexualBlock || '').trim()) blocks.push(String(sexualBlock).trim());
     const characterEnd=blocks.length;

@@ -74,7 +74,7 @@ export function createCharacterMacro({getContext,isEnabled,isActive}) {
         const macros=getContext().macros;
         if(typeof macros?.register!=='function')return false;
         macros.register(CHARACTER_MACRO,{category:macros.category?.MISC??'misc',
-            description:'제작자용 인물 분석 위치',returns:'현재 실행의 인물 분석',
+            description:'위브 프리셋 인물 분석 위치',returns:'현재 실행의 인물 분석',
             handler:()=>getContext().mainApi==='openai'&&isActive()&&isEnabled()&&!/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(String(new Error().stack||''))?marker:''});
         registered=true;return true;
     }

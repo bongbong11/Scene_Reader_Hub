@@ -9,11 +9,12 @@ import {createTransmissionPreview} from '../src/injection/transmission-preview.j
 
 const characterBlock='<CHARACTER_EXECUTION>\nAlex: Preserved record.\nIf Blair enters, apply their knowledge limits.\n</CHARACTER_EXECUTION>';
 const sexualBlock='<PERSON_STATE>Alex: Prior state is not present consent.</PERSON_STATE>';
-const input={settings:{...CHAT_DEFAULTS},decisions:{primary_focus:'direct',relationship_pacing:'hold'},characterBlock,sexualBlock};
+const characterContextBlock='<CHARACTER_CONTINUITY>Alex has an unresolved promise.</CHARACTER_CONTINUITY>';
+const input={settings:{...CHAT_DEFAULTS},decisions:{primary_focus:'direct',relationship_pacing:'hold'},characterBlock,sexualBlock,characterContextBlock};
 const delivery={};
 const full=buildInjection({...input,delivery});
 assert.equal(full,buildInjection(input),'requesting parts cannot alter the ordinary injection');
-assert.equal(delivery.scenePayload,buildInjection({...input,characterBlock:'',sexualBlock:''}),'scene part is the same assembly without person blocks');
+assert.equal(delivery.scenePayload,buildInjection({...input,characterBlock:'',sexualBlock:'',characterContextBlock:''}),'scene part is the same assembly without person blocks');
 assert.match(delivery.text,/SHEET_CAST_SCOPE/);
 assert.ok(delivery.text.includes(characterBlock)&&delivery.text.includes(sexualBlock));
 const wrapped=characterEnvelope(delivery.text);
@@ -32,6 +33,7 @@ for(const role of ['system','developer','user'])for(const multimodal of [false,t
     assert.equal(routeCharacterMacro(body,v,{marker,enabled:true}).status,'macro');
     assert.equal(count(flatten(body),characterBlock),1);
     assert.equal(count(flatten(body),sexualBlock),1);
+    assert.equal(count(flatten(body),characterContextBlock),1);
     const first=multimodal?body.messages[0].content[0].text:body.messages[0].content;
     assert.equal(first,`BEFORE\n${wrapped}\nAFTER`);
     assert.equal(body.messages[1].content,delivery.scenePayload);
@@ -77,13 +79,13 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
         hostile:['852f285f28e2c613455b2200dad3b6a835353890f9870612028764328206279f','e18297ef15ca9f6aec62ffa834cb9e407067f8a0976e433c81f1d9b75397ee3c'],
     };
     for(const relationshipDirection of ['dynamic','positive','hostile'])for(const advancedEnabled of [false,true])for(const characters of ['',characterBlock]) {
-        const fixture={...input,settings:{...CHAT_DEFAULTS,relationshipDirection,advancedEnabled},characterBlock:characters};
+        const fixture={...input,settings:{...CHAT_DEFAULTS,relationshipDirection,advancedEnabled},characterBlock:characters,characterContextBlock:''};
         assert.equal(createHash('sha256').update(buildInjection(fixture)).digest('hex'),hashes[relationshipDirection][characters?1:0],'off preserves prior assembly byte for byte');
     }
 }
 // Exercise the real request adapter, including its final transport hook.
 {
-    let enabled=true,unlocked=true,chatKey='room';
+    let enabled=true,chatKey='room';
     const handlers={},sent=[],events=[];
     const prompts=[{identifier:'main',role:'system',content:'ANCHOR',enabled:true}];
     const manager={serviceSettings:{prompts,prompt_order:[{character_id:1,order:[{identifier:'main',enabled:true}]}]},activeCharacter:{id:1},
@@ -92,7 +94,7 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
     const ctx={mainApi:'openai',chat:[],name1:'{{user}}',name2:'{{char}}',macros:{register:(name,def)=>handlers[name]=def.handler}};
     const win={Request,fetch:async(input,options)=>{sent.push(JSON.parse(options.body));return {ok:true};}};
     const runtime=createPresetRequest({window:win,getContext:()=>ctx,getCycle:()=>cycle,getChatKey:()=>chatKey,isEnabled:()=>true,
-        isCharacterMacroEnabled:()=>enabled&&unlocked,loadHost:async()=>({promptManager:manager}),report:(...args)=>events.push(args),verifyRequest:()=>{}});
+        isCharacterMacroEnabled:()=>enabled,loadHost:async()=>({promptManager:manager}),report:(...args)=>events.push(args),verifyRequest:()=>{}});
     await runtime.init();
     const handler=handlers[CHARACTER_MACRO];
     assert.equal(handler(),'');
@@ -144,6 +146,7 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
         cycle.injection=null;
         await sendGenerationRequest(body);
         assert.ok(!flatten(sent.at(-1)).includes(characterBlock));
+        assert.ok(!flatten(sent.at(-1)).includes(characterContextBlock));
         assert.ok(!flatten(sent.at(-1)).includes(delivery.scenePayload));
         assert.ok(flatten(sent.at(-1)).includes('PREFIX'),'invalidation preserves surrounding preset');
         assert.equal(runtime.preview.read(),null);
@@ -152,17 +155,19 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
         const {body}=prepare();ctx.chat=[{mes:'hidden now',is_system:true}];
         await sendGenerationRequest(body);
         assert.ok(!flatten(sent.at(-1)).includes(characterBlock),'visibility change removes split payload');
+        assert.ok(!flatten(sent.at(-1)).includes(characterContextBlock));
         ctx.chat=[];
     }
     {
         const {body}=prepare();chatKey='other';
         await sendGenerationRequest(body);
         assert.ok(!flatten(sent.at(-1)).includes(characterBlock),'chat change never transfers old analysis');
+        assert.ok(!flatten(sent.at(-1)).includes(characterContextBlock));
         chatKey='room';
     }
-    unlocked=false;
-    const locked=prepare();assert.equal(locked.location,'');assert.ok(flatten(locked.body).includes(full));
-    unlocked=true;
+    enabled=false;
+    const disabled=prepare();assert.equal(disabled.location,'');assert.ok(flatten(disabled.body).includes(full));
+    enabled=true;
     for(const type of ['quiet','normal']) {
         runtime.start(type,{},type==='normal');
         assert.equal(handler(),'','quiet and dry-run macros are empty');

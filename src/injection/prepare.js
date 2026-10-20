@@ -10,6 +10,7 @@ import {castSummary} from '../scene/cast-binding.js';
 import {repetitionInjection} from '../continuity/repetition.js';
 import {storylineInjection} from '../context/storyline-reference.js';
 import {selectExecutionCorrectionKeys} from "../scene/correction-selection.js";
+import {splitCharacterContext} from './character-context.js';
 
 export function createInjectionPreparation(deps) {
 async function prepareInjection(run,frame) {
@@ -74,8 +75,15 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         frame.characterBlock=[frame.characterBlock,plannedRecords.text?plannedGuard+plannedRecords.text:''].filter(Boolean).join('\n');
         frame.characterExecution.charCount=frame.characterBlock.length;
         frame.characterExecution.charLimit=fullCharacterBudget;
+        const personContext = splitCharacterContext(deps.settings.continuityEnabled ? frame.continuityContext : null,
+            [...frame.liveCharacters, ...(frame.futureCast || [])],
+            frame.characterExecution.deliveredKnowledge || []);
+        frame.characterContextBlock = personContext.text;
+        deps.noteDiagnostic?.('character_context_prepared', {module:'src/injection/character-context.js',status:'prepared',
+            knowledgeCount:personContext.moved.knowledge.length,itemCount:personContext.moved.items.length,
+            dependencyCount:personContext.moved.dependencies.length,deduplicatedKnowledgeCount:personContext.duplicateKnowledge});
         (frame.continuityBlock = deps.settings.continuityEnabled
-            ? deps.buildContinuityInjection(frame.continuityContext, frame.chosenContinuity,frame.chosenEventFollowups)
+            ? deps.buildContinuityInjection(personContext.scene, frame.chosenContinuity,frame.chosenEventFollowups)
             : '');
         if(deps.settings.continuityEnabled && frame.rec.repetitionGuard) {
             const review=repetitionInjection(frame.rec.repetitionGuard,{chat:deps.getContext().chat,chatKey:run.identity,excluded:frame.rec.nonRpOutputIndices || [],fingerprint:deps.stableFingerprint});
@@ -90,7 +98,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             ? frame.npcTargets[Number(frame.decisions.npc_target.slice(6))] || null : null);
         (frame.correctionSelection = selectExecutionCorrectionKeys(frame.decisions, frame.details));
         frame.characterDelivery={};
-        (frame.payload = deps.buildInjection({ delivery:frame.characterDelivery, settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', presentSheetNpcNames:frame.resolvedCharacters.filter(person=>person.kind==='npc'&&person.presence==='active'&&person.participationEvidence!=='continuing').map(person=>person.name), antagonistActors:selectActingAntagonists(frame.resolvedCharacters,{socialEnabled:frame.prefs.socialEnabled,selectedTargetId:frame.selectedSheetNpc?.id}), eventActors:frame.castBindings||[], storyDirection:frame.storyDirection, eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details, hasAdditions:Boolean(frame.additions?.length) }));
+        (frame.payload = deps.buildInjection({ delivery:frame.characterDelivery, settings: frame.prefs, decisions: frame.decisions, villainProfile: frame.staged.villainProfile, npcProfile: frame.selectedSheetNpc ? null : frame.staged.npcProfile, sheetNpcTarget: frame.selectedSheetNpc?.name || '', presentSheetNpcNames:frame.resolvedCharacters.filter(person=>person.kind==='npc'&&person.presence==='active'&&person.participationEvidence!=='continuing').map(person=>person.name), antagonistActors:selectActingAntagonists(frame.resolvedCharacters,{socialEnabled:frame.prefs.socialEnabled,selectedTargetId:frame.selectedSheetNpc?.id}), eventActors:frame.castBindings||[], storyDirection:frame.storyDirection, eventProfile: frame.staged.eventProfile, privatePrompt: frame.prefs.privatePromptEnabled ? deps.ownerPrompt() : '', characterBlock: frame.characterBlock, characterContextBlock: frame.characterContextBlock, sexualBlock:frame.sexualExecution.text, continuityBlock: frame.continuityBlock, sheetCastNames: frame.sheetCastNames, activeWorldName:frame.world?.name||'', correctionDetails:frame.details, hasAdditions:Boolean(frame.additions?.length) }));
         const activity=worldAgencyParts(frame.prefs,frame.decisions);
         frame.activitySummary={ids:activity.ids,progressBoost:frame.prefs.developmentStyle!=='static'&&frame.decisions.progress_boost==='yes',stalledTurns:frame.rec.progressionState?.turnsSinceMeaningfulProgress||0};
         deps.noteDiagnostic?.('scene_activity_prepared',{module:'src/injection/prepare.js',status:'prepared',...frame.activitySummary});
@@ -103,7 +111,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             frame.payload=frame.payload.slice(0,-2)+`\n\n${castText}\n)`;
             if(frame.characterDelivery.version===1)frame.characterDelivery.scenePayload=frame.characterDelivery.scenePayload.slice(0,-2)+`\n\n${castText}\n)`;
         }
-        const carried=storylineInjection(frame.rec);
+        const carried=storylineInjection(frame.rec, personContext.moved);
         if(carried){frame.payload=carried+'\n\n'+frame.payload;if(frame.characterDelivery.version===1)frame.characterDelivery.scenePayload=carried+'\n\n'+frame.characterDelivery.scenePayload;}
         frame.finalContinuityCacheKey=continuityCacheKey(frame.rec,deps.settings,deps.stableFingerprint);
         (frame.rawChoices = Object.fromEntries(Object.entries({...frame.worldRecordAnswers,...frame.data.answers}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));

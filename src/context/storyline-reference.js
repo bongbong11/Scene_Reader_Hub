@@ -20,9 +20,15 @@ export function storylineReference(record) {
     }
     return reference;
 }
-export function storylineInjection(record) {
+export function storylineInjection(record, represented = {}) {
     const reference=storylineReference(record);
     if(!reference)return '';
+    // Only remove exact selected copies already rendered in character context.
+    // Retrieval/judgment references and persisted carry-over remain untouched.
+    for(const [field,items] of [['confirmed_facts',represented.items],['knowledge',represented.knowledge]]) {
+        const copies=new Set((items || []).map(item=>JSON.stringify(item)));
+        reference[field]=reference[field].filter(item=>!copies.has(JSON.stringify(item)));
+    }
     return '[LINKED STORY — CONTINUATION REFERENCE]\n'+JSON.stringify(reference)+'\nDo not narrate this reference as a new event. Continue from current RP.';
 }
 export function inheritedStates(record,current=[]) {

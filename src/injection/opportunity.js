@@ -1,6 +1,5 @@
 import {BASE_RESPONSE,COMBINE_ADDITIONS,renderAddition,renderAdvancedEvent} from './opportunity-prompts.js';
 import {COMMON_META, ADDITION_META} from './assemble.js';
-import {negativePriorityInstruction} from './priority.js';
 import {buildAntagonistExecution} from './npc-execution.js';
 
 export function additionBlocks(additions,settings,hasOngoingEvent) {
@@ -17,8 +16,8 @@ export function incorporateAdditions(payload,blocks,settings) {
     if(!payload.startsWith(opening)||!payload.endsWith('\n)'))throw new Error('신규 전개 주입문 조립 형식을 확인하지 못했습니다.');
     // Explicit opening variant; no matching/replacing individual English rules.
     let output=ADDITION_META+payload.slice(opening.length);
-    const additionText=[BASE_RESPONSE,...blocks.map(x=>x.text),blocks.length>1?COMBINE_ADDITIONS:'',
-        negativePriorityInstruction(settings)].filter(Boolean).join('\n\n');
+    // Conflict priority is already present in fixedSceneSettings.
+    const additionText=[BASE_RESPONSE,...blocks.map(x=>x.text),blocks.length>1?COMBINE_ADDITIONS:''].filter(Boolean).join('\n\n');
     output=output.replace(/\n\)$/,'\n\n'+additionText+'\n)');
     if(!blocks.every(x=>output.includes(x.text)))throw new Error('선택한 신규 전개가 주입문에 포함되지 않았습니다.');
     return output;

@@ -351,7 +351,7 @@ const promptObserver=createPromptObserver({getContext,getChatKey:stateChatKey,
 const presetRequest=createPresetRequest({
     window,getContext,getCycle:()=>runtime.activeGenerationCycle,getChatKey:()=>stateChatKey(),isEnabled:()=>runtime.settings?.enabled,
     report:(...args)=>hub.report(...args),verifyRequest:promptObserver.verifyRequest,
-    isCharacterMacroEnabled:()=>ownerUnlocked()&&runtime.settings.characterMacroEnabled===true,
+    isCharacterMacroEnabled:()=>runtime.settings.characterMacroEnabled===true,
 });
 let {init} = createStartup({
     initVisibility:()=>{void visibility.check({notify:false});visibilityAdapter.init();},
@@ -944,7 +944,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.25',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.26',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

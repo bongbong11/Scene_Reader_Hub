@@ -146,7 +146,7 @@ export function applyContinuityVerdicts(continuity, candidates, decisions, { opp
     return { continuity: next, accepted };
 }
 
-export function buildContinuityInjection(selected, chosenFollowup = null, eventFollowups = []) {
+export function continuityLines(selected, chosenFollowup = null, eventFollowups = []) {
     const lines = [];
     const usable = (value, max) => { const text = String(value || '').trim(); return text && text.length <= max ? text : ''; };
     for (const item of selected?.items || []) {
@@ -164,5 +164,10 @@ export function buildContinuityInjection(selected, chosenFollowup = null, eventF
         const step=usable(item.data?.action,180);
         if(step&&item.id!==chosenFollowup?.id)lines.push(`Within the selected event, carry out its established next step: ${step}. This supports that event, not a second plot; do not claim an unseen completion.`);
     }
+    return lines;
+}
+
+export function buildContinuityInjection(selected, chosenFollowup = null, eventFollowups = []) {
+    const lines = continuityLines(selected, chosenFollowup, eventFollowups);
     return lines.length ? `<CONTINUITY_CONTEXT>\n${lines.join('\n')}\nTreat pressure as context, not a completed off-screen action.\n</CONTINUITY_CONTEXT>` : '';
 }

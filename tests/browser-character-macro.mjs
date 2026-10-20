@@ -7,12 +7,12 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     await page.reload();
     await page.locator('#sr-extension-open').evaluate(e=>e.closest('details').open=true);
     await page.locator('#sr-extension-open').click();
-    assert.equal(await page.locator('#sr-character-macro-panel').isVisible(),false,'ordinary users do not see the option');
-    store.settings.global.ownerUnlocked=true;
-    await page.reload();
-    await page.locator('#sr-extension-open').evaluate(e=>e.closest('details').open=true);
-    await page.locator('#sr-extension-open').click();
     await page.locator('#sr-settings-button').click();
+    assert.equal(await page.locator('#sr-character-macro-panel').isVisible(),true,'integration is available without developer unlock');
+    assert.equal(await page.locator('#sr-character-macro-panel').evaluate(e=>e.open),false,'integration starts collapsed');
+    assert.match(await page.locator('#sr-character-macro-panel summary').textContent(),/위브 프리셋 연동/);
+    assert.equal(await page.locator('#sr-character-macro-panel').evaluate(e=>Boolean(e.closest('.sr-developer-lock'))),false);
+    assert.equal(await page.locator('#sr-owner-card').isVisible(),false,'other developer features remain locked');
     await page.locator('#sr-character-macro').evaluate(e=>e.closest('details').open=true);
     await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-macro').check()]);
     assert.equal(store.settings.global.characterMacroEnabled,true);
@@ -26,7 +26,7 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     for(const width of [390,1280]) {
         await setViewportSize({width,height:850});
         const box=await page.locator('#sr-character-macro-panel').boundingBox();
-        assert.ok(box.width>0 && box.x>=0 && box.x+box.width<=width+1,'developer option stays inside the mobile/desktop dialog');
+        assert.ok(box.width>0 && box.x>=0 && box.x+box.width<=width+1,'integration stays inside the mobile/desktop dialog');
     }
     await page.locator('#sr-injection-mode').evaluate(e=>e.closest('details').open=true);
     await page.locator('#sr-injection-mode').selectOption('depth');
@@ -97,5 +97,5 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     assert.ok(full(off.body).includes(selected));
     assert.ok(!full(off.body).includes('[SCENE_READER_CHARACTER]'));
     assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length,countBefore,'switching delivery and rendering macros never judges again');
-    console.log('Browser character macro passed: creator lock, saved setting, mobile/desktop bounds, actual request placement, duplicated/missing/off modes, all regeneration types and zero extra Jev calls.');
+    console.log('Browser character macro passed: unlocked collapsible integration, separate developer lock, saved setting, mobile/desktop bounds, actual request placement, duplicated/missing/off modes, all regeneration types and zero extra Jev calls.');
 }

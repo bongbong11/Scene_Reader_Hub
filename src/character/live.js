@@ -228,7 +228,8 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
             // Source text remains available to Jev. Do not copy non-English
             // reference prose into the English execution prompt.
             if (item.type !== 'raw_message' && /[가-힣]/u.test(item.text)) continue;
-            chosen.push({ priority: 60, text: contextLine(person, item) });
+            chosen.push({ priority: 60, text: contextLine(person, item),
+                ...(item.type === 'acquired_knowledge' && !person.presenceUncertain ? { knowledge: item } : {}) });
         }
         if (!person.recordMode && person.direction !== 'none') chosen.push({ priority: 50, text: `${person.name} · Direction: ${DIRECTIONS[person.direction]}` });
         chosen.sort((a,b)=>b.priority-a.priority);
@@ -277,6 +278,7 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         trace.omittedMandatoryCount = mandatory.filter(item=>item.personIndex===trace.index && !includedItems.includes(item)).length;
     }
     const text=lines.length ? `<CHARACTER_EXECUTION>\n${CHARACTER_INJECTION_PREAMBLE}\n${lines.join('\n')}\n</CHARACTER_EXECUTION>` : '';
-    return { text, traces, charCount:text.length, charLimit:maxChars };
+    return { text, traces, charCount:text.length, charLimit:maxChars,
+        deliveredKnowledge:includedItems.filter(item=>item.knowledge).map(item=>item.knowledge) };
 }
 export { CHARACTER_LIVE_SYSTEM };
