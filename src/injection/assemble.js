@@ -273,7 +273,7 @@ export const SCENE_FOCUS_LABELS = {
     villain: 'the selected antagonist involvement', continuity: 'the selected continuity consequence',
 };
 
-export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], storyDirection = null, activeWorldName = '', correctionDetails = {}, hasAdditions = false }) {
+export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], storyDirection = null, activeWorldName = '', correctionDetails = {}, hasAdditions = false, delivery = null }) {
     if (settings.developmentStyle) settings = normalizeDevelopmentPreferences(settings);
     const agency = worldAgencyParts(settings, decisions);
     const boosting = settings.developmentStyle!=='static' && decisions.progress_boost==='yes';
@@ -366,9 +366,14 @@ Answer the current interaction through character-consistent speech, a decision, 
     const existingConflict = fightBlocks.length || ['tension','active'].includes(decisions.conflict_state);
     if (existingConflict || agency.conflict) blocks.push(`<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[existingConflict ? L.CONFLICT_EXECUTION : '', ...fightBlocks, agency.conflict].filter(Boolean).join('\n\n')}\n</CONFLICT_PROGRESSION>`);
 
+    const characterStart=blocks.length;
     if (String(characterBlock || '').trim()) blocks.push('<SHEET_CAST_SCOPE>The following records constrain their named people within the selected scene. Scene directions do not overwrite these facts; the records do not cancel compatible progression.</SHEET_CAST_SCOPE>', String(characterBlock).trim());
     if (String(sexualBlock || '').trim()) blocks.push(String(sexualBlock).trim());
+    const characterEnd=blocks.length;
     if (corrections.length) blocks.push(`<EXECUTION_CORRECTION>\nRepair these issues in the selected scene within character limits; do not revive a superseded route or add an independent task.\n${corrections.join('\n')}\n</EXECUTION_CORRECTION>`);
 
-    return `${hasAdditions ? ADDITION_META : COMMON_META}\n\n${blocks.join('\n\n')}\n\n${META_CLOSE}\n)`;
+    const compose=items=>`${hasAdditions ? ADDITION_META : COMMON_META}\n\n${items.join('\n\n')}\n\n${META_CLOSE}\n)`;
+    if(delivery)Object.assign(delivery,{version:1,text:blocks.slice(characterStart,characterEnd).join('\n\n'),
+        scenePayload:compose([...blocks.slice(0,characterStart),...blocks.slice(characterEnd)])});
+    return compose(blocks);
 }

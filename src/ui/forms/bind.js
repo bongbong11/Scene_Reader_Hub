@@ -97,6 +97,12 @@ function bindForm() {
         const selected = Object.keys(deps.ADVANCED_ELEMENTS).filter((item) => deps.document.getElementById(`sr-advanced-${item}`)?.checked);
         deps.runUiTask(deps.savePreference('advancedElements', selected));
     });
+    deps.document.getElementById('sr-character-macro')?.addEventListener('change',event=>deps.runUiTask((async()=>{
+        if(!deps.ownerUnlocked()){event.target.checked=false;return;}
+        await deps.saveGlobal('characterMacroEnabled',event.target.checked);
+        deps.renderAll();
+    })(),'인물 매크로 설정을 저장하지 못했습니다.'));
+    deps.document.getElementById('sr-character-macro-copy')?.addEventListener('click',()=>{if(deps.ownerUnlocked())deps.runUiTask(deps.copyText('{{scene-reader-character}}'));});
     deps.document.getElementById('sr-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveInjectionMode(event.target.value)));
     deps.document.getElementById('sr-world-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveWorldInjectionMode(event.target.value)));
     deps.document.getElementById('sr-relationship-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('relationshipPace', event.target.value)));
@@ -124,6 +130,8 @@ function bindForm() {
         await deps.saveGlobal('ownerUnlocked', true);
         if (input) input.value = '';
         deps.renderOwnerMode();
+        const macroInput=deps.document.getElementById('sr-character-macro');
+        if(macroInput)macroInput.checked=deps.settings.characterMacroEnabled===true;
         notifySceneReaderToast(deps.window, 'success', '개발자 모드를 열었습니다.', '씬판독기');
     };
     deps.document.getElementById('sr-owner-unlock')?.addEventListener('click', () => deps.runUiTask(unlockOwner(), '잠금을 해제하지 못했습니다.'));

@@ -8,7 +8,7 @@ async function init() {
     delete deps.settings.continuityInterval;delete deps.settings.collectPersonaChanges;
     delete deps.settings.characterReviewPrompt;
     delete deps.settings.pauseOnOoc;
-    for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
+    for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'characterMacroEnabled', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
     deps.settings.recentTurns = recentTurnCount(deps.settings);
     deps.extension_settings[deps.MODULE] = deps.settings;
     deps.saveSettingsDebounced();

@@ -1,3 +1,4 @@
+import {checkCharacterMacro} from './browser-character-macro.mjs';
 import {checkWorldAgency} from './browser-world-agency.mjs';
 import {checkRecordFiles} from './browser-record-files.mjs';
 import {checkRoomBackups} from './browser-room-backups.mjs';
@@ -132,7 +133,7 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#scene-reader-quick-button').waitFor();
     await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
-    if(process.env.SR_BROWSER_CASE==='record-files'){await checkRecordFiles(page,store,setViewportSize);assert.deepEqual(errors,[]);console.log('Record-file browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='opportunity'){await page.locator('#scene-reader-quick-button').click();await checkOpportunitySettings(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Opportunity-only browser checks passed.');}else{
+    if(process.env.SR_BROWSER_CASE==='character-macro'){await checkRecordProtection(page,store,requests,review=>{recordReview=review;});await checkCharacterMacro(page,store,requests,setViewportSize);assert.deepEqual(errors,[]);}else if(process.env.SR_BROWSER_CASE==='record-files'){await checkRecordFiles(page,store,setViewportSize);assert.deepEqual(errors,[]);console.log('Record-file browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='opportunity'){await page.locator('#scene-reader-quick-button').click();await checkOpportunitySettings(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Opportunity-only browser checks passed.');}else{
     const inferenceRequests=()=>requests.filter(item=>/systemone|\/api\/vector\/|chat-completions\/generate/.test(item.url)).length;
     assert.equal(inferenceRequests(),0,'startup performs no inference or embedding');
     assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
@@ -1026,6 +1027,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await checkCompilerCopies(page,requests,store);
     await checkBundlesAndProviders(page,store,requests,root,setViewportSize);
     await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
+    await checkCharacterMacro(page,store,requests,setViewportSize);
     await checkRecoverySettings(page,store,requests,setViewportSize);
     await checkOpportunitySettings(page,store,requests,setViewportSize,root);
     await checkWorldAgency(page,store,requests,setViewportSize,root);

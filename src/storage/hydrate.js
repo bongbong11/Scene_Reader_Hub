@@ -45,7 +45,7 @@ async function hydrateServerState({ migrate = true } = {}) {
         delete deps.settings.pauseOnOoc;
         delete deps.settings.jevProvider;
         if (deps.settings.commonPreferences) deps.settings.commonPreferences=commonPreferences(deps.settings.commonPreferences);
-        for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
+        for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'characterMacroEnabled', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
         deps.settings.recentTurns = recentTurnCount(deps.settings);
         deps.extension_settings[deps.MODULE] = deps.settings;
     } else if (migrate) await deps.saveServerSettings();

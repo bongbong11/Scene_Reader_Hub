@@ -27,6 +27,7 @@ export const DEFAULTS = {
     recentTurns: 3,
     showConfidence: true,
     ownerUnlocked: false,
+    characterMacroEnabled: false,
     continuityEnabled: false,
     reasonerProfileId: '',
     retrievalProvider: 'transformers',
