@@ -3,7 +3,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {createRequire} from 'node:module';
-import {backupSource,backupLabel,backupFilename,backupsForRoom} from '../src/storage/backup-label.js';
+import {backupSource,backupLabel,backupFilename,backupsForRoom,backupsForCharacter} from '../src/storage/backup-label.js';
 import {createResults} from '../src/ui/results.js';
 const require=createRequire(import.meta.url);
 const labels=require('../server-plugin/storage/backup-label.cjs');
@@ -22,6 +22,7 @@ assert.deepEqual(backupsForRoom(listed,context),[sample]);
 assert.deepEqual(backupsForRoom(listed,{chatId:null}),listed);
 assert.deepEqual(backupsForRoom(listed,{...context,chatId:'empty'}),[]);
 assert.deepEqual(backupsForRoom(listed,{chatId:source.chatName}),[]);
+assert.ok(backupsForCharacter(listed,{...context,characterId:0,characters:[{name:source.characterName,avatar:'Imported-copy.png'}]}).includes(sample),'same-name imported character backups stay discoverable; restore checks identity separately');
 
 // A loading/failed room must never render even a cached room's result or payload.
 let ready=false;

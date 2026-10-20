@@ -18,8 +18,10 @@ export function createPagedTransport(post,{noteDiagnostic}={}) {
  }
  async function select(key,path,{signal}={}){const response=await post('v2/read',{keys:[key],paths:{[key]:path}},{signal}),meta=response.documents[key];revisions.set(key,meta?.revision||0);return meta?.value??null;}
  async function writeMany(writes,{signal,operationId,prepare}={}) {
-  operationId ||=digest(writes.map(item=>[item.key,item.value,revisions.get(item.key)||0]));
   const descriptors=writes.map(item=>({key:item.key,expectedRevision:item.expectedRevision ?? revisions.get(item.key)??0,immutable:item.immutable===true}));
+  // Match the exact transaction, including revisions supplied by bootstrap.
+  // A cold cache after reload/restore must not reuse an older transaction ID.
+  operationId ||=digest(['paged-write-v2',descriptors,writes.map(item=>item.value)]);
   const prior=await post('v2/operations/begin',{operationId,writes:descriptors},{signal});
   if(prior.operation.status==='committed'){for(const [key,meta]of Object.entries(prior.operation.results))revisions.set(key,meta.revision);return prior.operation;}
   const roots={},known=new Set();

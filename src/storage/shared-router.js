@@ -100,7 +100,8 @@ export function createSharedRouter(deps) {
             if(fresh.revision!==view.story.revision||fresh.epoch!==view.link.epoch||fresh.activeChatRef!==chatRef(chatKey))throw fail('STORYLINE_REVISION_CONFLICT','이야기가 바뀌었습니다. 다시 불러온 뒤 자료를 저장해 주세요.');
             const projection=projectBaseline({characters:value,preferences:options.preferences || view.baseline.defaultPreferences,world:options.world || view.asset.world});
             if(projection.assetId===view.baseline.assetId && digest(projection.defaultPreferences)===digest(view.baseline.defaultPreferences))return {ok:true};
-            let revision=view.baseline.revision+1;
+            const previousHead=(await documents.read('baseline_head',view.baseline.id,{fresh:true}))?.data;
+            let revision=Math.max(view.baseline.revision,previousHead?.revision||0,...(previousHead?.revisions||[]))+1;
             // Other stories can still use an older version of the same baseline.
             // Never reuse their immutable version IDs when editing this story.
             while(await documents.read('baseline',view.baseline.id+':'+revision,{fresh:true}))revision++;
@@ -109,7 +110,6 @@ export function createSharedRouter(deps) {
             await documents.write('baseline',baseline.id+':'+revision,baseline,{revision});
             if(epoch!==started)throw fail('STORAGE_STALE_CHAT','복원 후 이전 자료 갱신을 중단했습니다.');
             const story={...fresh,baselineRevision:revision,revision:fresh.revision+1};
-            const previousHead=(await documents.read('baseline_head',baseline.id,{fresh:true}))?.data;
             const committedRevisions=[...new Set([...(previousHead?.revisions||[view.baseline.revision]),revision])];
             const headKey=documentKey('baseline_head',baseline.id);
             const headWrite={key:headKey,value:envelope('baseline_head',baseline.id,{baselineId:baseline.id,revision,revisions:committedRevisions}),expectedRevision:documents.paged.revision(headKey)};
@@ -133,7 +133,7 @@ export function createSharedRouter(deps) {
             if(data.storageV2?.scope&&data.storageV2.scope!==userScope){clear();userScope=data.storageV2.scope;setWorldScope(userScope);}
             try{const result=await resolve(body.chatKey,data);if(result.settings?.worldCatalog)result.settings=await worlds.hydrate(result.settings,result.chat?.preferences?.selectedWorldId,options);return result;}catch(error){report('load','failed',error.code);if(options.allowFailure)return null;throw error;}
         }
-        if(['backup/restore','backup/import','v2/backup/restore','v2/backup/import/finish'].includes(route)){clear();const result=await deps.post(route,body,options);clear();return result;}
+        if(['backup/restore','backup/import','v2/backup/restore','v2/backup/restore-room','v2/backup/import/finish','v2/story/delete'].includes(route)){clear();const result=await deps.post(route,body,options);clear();return result;}
         const view=views.get(body.chatKey);
         const incoming=body.chat || body.value;
         if(!view?.link && ['chat','transaction','history','characters'].includes(route) && (incoming?.sharedSource || deps.chatRecords?.get(body.chatKey)?.sharedSource))throw fail('SHARED_NOT_READY','연결 자료를 다시 불러온 뒤 저장해 주세요.');

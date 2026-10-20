@@ -4,6 +4,7 @@ import {normalizeChance} from '../../scene/opportunity-settings.js';
 import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
 import {backupSource, backupFilename} from '../../storage/backup-label.js';
 import {openBackupCharacters} from '../backup-characters.js';
+import {openBackupRestore} from '../backup-restore.js';
 import {bindEmbeddingMaintenance} from '../embedding-maintenance.js';
 import {wholeDiagnosticReport} from '../../debug/whole-report.js';
 import {vaultDiagnosticReport} from '../../integration/vault-diagnostics.js';
@@ -506,9 +507,11 @@ function bindForm() {
         const id = backupButton.dataset.backupId;
         deps.runUiTask((async () => {
             if (action === 'restore') {
-                deps.invalidateReasonerJobs();
-                const data = await deps.storagePost('backup/restore', { id, source:backupSource(deps.getContext()) }); deps.backupList = data.backups || [];
-                await deps.hydrateServerState({ migrate: false }); deps.setFormValues(); deps.renderAll();
+                const data = await openBackupRestore({document:deps.document,post:deps.storagePost,getContext:deps.getContext,invalidate:deps.invalidateReasonerJobs},id);
+                if(!data)return;
+                deps.backupList = data.backups || [];
+                try{await deps.hydrateServerState({ migrate: false }); deps.setFormValues(); deps.renderAll();}
+                catch(error){throw Object.assign(new Error('백업은 복원됐지만 화면에서 자료를 다시 불러오지 못했어요. 다시 복원하지 말고 새로고침해 주세요.'),{code:'RESTORE_RELOAD_FAILED',cause:error});}
                 notifySceneReaderToast(deps.window, 'success', '백업을 복원했습니다. 복원 직전 상태도 자동 백업했습니다.', '씬판독기');
             } else if (action === 'download') {
                 const data = await deps.storagePost('backup/export', { id });const item=deps.backupList.find(item=>item.id===id)||{id};if(data.stream)downloadStoredFile(deps.document,'backup/download',{id},backupFilename(item));else deps.downloadJson(backupFilename(data.snapshot,'json'), data.snapshot);
@@ -521,6 +524,7 @@ function bindForm() {
             }
         })(), '백업 작업에 실패했습니다.');
     });
+    deps.document.getElementById('sr-backup-scope')?.addEventListener('change',()=>deps.renderBackups());
     deps.document.getElementById('sr-backup-create')?.addEventListener('click', () => deps.runUiTask((async () => {
         await deps.saveServerSettings(); await deps.saveServerChat(); await deps.saveCharacterStore();
         const data = await deps.storagePost('backup/create',{source:backupSource(deps.getContext())}); deps.backupList = data.backups || []; deps.renderBackups();

@@ -39,7 +39,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.27');
+assert.equal(manifest.version, '0.2.28');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -49,7 +49,7 @@ assert.match(library, /If a new-event route fails, an existing event, relationsh
 assert.match(library, /A registered person being active does not prohibit another suitable NPC from entering/);
 assert.equal(pkg.main, 'index.js');
 assert.equal(pluginPkg.main, 'index.cjs');
-assert.equal(pluginPkg.version, '0.9.0');
+assert.equal(pluginPkg.version, '0.10.0');
 assert.match(source, /GENERATION_AFTER_COMMANDS/);
 assert.match(source, /extensionsMenu/);
 assert.match(source, /id = 'scene-reader-quick-button'/);
@@ -127,7 +127,8 @@ assert.match(source, /window\.indexedDB\.open\(STATE_DB_NAME, 1\)/);
 assert.match(source, /STATE_HISTORY_LIMIT = 12/);
 assert.match(source, /STORAGE_API_URL = '\/api\/plugins\/scene-reader-jev\/storage'/);
 assert.match(source, /storagePost\('characters'/);
-assert.match(source, /storagePost\('backup\/restore'/);
+assert.match(source, /post\('backup\/restore'/);
+assert.match(source, /post\('v2\/backup\/restore-room'/);
 assert.match(source, /event_types\.MESSAGE_SWIPED/);
 assert.match(source, /event_types\.MESSAGE_EDITED/);
 assert.match(source, /event_types\.MESSAGE_DELETED/);

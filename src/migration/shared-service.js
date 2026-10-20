@@ -193,6 +193,12 @@ export function createSharedService(deps,router) {
             await router.updateBaseline(chatKey,characters,{preferences,world});
         });
     }
+    async function inspectDeletion(storylineId){
+        const capabilities=await rawPost('v2/capabilities');
+        if(!capabilities.features?.includes('story-delete'))throw fail('STORAGE_UPDATE_REQUIRED','이야기 자료를 삭제하려면 서버 플러그인을 업데이트해 주세요.');
+        return rawPost('v2/story/delete-preview',{storylineId,chatKey:key()});
+    }
+    async function deleteStory(storylineId,token){return operation('delete_story',({chatKey})=>router.post('v2/story/delete',{storylineId,chatKey,token,confirm:true,source:backupSource(deps.getContext())}));}
     async function inspect() {
         const chatKey=key(),view=router.views.get(chatKey);
         if(!view)return {status:'unavailable'};
@@ -207,6 +213,6 @@ export function createSharedService(deps,router) {
         return {status:hasLegacyMaterial(view.legacy?.chat,view.legacy?.characters)?'legacy':stories.length?'choose':'empty',stories:clone(stories),deferred:data.deferred.includes(chatRef(chatKey)),legacyOptOut};
     }
     async function migrateAll(){if(allController||active)throw fail('SHARED_OPERATION_BUSY','자료 이사를 마친 뒤 다시 시도하세요.');if(deps.isStorageActionBlocked?.())throw fail('SHARED_GENERATION_BUSY','생성과 판독을 마치거나 취소한 뒤 자료를 옮겨 주세요.');const controller=new AbortController(),started=key();allController=controller;try{deps.invalidateReasonerJobs?.();await deps.clearInjection?.({chatKey:started});await account.start();controller.signal.throwIfAborted();await importLegacyBrowserWorlds({signal:controller.signal});controller.signal.throwIfAborted();if(started!==key())throw fail('STORAGE_STALE_CHAT','채팅이 바뀌었습니다. 옮긴 자료는 그대로 보관됩니다.');if(deps.getContext().chatId&&deps.chatReadyKey===key()&&!router.views.get(key())?.link&&hasLegacyMaterial(deps.record(),deps.characterStore))await migrate();return account.inspect({fresh:true});}finally{if(allController===controller)allController=null;}}
-    return {migrate,migrateAll,account,connect,restore,updateBaseline,inspect,catalog,defer,scope:()=>router.scope?.(),importBrowserWorlds:()=>operation('browser_world_import',()=>importLegacyBrowserWorlds()),cleanStaging:()=>rawPost('v2/maintenance/cleanup'),isBusy:()=>Boolean(active)||Boolean(allController)||account.isBusy(),cancel:()=>{allController?.abort(new DOMException('Cancelled','AbortError'));active?.abort(new DOMException('Cancelled','AbortError'));account.cancel();},
+    return {migrate,migrateAll,account,connect,restore,updateBaseline,inspect,catalog,defer,inspectDeletion,deleteStory,scope:()=>router.scope?.(),importBrowserWorlds:()=>operation('browser_world_import',()=>importLegacyBrowserWorlds()),cleanStaging:()=>rawPost('v2/maintenance/cleanup'),isBusy:()=>Boolean(active)||Boolean(allController)||account.isBusy(),cancel:()=>{allController?.abort(new DOMException('Cancelled','AbortError'));active?.abort(new DOMException('Cancelled','AbortError'));account.cancel();},
         snapshot:()=>({linked:Boolean(router.metadata(key())),active:router.metadata(key())?.active===true,busy:Boolean(active)||Boolean(allController)||account.isBusy()})};
 }

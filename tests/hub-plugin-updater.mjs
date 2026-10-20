@@ -28,5 +28,11 @@ try{
     const newCopy=path.join(root,'backups','new-copy');await rename(plugin,newCopy);await rename(result.backup,plugin);
     assert.equal(await readFile(path.join(plugin,'index.cjs'),'utf8'),'old','code rollback without data changes');
     await install({root,manifest,getFile:async name=>files[name]});assert.equal(await readFile(path.join(plugin,'index.cjs'),'utf8'),files['index.cjs'].toString());
+    const releaseManifest=JSON.parse(await readFile(new URL('../downloads/plugin-manifest.json',import.meta.url),'utf8'));
+    const release=await install({root,manifest:releaseManifest,getFile:async name=>Buffer.from((await readFile(new URL('../server-plugin/'+name,import.meta.url),'utf8')).replaceAll('\r\n','\n'))});
+    assert.equal(release.version,releaseManifest.version);
+    for(const file of releaseManifest.files)assert.equal(hash(await readFile(path.join(plugin,file.path))),file.sha256);
+    await assert.rejects(readFile(path.join(plugin,'retrieval','test.cjs')),{code:'ENOENT'},'replacement removes obsolete code rather than accumulating old modules');
+    assert.equal(await readFile(path.join(root,'data','secret'),'utf8'),'preserve');
     console.log('Plugin updater passed: verified replacement, failed download preservation, path rejection, isolated backup, unchanged data/other plugins and rollback/reinstall.');
 }finally{await rm(root,{recursive:true,force:true});}

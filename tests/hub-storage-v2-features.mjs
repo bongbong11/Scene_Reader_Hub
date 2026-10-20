@@ -27,6 +27,22 @@ const post=async(route,body={})=>{calls.push({route,body});
  throw new Error('Unexpected route '+route);
 };
 try{
+ // Bootstrap supplies explicit revisions without warming the transport cache.
+ const sessionKey='legacy:sessions/'+paths.hash('reload-regression')+'.json';
+ const savedSession={chat:{marker:'restored'},history:[]};
+ const saveReloadedSession=async()=>{
+  const revision=(await tx.entry(root,sessionKey))?.revision||0;
+  return createPagedTransport(post).writeMany([{key:sessionKey,value:savedSession,expectedRevision:revision}]);
+ };
+ await saveReloadedSession();
+ await saveReloadedSession();
+ const backupApi=require('../server-plugin/storage/backups.cjs');
+ const snapshot=await backupApi.capture(root);
+ await tx.writeDocument(root,sessionKey,{chat:{marker:'after-backup'},history:[]});
+ await backupApi.restore(root,snapshot);
+ await saveReloadedSession();
+ assert.deepEqual((await tx.readDocuments(root,[sessionKey])).documents[sessionKey].value,savedSession,'restored data can be saved after reloading with a cold revision cache');
+ await assert.rejects(createPagedTransport(post).writeMany([{key:sessionKey,value:{chat:{marker:'stale'}},expectedRevision:1}]),{code:'STORAGE_CONFLICT'},'real stale writes must still fail');
  const source={global:{enabled:true},worlds:Array.from({length:120},(_,i)=>({id:'custom-world-'+i,name:'Synthetic world '+i,hint:'Synthetic scope',prompt:i===119?'Large world body '.repeat(80000):'World source '+i}))};
  const settings=await worlds.project(root,source);await tx.writeDocument(root,'legacy:settings.json',settings);
  setWorldScope('synthetic-user-one');const paged=createPagedTransport(post),library=createWorldLibrary({paged,post});
@@ -56,6 +72,11 @@ try{
  await backend('settings',{settings:{global:{enabled:true},worlds:[]}});const chatKey='character-avatar:Synthetic.png|chat:one',record={preferences:{selectedWorldId:'current'},continuity:{items:[]},lastJudgment:null};let characters={enabled:true,characters:[],npcs:[],persona:null,recordGroups:[]};await backend('transaction',{chatKey,chat:record,history:[]});await backend('characters',{chatKey,value:characters});
  const router=createSharedRouter({post:backend,noteDiagnostic:()=>{},queueWrite:(_key,task)=>task(),stateChatKey:()=>chatKey,getContext:()=>({chatId:'one',chat:[]}),stableFingerprint:paths.hash,chatRecords:new Map([[chatKey,record]])});const service=createSharedService({stateChatKey:()=>chatKey,getContext:()=>({chatId:'one',chat:[]}),chatReadyKey:chatKey,record:()=>record,get characterStore(){return characters;},selectedWorld:()=>({id:'current'}),stableFingerprint:paths.hash},router);await router.post('bootstrap',{chatKey});await service.migrate();const view=router.views.get(chatKey),head=await router.documents.read('baseline_head',view.baseline.id,{fresh:true});characters={...characters,enabled:false};rejectActivation=true;await assert.rejects(router.updateBaseline(chatKey,characters));assert.equal((await router.documents.read('baseline_head',view.baseline.id,{fresh:true})).data.revision,head.data.revision,'failed activation keeps prior baseline default');assert.equal((await backend('bootstrap',{chatKey})).chat.sharedLinkV1.baselineRevision,1);
  assert.deepEqual((await router.documents.read('baseline_head',view.baseline.id,{fresh:true})).data.revisions,[1],'failed staged baseline is not offered as a committed version');await router.updateBaseline(chatKey,characters);assert.deepEqual((await router.documents.read('baseline_head',view.baseline.id,{fresh:true})).data.revisions,[1,3]);const unsupported=await backend('bootstrap',{chatKey,storageProtocol:1},{allowFailure:true});assert.equal(unsupported,null,'old extension cannot read or overwrite partially expanded modern data');
+ // A pruned gap must not reuse an older baseline version number.
+ await router.documents.write('baseline',view.baseline.id+':9',{...view.baseline,revision:9},{revision:9});
+ await router.documents.write('baseline_head',view.baseline.id,{baselineId:view.baseline.id,revision:9,revisions:[3,9]});
+ await router.updateBaseline(chatKey,{...characters,enabled:true});
+ assert.equal((await router.documents.read('baseline_head',view.baseline.id,{fresh:true})).data.revision,10,'new versions advance beyond the latest baseline even when old versions were pruned');
  const independent='character-avatar:Synthetic.png|chat:independent';await backend('transaction',{chatKey:independent,chat:{marker:'initial'},history:[]});const makeReader=()=>createSharedRouter({post:backend,queueWrite:(_key,task)=>task(),chatRecords:new Map()});const readerA=makeReader(),readerB=makeReader();await readerA.post('bootstrap',{chatKey:independent});await readerB.post('bootstrap',{chatKey:independent});await readerA.post('transaction',{chatKey:independent,chat:{marker:'newer'},history:[]});await assert.rejects(readerB.post('transaction',{chatKey:independent,chat:{marker:'stale'},history:[]}),{code:'STORAGE_CONFLICT'});assert.equal((await backend('bootstrap',{chatKey:independent})).chat.marker,'newer','independent room writes also reject stale-device versions');await assert.rejects(backend('transaction',{chatKey:independent,chat:{marker:'old-extension'},history:[],storageProtocol:1}),{code:'STORAGE_SCHEMA_UNSUPPORTED'});assert.equal((await backend('bootstrap',{chatKey:independent})).chat.marker,'newer','an already-open old extension cannot overwrite an unlinked migrated room');
  if(process.platform==='win32'){const fs=require('node:fs/promises'),rename=fs.rename,file=paths.location(root,'operations',paths.hash('windows-replacement'));await paths.atomic(root,file,JSON.stringify({value:'before'}));let failures=0;fs.rename=async(...args)=>{if(args[1]===file&&failures++<2)throw Object.assign(new Error('Synthetic temporary lock'),{code:'EPERM'});return rename(...args);};try{await paths.atomic(root,file,JSON.stringify({value:'after'}));assert.equal((await paths.read(file)).value,'after');}finally{fs.rename=rename;}fs.rename=async(...args)=>{if(args[1]===file)throw Object.assign(new Error('Synthetic full disk'),{code:'ENOSPC'});return rename(...args);};try{await assert.rejects(paths.atomic(root,file,JSON.stringify({value:'lost'})),{code:'ENOSPC'});assert.equal((await paths.read(file)).value,'after','failed replacement leaves original intact');}finally{fs.rename=rename;}}
  console.log('Storage feature checks passed: global world versions/tombstones/selective reads, browser source import, scoped caches and migration state, exact sizes and expansion bounds, cancelled writes, paged incremental embedding, protected staging cleanup, fixed core, committed-only baseline versions and atomic activation.');

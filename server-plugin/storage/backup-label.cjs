@@ -1,5 +1,5 @@
 const text=value=>typeof value==='string'?value.replace(/[\x00-\x1f\x7f]/g,'').trim().slice(0,100).replace(/[\uD800-\uDFFF]/gu,''):'';
-function source(value){return {characterName:text(value?.characterName),chatName:text(value?.chatName)};}
+function source(value){return {characterName:text(value?.characterName),chatName:text(value?.chatName),...(typeof value?.chatKey==='string'&&value.chatKey.length<=512&&/^(?:character-avatar:|character:|group:).+\|chat:.+$/.test(value.chatKey)&&!/[\\\x00-\x1f\x7f]/.test(value.chatKey)?{chatKey:value.chatKey}:{})};}
 function filename(backup){
  const value=source(backup.source),name=[value.characterName,value.chatName].filter(Boolean).join(' · ')||'이름 정보 없는 백업';
  return `${Array.from(name.replace(/[<>:"/\\|?*]/g,'_')).slice(0,40).join('')} · 전체 백업 · ${text(backup.id)||'backup'}.srbackup`;

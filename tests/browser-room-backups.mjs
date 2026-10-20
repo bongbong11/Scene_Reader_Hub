@@ -51,5 +51,55 @@ export async function checkRoomBackups(page,setViewportSize) {
     });
     assert.equal(passive.migrations,0,'room visits never auto-migrate or create their backups');
     assert.equal(passive.inspections,2);assert.equal(passive.available,true);
+    await page.evaluate(async()=>{
+        const {openBackupRestore}=await import('/scripts/extensions/third-party/Scene_Reader_Hub/src/ui/backup-restore.js');
+        window.restoreCalls=[];window.restoreInvalidated=0;
+        window.restoreResult=openBackupRestore({document,getContext:()=>({chatId:'new-room',name2:'Synthetic',characterId:0,characters:[{avatar:'Synthetic.png'}]}),invalidate:()=>window.restoreInvalidated++,
+            post:async(route,body)=>{
+                window.restoreCalls.push({route,body});
+                if(route==='v2/capabilities')return {features:['room-backup-restore']};
+                if(route==='v2/backup/rooms')return {rooms:[{ref:'a'.repeat(64),title:'Earlier room',sameOwner:true},{ref:'b'.repeat(64),title:'Other character',sameOwner:false}]};
+                if(!body.confirmOwner&&body.sourceRef==='b'.repeat(64))throw new Error('가져올 자료를 확인해 주세요.');
+                return {restored:true};
+            }},'synthetic');
+    });
+    const recovery=page.locator('dialog.sr-story-dialog[open]');
+    await recovery.getByRole('heading',{name:'백업 복원',exact:true}).waitFor();
+    assert.equal(await recovery.getByRole('checkbox').count(),0,'same-owner recovery does not show the cross-character confirmation');
+    for(const width of [320,390,1280]){
+        await setViewportSize({width,height:850});
+        assert.equal(await recovery.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true);
+    }
+    await recovery.getByLabel('복구할 원본 방').selectOption('b'.repeat(64));
+    await recovery.getByRole('button',{name:'이 방으로 복원',exact:true}).click();
+    await recovery.getByRole('alert').filter({hasText:'가져올 자료를 확인'}).waitFor();
+    await recovery.getByRole('checkbox').check();
+    await recovery.getByRole('button',{name:'이 방으로 복원',exact:true}).click();
+    assert.equal((await page.evaluate(()=>window.restoreResult)).restored,true);
+    assert.equal(await recovery.count(),0);
+    assert.equal(await page.evaluate(()=>window.restoreCalls.some(call=>call.route==='backup/restore')),false,'room recovery never invokes all-room restore');
+    await page.evaluate(async()=>{
+        const {createSharedStorageUi}=await import('/scripts/extensions/third-party/Scene_Reader_Hub/src/ui/shared-storage.js');
+        window.storyDeleted=false;
+        window.storyUi=createSharedStorageUi({document,chatKey:()=>ctx.chatId,ready:()=>true,isBusy:()=>true,record:()=>null,notify:()=>{},hydrate:async()=>{},refresh:()=>{},
+            service:{inspect:async()=>({status:'choose'}),catalog:async()=>({stories:[{id:'synthetic',title:'Earlier story'}]}),
+                inspectDeletion:async()=>({title:'Earlier story',rooms:[{title:'Earlier room'}],token:'synthetic'}),
+                deleteStory:async()=>{window.storyDeleted=true;return {deleted:true};},cancel(){},account:{inspect:async()=>({status:'cleaned'})}}});
+        await window.storyUi.open('connect');
+    });
+    await recovery.getByRole('button',{name:'이어가기',exact:true}).waitFor();
+    await recovery.getByText('이야기 정리',{exact:true}).click();
+    await recovery.getByRole('button',{name:'선택한 이야기 삭제…',exact:true}).click();
+    await recovery.getByRole('heading',{name:'이야기 자료 삭제',exact:true}).waitFor();
+    await recovery.getByRole('button',{name:'이야기 삭제',exact:true}).click();
+    assert.equal(await page.evaluate(()=>window.storyDeleted),false,'no story deletion before explicit confirmation');
+    await recovery.getByRole('checkbox').check();
+    await recovery.getByRole('button',{name:'이야기 삭제',exact:true}).click();
+    await recovery.waitFor({state:'hidden'});
+    assert.equal(await page.evaluate(()=>window.storyDeleted),true);
+    await page.evaluate(()=>window.storyUi.open('cleanup'));
+    await recovery.getByRole('button',{name:'옛 세계관 가져오기',exact:true}).waitFor();
+    assert.equal(await recovery.getByRole('button',{name:'복구·기존 방식',exact:true}).count(),0);
+    await recovery.getByRole('button',{name:'닫기',exact:true}).click();
     console.log('Room/backup browser passed: pending room read hides prior preview and payload; empty room stays empty; named automatic backup fits 320/390/1280px.');
 }

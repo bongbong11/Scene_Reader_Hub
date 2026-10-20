@@ -5,6 +5,7 @@ const {reader,encode}=require('./chunks.cjs');
 const {snapshot,headFile}=require('./transactions.cjs');
 const {failure}=require('./limits.cjs');
 const backupLabel=require('./backup-label.cjs');
+const archive=require('./backup-archive.cjs');
 const backupRef=id=>{if(typeof id!=='string'||!/^\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(id))throw failure('STORAGE_INVALID_ID','백업을 확인하지 못했습니다.');return hash(id);};
 const tree=documents=>({schemaVersion:2,documents,storageRefs:Object.values(documents).map(meta=>meta.root)});
 async function legacyFiles(root) {
@@ -19,16 +20,26 @@ async function allDocuments(root,state=undefined) {
  for(const ref of Object.values(state.buckets))Object.assign(documents,await nodes.value(ref));return documents;
 }
 async function capture(root,reason='manual',source) {
- const documents=await allDocuments(root),files=await legacyFiles(root),nodes=reader(root);
+ const documents=await allDocuments(root),nodes=reader(root);
+ const migration=documents['metadata:migration-v2']&&await nodes.value(documents['metadata:migration-v2'].root);
+ // After migration the v2 index is authoritative. Deleted rooms must not be
+ // resurrected from the optional, pre-migration rollback files.
+ const files=['completed','cleaned'].includes(migration?.status)?[]:await legacyFiles(root);
  for(const file of files){const key='legacy:'+file;if(!documents[key])documents[key]={root:await encode(root,await read(path.join(root,file))),revision:0};}
  let parts=new Set();for(const meta of Object.values(documents))await nodes.verify(meta.root,parts);
  const createdAt=new Date().toISOString(),id=createdAt.replaceAll(':','-').replace('.','-').replace('Z','-'+crypto.randomInt(1000000000)+'Z');
  const rootRef=await encode(root,tree(documents)),info={schemaVersion:2,id,createdAt,reason,source:backupLabel.source(source),status:'verified',root:rootRef,fileCount:Object.keys(documents).length,partCount:(await nodes.verify(rootRef)).size};
- await atomic(root,location(root,'backups',hash(id)),JSON.stringify(info));return info;
+ const independent=await archive.create(root,info);
+ await atomic(root,location(root,'backups',hash(id)),JSON.stringify(independent));return independent;
 }
-async function get(root,id) {let backup=await read(location(root,'backups',backupRef(id)));if(!backup){const old=await read(path.join(root,'backups',id+'.json'));if(old?.schemaVersion===1){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};backup={schemaVersion:2,id,createdAt:old.createdAt,reason:old.reason,source:backupLabel.source(old.source),status:'verified',root:await encode(root,tree(documents)),fileCount:old.files.length};await atomic(root,location(root,'backups',hash(id)),JSON.stringify(backup));}}if(!backup||backup.status!=='verified')throw failure('STORAGE_BACKUP_MISSING','백업을 찾지 못했습니다.');return backup;}
+async function get(root,id) {
+ let backup=await read(location(root,'backups',backupRef(id)));
+ if(!backup){const old=await read(path.join(root,'backups',id+'.json'));if(old?.schemaVersion===1)backup=await makeIndependent(root,await fromLegacy(root,old));}
+ if(!backup||backup.status!=='verified')throw failure('STORAGE_BACKUP_MISSING','백업을 찾지 못했습니다.');
+ return archive.materialize(root,backup);
+}
 async function list(root) {const directory=path.join(root,'storage-v2','backups');let entries;try{entries=await fs.readdir(directory,{withFileTypes:true});}catch(error){if(error.code==='ENOENT')return [];throw error;}const rows=[];for(const entry of entries)if(entry.isFile()&&/^[a-f0-9]{64}\.json$/.test(entry.name)){const backup=await read(path.join(directory,entry.name));if(backup?.status==='verified')rows.push(backup);}return rows.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));}
-async function fromLegacy(root,old){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};return {schemaVersion:2,id:old.id,createdAt:old.createdAt,reason:old.reason,source:backupLabel.source(old.source),status:'verified',root:await encode(root,tree(documents))};}
+async function fromLegacy(root,old){require('../storage.cjs').validateSnapshot(old);const documents={};for(const file of old.files)documents['legacy:'+file.path]={root:await encode(root,JSON.parse(file.text)),revision:0};return {schemaVersion:2,id:old.id,createdAt:old.createdAt,reason:old.reason,source:backupLabel.source(old.source),status:'verified',root:await encode(root,tree(documents)),fileCount:old.files.length};}
 function clean(value,privatePrompt='') {
  if(value?.format==='legacy-browser'&&typeof value.text==='string'){try{return {...value,text:JSON.stringify(clean(JSON.parse(value.text),privatePrompt))};}catch{return {...value,text:''};}}
  if(Array.isArray(value))return value.map(item=>clean(item,privatePrompt));
@@ -44,7 +55,8 @@ async function portable(root,backup) {
   if(value?.hubDocument?.data)value.hubDocument.contentHash=require('./canonical.cjs').digest(value.hubDocument.data);
   documents[key]={...meta,root:await encode(root,value)};
  }
- return {...backup,portable:true,root:await encode(root,tree(documents))};
+ const {archive:serverArchive,...metadata}=backup;
+ return {...metadata,portable:true,root:await encode(root,tree(documents))};
 }
 async function *frames(root,backup) {
  const safe=await portable(root,backup),nodes=reader(root),parts=await nodes.verify(safe.root);
@@ -57,6 +69,7 @@ async function stream(root,id,response) {
  for await(const frame of frames(root,backup)){if(response.destroyed)return;if(!response.write(frame))await new Promise((resolve,reject)=>{const done=()=>{response.off('close',closed);resolve();},closed=()=>{response.off('drain',done);reject(failure('STORAGE_CANCELLED','내려받기가 중단됐습니다.'));};response.once('drain',done);response.once('close',closed);});}response.end();
 }
 async function restore(root,backup,{preserveCredentials=true,receipt}={}) {
+ await archive.materialize(root,backup);
  const nodes=reader(root);await nodes.verify(backup.root);const saved=await nodes.value(backup.root);
  if(saved.schemaVersion!==2||!saved.documents||typeof saved.documents!=='object')throw failure('STORAGE_SCHEMA_UNSUPPORTED','지원하지 않는 백업 형식입니다.');
  const documents=saved.documents;
@@ -71,4 +84,35 @@ async function restore(root,backup,{preserveCredentials=true,receipt}={}) {
   const ref=await encode(root,next);if(receipt)await atomic(root,location(root,'operations',receipt.operationId),JSON.stringify({...receipt,status:'committing',backupRoot:backup.root,results:{},resultRevision:next.revision,committedRoot:ref}));await atomic(root,headFile(root),JSON.stringify({schemaVersion:2,hash:ref}));return next;
  });
 }
-module.exports={legacyFiles,allDocuments,capture,get,list,stream,frames,restore,backupRef,clean,fromLegacy};
+async function makeIndependent(root,backup,options){
+ const independent=backup.archive?(await archive.inspect(root,backup,options),backup):await archive.create(root,backup,options);
+ await atomic(root,location(root,'backups',backupRef(backup.id)),JSON.stringify(independent));
+ // Only remove the old duplicate after the complete archive is verified and
+ // its index is published. Interrupted conversion is safe to retry.
+ for(const file of [path.join(root,'backups',backup.id+'.json'),path.join(root,'backups','.metadata',backup.id+'.json')]){
+  options?.signal?.throwIfAborted();
+  try{await fs.unlink(await safeFile(root,file));}catch(error){if(error.code!=='ENOENT')throw error;}
+ }
+ return independent;
+}
+async function convertLegacy(root,options){
+ const directory=path.join(root,'backups');await safeDirectory(root,directory);
+ for(const entry of await fs.readdir(directory,{withFileTypes:true})){
+  options?.signal?.throwIfAborted();
+  if(!entry.isFile()||!/^\d{4}-\d{2}-\d{2}T[\d-]+Z\.json$/.test(entry.name))continue;
+  const old=await read(await safeFile(root,path.join(directory,entry.name)));
+  if(old?.schemaVersion!==1)continue;
+  const stored=await read(location(root,'backups',backupRef(old.id)));
+  await makeIndependent(root,stored||await fromLegacy(root,old),options);return true;
+ }
+ return false;
+}
+async function remove(root,id){
+ backupRef(id);
+ // Delete the list last. An interrupted deletion remains visible and retryable.
+ await archive.remove(root,id);
+ for(const file of [location(root,'backups',backupRef(id)),path.join(root,'backups',id+'.json'),path.join(root,'backups','.metadata',id+'.json')]){
+  try{await fs.unlink(await safeFile(root,file));}catch(error){if(error.code!=='ENOENT')throw error;}
+ }
+}
+module.exports={legacyFiles,allDocuments,capture,get,list,stream,frames,restore,backupRef,clean,fromLegacy,makeIndependent,convertLegacy,remove};

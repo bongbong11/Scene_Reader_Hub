@@ -18,9 +18,10 @@ async function put(root,ref,text) {
  const file=location(root,'chunks',ref);try{const prior=await fs.readFile(await safeFile(root,file),'utf8');if(hash(prior)!==ref)throw failure('STORAGE_CORRUPT','기존 저장 조각을 확인하지 못했습니다.');return;}catch(error){if(error.code!=='ENOENT')throw error;}
  await atomic(root,file,text);
 }
-function reader(root) {
+function reader(root,{signal}={}) {
  const cache=new Map(),sizes=new Map();let bytes=0;
  async function node(ref) {
+  signal?.throwIfAborted();
   const file=location(root,'chunks',ref);if(cache.has(ref))return cache.get(ref).value;
   let text;try{text=await fs.readFile(await safeFile(root,file),'utf8');}catch(error){if(error.code==='ENOENT')throw failure('STORAGE_PART_MISSING','저장 자료 일부가 없습니다. 백업 복구를 확인하세요.');throw error;}
   if(Buffer.byteLength(text)>LIMITS.partBytes||hash(text)!==ref)throw failure('STORAGE_CORRUPT','저장 조각 검증에 실패했습니다.');const value=validate(JSON.parse(text));

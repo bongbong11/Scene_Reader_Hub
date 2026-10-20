@@ -608,6 +608,9 @@
 .sr-story-dialog::backdrop { background: #0008; }
 .sr-story-dialog h3 { margin: 0 0 10px; font-size: 15px; }
 .sr-story-dialog label { display: grid; gap: 6px; margin: 10px 0; }
+.sr-story-dialog [hidden] { display: none !important; }
+.sr-story-dialog .checkbox_label { display: flex; align-items: center; gap: 6px; }
+.sr-story-dialog .checkbox_label input { width: auto; flex: none; }
 .sr-story-dialog .text_pole { box-sizing: border-box; width: 100%; min-width: 0; font-size: 12px; }
 .sr-story-dialog > button { display: block; width: 100%; min-height: 32px; margin: 7px 0; font-size: 12px; white-space: normal; }
 .sr-story-alert { color: #ef8b89; white-space: pre-wrap; }

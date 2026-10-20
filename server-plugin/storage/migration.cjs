@@ -18,9 +18,11 @@ async function migrate(root,{signal,source}={}) {
  signal?.throwIfAborted();journal.status='completed';journal.completedAt=new Date().toISOString();await writeDocument(root,key,journal);return journal;
 }
 async function cleanup(root) {
- return writer(root,async()=>{const journal=await progress(root);if(!['completed','cleaned'].includes(journal.status))throw failure('STORAGE_NOT_READY','자료 이관을 먼저 완료하세요.');if(!journal.converted?.length&&!journal.backupId)return {...journal,status:'cleaned'};const backup=await get(root,journal.backupId);await reader(root).verify(backup.root);
+ return writer(root,async()=>{const journal=await progress(root);if(!['completed','cleaned'].includes(journal.status))throw failure('STORAGE_NOT_READY','자료 이관을 먼저 완료하세요.');if(journal.status==='cleaned'||!journal.converted?.length&&!journal.backupId)return {...journal,status:'cleaned'};let backup;try{backup=await get(root,journal.backupId);}catch(error){if(error.code!=='STORAGE_BACKUP_MISSING')throw error;backup=await capture(root,'before_cleanup');journal.backupId=backup.id;}await reader(root).verify(backup.root);
   for(const item of journal.converted){if(!require('../storage.cjs').isBackupPath(item.file))throw failure('STORAGE_INVALID_PATH','이전 자료 경로를 확인하지 못했습니다.');if(/(?:^|\/)(?:secrets|reasoner-secrets)\.json$/.test(item.file))continue;
-   const stored=await entry(root,'legacy:'+item.file);if(!stored)throw failure('STORAGE_PART_MISSING','옮긴 자료를 확인하지 못했습니다.');await reader(root).verify(stored.root);
+   // The completed v2 index is authoritative. A room explicitly deleted after
+   // migration must not make its obsolete pre-migration copy undeletable.
+   const stored=await entry(root,'legacy:'+item.file);if(stored)await reader(root).verify(stored.root);
    const file=path.join(root,item.file);let text;try{text=await fs.readFile(await safeFile(root,file),'utf8');}catch(error){if(error.code==='ENOENT')continue;throw error;}if(hash(text)!==item.sourceHash)throw failure('STORAGE_CONFLICT','이전 파일이 변경되어 삭제하지 않았습니다.',409);
    await fs.unlink(file);
   }return {...journal,status:'cleaned'};

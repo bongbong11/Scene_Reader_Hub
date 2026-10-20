@@ -9,6 +9,7 @@ const backupsV2=require('./storage/backups.cjs');
 const backupLabel=require('./storage/backup-label.cjs');
 const transactionsV2=require('./storage/transactions.cjs');
 const {registerRetrieval}=require('./retrieval/routes.cjs');
+const maintenance=require('./storage/maintenance.cjs');
 
 const UPSTREAM = 'https://api.typesafe.ai/v1/systemone';
 const MODEL = 'jev-latest';
@@ -93,7 +94,7 @@ async function listBackups(request) {
         if (snapshot?.id && Array.isArray(snapshot.files)) rows.push({ id: snapshot.id, createdAt: snapshot.createdAt, reason: snapshot.reason || 'manual', source:backupLabel.source(snapshot.source), fileCount: snapshot.files.length });
         if(snapshot?.id&&Array.isArray(snapshot.files))await writeJsonAtomic(metadata,rows.at(-1));
     }
-    return rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    return [...new Map(rows.reverse().map(row=>[row.id,row])).values()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
 async function restoreSnapshot(request, snapshot) {
@@ -107,7 +108,7 @@ async function restoreSnapshot(request, snapshot) {
 
 function storageHandler(handler) {
     return async (request, response) => {
-        try { return await serialize(safeRoot(request), async()=>{if(request.body?.chatKey&&request.body?.storageProtocol!==2&&await legacyV2.active(safeRoot(request)))throw Object.assign(new Error('새 저장 형식을 지원하는 씬판독기로 자료를 다시 불러와 주세요.'),{code:'STORAGE_SCHEMA_UNSUPPORTED',status:409});return handler(request,response);}); }
+        try { return await maintenance.run(safeRoot(request),()=>serialize(safeRoot(request), async()=>{if(request.body?.chatKey&&request.body?.storageProtocol!==2&&await legacyV2.active(safeRoot(request)))throw Object.assign(new Error('새 저장 형식을 지원하는 씬판독기로 자료를 다시 불러와 주세요.'),{code:'STORAGE_SCHEMA_UNSUPPORTED',status:409});return handler(request,response);})); }
         catch (error) { return response.status(error.status||500).json({ok:false,code:error.code||'STORAGE_ERROR',error:error?.message || 'Scene Reader storage failed.'}); }
     };
 }
@@ -206,9 +207,7 @@ async function init(router) {
     router.post('/storage/backup/delete', storageHandler(async (request, response) => {
         const id = String(request.body?.id || '');
         if (!/^\d{4}-\d{2}-\d{2}T[\d-]+Z$/.test(id)) throw new Error('Invalid backup id.');
-        await removeFile(path.join(pathsFor(request).backups, `${id}.json`));
-        await removeFile(path.join(pathsFor(request).backups,'.metadata',`${id}.json`));
-        await removeFile(require('./storage/paths.cjs').location(safeRoot(request),'backups',backupsV2.backupRef(id)));
+        await backupsV2.remove(safeRoot(request),id);
         response.json({ ok: true, backups: await listBackups(request) });
     }));
     router.post('/storage/backup/export', storageHandler(async (request, response) => {
