@@ -8,12 +8,13 @@ export async function checkCompilerCopies(page,requests,store) {
         await page.locator('#sr-character-copy-prompt').click();
         await page.waitForFunction(()=>document.getElementById('sr-character-import-status').textContent.includes('기본 분석 명령문만 복사했습니다'));
         const prompt=await page.evaluate(()=>navigator.clipboard.readText());
-        assert.match(prompt,/저장 형식과 흔한 오류/);assert.match(prompt,/원문도 없으면/);
+        assert.match(prompt,/STORAGE FORMAT AND COMMON ERRORS/);assert.match(prompt,/If no source is provided/);
+        assert.doesNotMatch(prompt,/[가-힣]/);
         if(id==='sr-character-new') {
             await page.locator('[data-character-import-mode="multi"]').click();
             await page.locator('#sr-character-copy-prompt').click();
             assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/MULTI-PERSON OWNERSHIP/);
-            assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/원문 미첨부/);
+            assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/No source attached/);
             await page.locator('#sr-character-read-sheet').click();
             assert.match(await page.locator('#sr-character-copy-note').textContent(),/시트 원문.*포함/);
             const count=requests.filter(r=>r.url.endsWith('/characters')).length;
@@ -44,7 +45,7 @@ export async function checkCompilerCopies(page,requests,store) {
     await page.locator('[data-sr-tab="advanced"]').click();
     await page.locator('#sr-world-advanced-copy').evaluate(e=>{for(let p=e.parentElement;p;p=p.parentElement)if(p.tagName==='DETAILS')p.open=true;});
     await page.locator('#sr-world-advanced-copy').click();
-    assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/원문 미첨부/);
+    assert.match(await page.evaluate(()=>navigator.clipboard.readText()),/No source attached/);
     const chosen=await page.locator('#sr-world-profile option').evaluateAll(options=>options.find(o=>o.value!=='current')?.value);
     await page.locator('[data-sr-tab="flow"]').click();
     await page.locator('#sr-world-profile').selectOption(chosen);

@@ -7,7 +7,7 @@ export function boundedText(text, limit) {
     text = String(text || '');
     if (text.length <= limit) return text;
     const half = Math.floor((limit - 40) / 2);
-    return `${text.slice(0, half)}\n[중간 생략 · 요약의 부재는 사실의 부재가 아님]\n${text.slice(-half)}`;
+    return `${text.slice(0, half)}\n[Omitted; unmentioned is not absent]\n${text.slice(-half)}`;
 }
 export async function readCharm(bridge, { identity, isCurrent, timeoutMs = 1200, maxChars = 6000 } = {}) {
     if (typeof bridge?.getStoryContext !== 'function') return { status: 'unavailable', entries: [] };

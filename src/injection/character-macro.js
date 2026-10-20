@@ -3,7 +3,7 @@ export const CHARACTER_MACRO = 'scene-reader-character';
 export const CHARACTER_OPEN = '[SCENE_READER_CHARACTER]';
 export const CHARACTER_CLOSE = '[/SCENE_READER_CHARACTER]';
 let nextSlot=0;
-export const CHARACTER_GUIDANCE = '인물별 기록과 현재 턴의 지침을 확립된 캐릭터 설정과 진행 중인 이야기 안에서 적용한다. 인물의 기록은 고정된 내용이 아니라 변화의 시작점으로 취급한다. 이야기 속에서 확립된 사건과 결과가 쌓이면 캐릭터성도 그에 따라 변할 수 있다. 확립된 사실, 이전 상태, 제안된 행동을 구분한다.';
+export const CHARACTER_GUIDANCE = 'Apply each person\'s records and this turn\'s guidance within established characterization and the ongoing story. Treat the records as a starting point for change, not an immutable state. Characterization may evolve as established events and consequences accumulate in the story. Distinguish established facts, prior states, and proposed actions.';
 export function characterEnvelope(text) {
     return String(text || '').trim() ? `${CHARACTER_OPEN}\n${CHARACTER_GUIDANCE}\n\n${text}\n${CHARACTER_CLOSE}` : '';
 }

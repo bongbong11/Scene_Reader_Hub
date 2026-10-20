@@ -65,6 +65,8 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
         assert.match(text,/Interpretation before\n\[SCENE_READER_CHARACTER\]/);
         assert.match(text,/\[\/SCENE_READER_CHARACTER\]\nInterpretation after/);
         assert.doesNotMatch(text,/SR_CHARACTER_SLOT_/);
+        const envelope=text.match(/\[SCENE_READER_CHARACTER\]([\s\S]*?)\[\/SCENE_READER_CHARACTER\]/)[1];
+        assert.doesNotMatch(envelope,/[가-힣]|\(Meta:/,'transmitted macro instructions are English without a second Meta');
         assert.equal(result.receipt.resultStatus,'confirmed');
         const sent=requests.filter(r=>r.url.endsWith('/api/backends/chat-completions/generate')).at(-1).body;
         assert.equal(full(sent),text,'the inspected body is actually transmitted');

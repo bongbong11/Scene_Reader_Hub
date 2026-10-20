@@ -19,6 +19,14 @@ export const ADVANCED_ELEMENTS = {
 
 export const ADVANCED_DEFAULT_ELEMENTS = Object.keys(ADVANCED_ELEMENTS);
 
+// English labels for model instructions; keep Korean UI labels above.
+const ELEMENT_PROMPT_NAMES = {
+    social: 'Daily life and social interaction', exploration: 'Exploration and discovery',
+    objective: 'Events and objectives', investigation: 'Mystery and investigation',
+    threat: 'Threats and combat', horror: 'Horror and the supernatural',
+    intrigue: 'Intrigue and schemes', relationship: 'Relationships and romantic intrigue',
+};
+
 export const BUILTIN_WORLDS = [
     { id: 'current', name: '프리셋 기본 세계관 사용', hint: 'No preset or lorebook text is supplied to Jev here. Infer world constraints only from the recent roleplay and explicitly supplied character context; do not assume unseen world rules. Route progression without adding or replacing setting facts.', prompt: '' },
     { id: 'fantasy', name: '범용 판타지', hint: 'Fantasy world logic; established magic, peoples, institutions, travel, economy, religion, and technology control what is possible.', prompt: `<FANTASY_WORLD>
@@ -273,9 +281,9 @@ export function buildAdvancedQuestions({ preferences, hasEvent = false, worldHin
         ? preferences.advancedElements.filter((key) => ADVANCED_ELEMENTS[key])
         : ADVANCED_DEFAULT_ELEMENTS;
     const elementCriteria = { none: 'No enabled element should be used in this response.' };
-    for (const key of enabled) elementCriteria[key] = `${ADVANCED_ELEMENTS[key]} is the single best fit for the available causal route and current scene.`;
+    for (const key of enabled) elementCriteria[key] = `${ELEMENT_PROMPT_NAMES[key]} is the single best fit for the available causal route and current scene.`;
     if (hasEvent && ADVANCED_ELEMENTS[eventElement] && !elementCriteria[eventElement]) {
-        elementCriteria[eventElement] = `${ADVANCED_ELEMENTS[eventElement]} is the stored primary event's fixed element; it may continue even if new events of this element are now disabled.`;
+        elementCriteria[eventElement] = `${ELEMENT_PROMPT_NAMES[eventElement]} is the stored primary event's fixed element; it may continue even if new events of this element are now disabled.`;
     }
     return {
         advanced_entry: {
@@ -307,7 +315,7 @@ export function buildAdvancedQuestions({ preferences, hasEvent = false, worldHin
         },
         advanced_element: {
             type: 'choice',
-            instructions: `Choose at most one enabled content element for a new event or a modest scene beat. When continuing a stored advanced event, keep its fixed element${hasAdvancedEvent ? ` (${ADVANCED_ELEMENTS[eventElement]})` : ''}. This controls event material while the ordinary RP progression type remains active.`,
+            instructions: `Choose at most one enabled content element for a new event or a modest scene beat. When continuing a stored advanced event, keep its fixed element${hasAdvancedEvent ? ` (${ELEMENT_PROMPT_NAMES[eventElement]})` : ''}. This controls event material while the ordinary RP progression type remains active.`,
             criteria: elementCriteria,
         },
         advanced_move: {
