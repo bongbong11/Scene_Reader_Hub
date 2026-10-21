@@ -1,4 +1,5 @@
 import { CHAT_DEFAULTS } from './contract.js';
+import {normalizeBehaviorMode} from '../injection/character-behavior.js';
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
 
 export const COMMON_PREFERENCE_KEYS = Object.freeze(['injectionMode','worldInjectionMode','scenePresetSlot','worldPresetSlot']);
@@ -13,12 +14,12 @@ export function commonPreferences(value = {}) {
     return result;
 }
 export function effectivePreferences(room = {}, settings = {}) {
-    const result={...room,...commonPreferences(settings.commonPreferences)};
+    const result={...room,...commonPreferences(settings.commonPreferences),characterBehaviorMode:normalizeBehaviorMode(settings.characterBehaviorMode)};
     delete result.progressIntensity;
     return result;
 }
 export function roomPreferences(value = {}) {
-    return structuredClone(Object.fromEntries(Object.entries(value).filter(([key]) => !COMMON_PREFERENCE_KEYS.includes(key) && key !== 'progressIntensity')));
+    return structuredClone(Object.fromEntries(Object.entries(value).filter(([key]) => !COMMON_PREFERENCE_KEYS.includes(key) && !['progressIntensity','characterBehaviorMode'].includes(key))));
 }
 // Preserve the first opened existing room's choices once; later rooms cannot
 // replace a common choice. Opening the home screen never seeds defaults.

@@ -1,4 +1,5 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
+import {bindBehaviorToggle} from '../behavior-toggle.js';
 import {openMacroPreview} from '../macro-preview.js';
 import {normalizeChance} from '../../scene/opportunity-settings.js';
 import {downloadStoredFile, importBackupStream} from '../../storage/backup-stream.js';
@@ -22,6 +23,7 @@ import {SEASONAL_OPTIONS} from "../../world/seasonal.js";
 
 export function createFormBindings(deps) {
 function bindForm() {
+    bindBehaviorToggle(deps);
     bindPresetSlots(deps);
     bindOpportunitySettings(deps);
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());

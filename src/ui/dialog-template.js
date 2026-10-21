@@ -1,4 +1,5 @@
 import {opportunitySettingsTemplate} from './opportunity-settings.js';
+import {behaviorToggleTemplate} from './behavior-toggle.js';
 import {presetSlotTemplate} from './preset-slots.js';
 
 export function dialogTemplate({optionsHtml, escapeHtml, WORLD_DIRECTIONS, RELATIONSHIP_DIRECTIONS, PROGRESSION_MODES, JUDGMENT_STYLES, DEVELOPMENT_STYLES, PACE_OPTIONS, PHYSICAL_PACES, ADVANCED_STYLES, ADVANCED_ELEMENTS}) {
@@ -7,6 +8,7 @@ export function dialogTemplate({optionsHtml, escapeHtml, WORLD_DIRECTIONS, RELAT
             <header class="sr-header">
                 <div><h2><span>씬판독기<span class="sr-header-hub"> Hub</span></span></h2><p><span class="sr-header-description-wide">Jev로 캐릭터의 성격과 설정을 지키며, 대화·관계가 이어지고 인물·사건이 자연스럽게 더해지도록 돕습니다.</span><span class="sr-header-description-compact">Jev로 성격·설정을 지키고 대화·관계·인물·사건을 자연스럽게 잇습니다.</span></p></div>
                 <div class="sr-header-actions"><button id="sr-current-status" type="button" class="sr-icon-button sr-status-button" data-tone="neutral" aria-label="현재 상태" title="현재 상태" aria-expanded="false" aria-controls="sr-current-status-panel"><span class="sr-status-dot" aria-hidden="true"></span></button><button id="sr-embedding-rebuild" type="button" class="sr-embedding-button" title="기존 임베딩은 재사용하고 누락·실패한 기록만 생성합니다." aria-label="현재 채팅 임베딩 재시도"><span>임베딩<br>재시도</span></button><button id="sr-copy-debug" class="sr-icon-button" aria-label="전체 진단 로그 복사" title="전체 진단 로그 복사"><i class="fa-solid fa-clipboard"></i></button><button id="sr-settings-button" class="sr-icon-button" aria-label="설정"><i class="fa-solid fa-gear"></i></button><button id="sr-close" class="sr-icon-button" aria-label="닫기"><i class="fa-solid fa-xmark"></i></button></div>
+                ${behaviorToggleTemplate}
             </header>
             <nav class="sr-tabs" aria-label="씬판독기 메뉴"><button class="active" data-sr-tab="flow">자동 전개</button><button data-sr-tab="advanced">고급 전개</button><button data-sr-tab="conflict">갈등용 진행</button><button data-sr-tab="characters">인물 판정</button></nav>
             <main class="sr-main">

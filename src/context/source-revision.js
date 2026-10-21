@@ -1,4 +1,5 @@
 import {MEMORY_REFERENCE_ENABLED} from "./memory.js";
+import {normalizeBehaviorMode} from '../injection/character-behavior.js';
 import {CORE_SHA256} from "../vendor/character-reasoner/version.js";
 import {knowledgeVaultRevision} from '../integration/knowledge-vault.js';
 import {visibilityKey} from './visibility.js';
@@ -29,7 +30,8 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         decisionContract: DECISION_CONTRACT_VERSION,
         continuityContract: 4,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 8,
-        injectionAssemblyContract: 15,
+        injectionAssemblyContract: 17,
+        characterBehaviorMode: normalizeBehaviorMode(deps.settings.characterBehaviorMode),
         characterStateContract: 2,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,
         sceneGateContract: 4,

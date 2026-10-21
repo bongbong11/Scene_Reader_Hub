@@ -1,4 +1,6 @@
 import {emptyProgress} from '../../scene/progress-tracking.js';
+import {renderBehaviorToggle} from '../behavior-toggle.js';
+import {normalizeBehaviorMode} from '../../injection/character-behavior.js';
 import {renderOpportunitySettings} from '../opportunity-settings.js';
 import { recentTurnCount, renderRecentTurns } from '../../context/turn-settings.js';
 import { renderRetrievalSettings, refreshRetrievalSecret } from '../retrieval-settings.js';
@@ -12,6 +14,7 @@ import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
 
 export function createSettingsForm(deps) {
 function setFormValues() {
+    renderBehaviorToggle(deps);
     const prefs = deps.preferences();
     const setValue = (id, value) => { const element = deps.document.getElementById(id); if (element) element.value = value; };
     const setChecked = (id, value) => { const element = deps.document.getElementById(id); if (element) element.checked = Boolean(value); };
@@ -79,6 +82,24 @@ function setFormValues() {
 }
 
 async function saveGlobal(key, value) {
+    if(key==='characterBehaviorMode')return deps.queueWrite('character-behavior',async()=>{
+        const target=deps.settings,previous=target.characterBehaviorMode;
+        deps.invalidateReasonerJobs();
+        target.characterBehaviorMode=normalizeBehaviorMode(value);
+        try {await deps.saveServerSettings();deps.saveSettingsDebounced();}
+        catch(error) {
+            if(deps.settings===target)target.characterBehaviorMode=previous;
+            await deps.applyStoredInjection();
+            setFormValues();
+            throw error;
+        }
+        if(deps.settings!==target)return;
+        // Drop stale transport by source revision, but preserve a new-mode judgment
+        // if a normal run finished while settings were being saved.
+        await deps.applyStoredInjection();
+        deps.noteDiagnostic?.('character_behavior_changed',{module:'src/ui/forms/settings.js',status:'saved',mode:target.characterBehaviorMode});
+        setFormValues();
+    });
     if (['recentTurns', 'continuityEnabled'].includes(key)) return deps.queueWrite('context-settings', async () => {
         const target=deps.settings, chatKey=deps.stateChatKey();
         const previous={recentTurns:target.recentTurns,continuityEnabled:target.continuityEnabled};

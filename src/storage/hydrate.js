@@ -1,4 +1,5 @@
 import { commonPreferences, migrateCommonPreferences } from './common-preferences.js';
+import {normalizeBehaviorMode} from '../injection/character-behavior.js';
 import { recentTurnCount } from '../context/turn-settings.js';
 import {retireCollection,retireHistory} from './retired-collection.js';
 export function createHydration(deps) {
@@ -40,6 +41,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     const saved = data.settings && typeof data.settings === 'object' ? data.settings : {};
     if (saved.global && typeof saved.global === 'object') {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
+        deps.settings.characterBehaviorMode = normalizeBehaviorMode(deps.settings.characterBehaviorMode);
         delete deps.settings.continuityInterval;delete deps.settings.collectPersonaChanges;
         delete deps.settings.characterReviewPrompt;
         delete deps.settings.pauseOnOoc;

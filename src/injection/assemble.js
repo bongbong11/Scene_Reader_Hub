@@ -1,4 +1,5 @@
 import {worldAgencyParts, PROGRESS_BOOST} from './world-agency.js';
+import {characterBehaviorPrompt} from './character-behavior.js';
 import {COMMON_EXECUTION} from './opportunity-prompts.js';
 import {LANGUAGE_SCOPE} from './language-scope.js';
 import { BASIC_MOVES, DEVELOPMENT_GUIDANCE, normalizeDevelopmentPreferences } from '../decision/settings.js';
@@ -296,6 +297,7 @@ export function buildInjection({ settings, decisions, villainProfile, npcProfile
         characterParts.set(index, character);
     };
     const personal = (...values) => values.forEach(value=>split(value, '', value));
+    personal(characterBehaviorPrompt(settings.characterBehaviorMode));
     if (activeWorldReference(activeWorldName)) blocks.push(activeWorldReference(activeWorldName));
     const fixedParts = {};
     const fixedText = fixedSceneSettings(settings, privatePrompt, true, decisions, fixedParts);

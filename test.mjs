@@ -1,5 +1,6 @@
 import { prepareProfileItems, createProfile } from './tests/fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
+import {characterBehaviorPrompt} from './src/injection/character-behavior.js';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { access, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
@@ -39,7 +40,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.29');
+assert.equal(manifest.version, '0.2.30');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);
@@ -732,7 +733,7 @@ assert.doesNotMatch(eventPayload, /<DIRECT_SCENE_EXECUTION|<RELATIONSHIP_BEAT|<N
 assert.doesNotMatch(npcPayload, /<DIRECT_SCENE_EXECUTION|<RELATIONSHIP_BEAT|<RP_EVENT_BEAT|<CONFLICT_PROGRESSION/);
 assert.doesNotMatch(advancedPayload, /<DIRECT_SCENE_EXECUTION|<RP_PROGRESSION|<NPC_SCENE_EXECUTION|<CONFLICT_PROGRESSION/);
 for (const [name, payload] of Object.entries({ directPayload, relationshipPayload, eventPayload, npcPayload, advancedPayload })) {
-    assert.ok(payload.length < 6000, `${name} should remain compact unless an exact legacy conflict block is enabled`);
+    assert.ok(payload.replace(characterBehaviorPrompt('glm'),'').length < 6000, `${name}: generated scene guidance stays compact apart from the supplied fixed behavior prompt`);
     assert.equal((payload.match(/^\(Meta:/gm) || []).length, 1, `${name} must have one meta wrapper`);
 }
 for (const id of ['sr-settings-button', 'sr-character-enabled', 'sr-character-editor-cancel', 'sr-character-lore-refresh', 'sr-backup-create', 'sr-backup-import']) {

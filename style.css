@@ -638,3 +638,12 @@
 
 .sr-macro-preview pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.5; margin: 12px 0; }
 .sr-macro-preview p { overflow-wrap: anywhere; }
+
+/* Compact global behavior switch, above the existing title/action row. */
+#scene-reader-dialog .sr-header .sr-behavior-toggle { grid-column:1 / -1; grid-row:1; justify-self:center; display:inline-flex; border:1px solid var(--SmartThemeBorderColor); border-radius:7px; overflow:hidden; }
+#scene-reader-dialog .sr-behavior-toggle button { width:34px; min-height:26px; padding:3px 8px; border:0; border-radius:0; font-size:11px; color:inherit; background:transparent; cursor:pointer; touch-action:manipulation; }
+#scene-reader-dialog .sr-behavior-toggle button[aria-pressed="true"] { background:color-mix(in srgb, var(--SmartThemeQuoteColor, #7799cc) 30%, transparent); font-weight:700; box-shadow:inset 0 -2px var(--SmartThemeQuoteColor, #7799cc); }
+#scene-reader-dialog .sr-behavior-toggle button:focus-visible { outline:2px solid var(--SmartThemeQuoteColor, #7799cc); outline-offset:-2px; }
+#scene-reader-dialog .sr-behavior-toggle button:disabled { opacity:.6; cursor:wait; }
+#scene-reader-dialog .sr-header h2, #scene-reader-dialog .sr-header-actions { grid-row:2; }
+#scene-reader-dialog .sr-header p { grid-row:3; }

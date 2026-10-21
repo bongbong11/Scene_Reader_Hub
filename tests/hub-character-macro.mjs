@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {characterBehaviorPrompt} from '../src/injection/character-behavior.js';
 import {createHash} from 'node:crypto';
 import {buildInjection,antagonistPrompt,genreNpcPrompt,RELATIONSHIP_PROMPTS,NPC_KNOWLEDGE_PROMPTS,NPC_DISCLOSURE_PROMPTS,AUXILIARY_EXECUTION_CORRECTIONS} from '../src/injection/assemble.js';
 import {LEGACY_PROMPTS as L} from '../src/decision/legacy-prompts.js';
@@ -145,7 +146,8 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
     };
     for(const relationshipDirection of ['dynamic','positive','hostile'])for(const advancedEnabled of [false,true])for(const characters of ['',characterBlock]) {
         const fixture={...input,settings:{...CHAT_DEFAULTS,relationshipDirection,advancedEnabled},characterBlock:characters,characterContextBlock:''};
-        assert.equal(createHash('sha256').update(buildInjection(fixture)).digest('hex'),hashes[relationshipDirection][characters?1:0],'off preserves prior assembly byte for byte');
+        const withoutBehavior=buildInjection(fixture).replace(characterBehaviorPrompt('glm')+'\n\n','');
+        assert.equal(createHash('sha256').update(withoutBehavior).digest('hex'),hashes[relationshipDirection][characters?1:0],'unrelated assembly stays byte-identical after adding the behavior block');
     }
 }
 // Exercise the real request adapter, including its final transport hook.

@@ -28,6 +28,7 @@ export const DEFAULTS = {
     showConfidence: true,
     ownerUnlocked: false,
     characterMacroEnabled: false,
+    characterBehaviorMode: 'glm',
     continuityEnabled: false,
     reasonerProfileId: '',
     retrievalProvider: 'transformers',
