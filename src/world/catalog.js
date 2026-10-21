@@ -286,7 +286,7 @@ export function allWorlds(builtins, customs = loadCustomWorlds()) {
         const normalized = { ...normalizeCustomWorld(world), builtin: false };if(world.worldStub)return normalized;
         const original = INITIAL_CUSTOM_WORLDS.find(item => item.id === world.id);
         const oldHarryPrompt = original?.id === 'custom-harry-potter' ? original.prompt.replace(/\n\nAt Hogwarts,[\s\S]*?magical school\./, '') : '';
-        if (!world.advanced && original && [original.prompt, oldHarryPrompt].includes(world.prompt)) return bundledWorldBank({ ...normalized, prompt: original.prompt, calendarTopics: original.calendarTopics || [], ...(original.id==='custom-harry-potter'?{seasonalProfile:'hogwarts'}:{}) });
+        if (!world.advanced && original && [original.prompt, oldHarryPrompt].includes(world.prompt)) return bundledWorldBank({ ...normalized, prompt: original.prompt, calendarTopics: original.calendarTopics || [] });
         return normalized;
     })];
 }

@@ -52,7 +52,7 @@ export function bundledWorldBank(world) {
     const entries = spec ? spec.records : paragraphs.slice(1).map((_, index) => [index + 1, 'mechanism', 'When this world aspect materially affects the current scene.', world.name]);
     // An edited bundle must never be silently split using obsolete paragraph positions.
     if (spec && new Set([...fixed, ...entries.map(entry => entry[0])]).size !== paragraphs.length) return world;
-    return { ...world, prompt: fixed.map(index => paragraphs[index]).filter(text=>!(world.seasonalProfile==='hogwarts'&&text.startsWith('At Hogwarts,'))).join('\n\n'), advanced: {
+    return { ...world, prompt: fixed.map(index => paragraphs[index]).join('\n\n'), advanced: {
         version: 1, calendar_topics: world.calendarTopics || [],
         records: entries.map(([index, category, when, keywords]) => ({
             id: `W${String(index + 1).padStart(3, '0')}`, category, when,

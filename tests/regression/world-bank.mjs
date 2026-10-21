@@ -27,7 +27,7 @@ for (const source of [...INITIAL_CUSTOM_WORLDS,...BUILTIN_WORLDS]) {
     const bank=worlds.find(w=>w.id===source.id);
     if(!bank.advanced)continue;
     const combined=[bank.prompt,...bank.advanced.records.map(r=>r.rule)].join('\n\n');
-    for(const paragraph of source.prompt.replace(/^<[A-Z_]+>\s*|\s*<\/[A-Z_]+>$/g,'').split(/\n\s*\n/).map(p=>p.trim()).filter(p=>p&&!p.startsWith('#')&&!p.startsWith('{{//'))) assert.ok(combined.includes(paragraph)||source.id==='custom-harry-potter'&&paragraph.startsWith('At Hogwarts,')&&bank.seasonalProfile==='hogwarts',`${source.id}: source paragraph lost`);
+    for(const paragraph of source.prompt.replace(/^<[A-Z_]+>\s*|\s*<\/[A-Z_]+>$/g,'').split(/\n\s*\n/).map(p=>p.trim()).filter(p=>p&&!p.startsWith('#')&&!p.startsWith('{{//'))) assert.ok(combined.includes(paragraph),`${source.id}: source paragraph lost`);
 }
 for(const id of ['custom-harry-potter','custom-omegaverse','custom-werewolf']) assert.ok(worlds.find(w=>w.id===id).advanced?.records.length>0,id);
 const edited={...INITIAL_CUSTOM_WORLDS.find(w=>w.id==='custom-harry-potter'),prompt:'My edited canon.'};
@@ -45,3 +45,12 @@ assert.match(seasonalWorldNote({seasonalReferences:['us_holidays']},{year:2026,m
 assert.match(seasonalWorldNote({seasonalReferences:['us_holidays']},{year:2026,month:12,day:25},null),/Christmas/);
 assert.equal(seasonalWorldNote({seasonalReferences:['us_holidays']},{year:2026,month:6,day:9},null),'');
 console.log('World bank passed: preserved sources, scoped selection, persistence and confirmed-date seasonal deduplication.');
+
+const harry=worlds.find(w=>w.id==='custom-harry-potter');
+assert.equal(harry.seasonalProfile,undefined,'world selection does not enable Hogwarts calendar');
+assert.match(harry.prompt,/At Hogwarts, the school year begins on 1 September/,'original fixed calendar paragraph stays intact');
+assert.equal(seasonalWorldNote({},date,harry),'','world alone adds no monthly materials');
+const harryBefore=JSON.stringify(harry);
+assert.match(seasonalWorldNote({seasonalReferences:['hogwarts']},date,harry),/Hogwarts:.*Halloween/);
+assert.equal(JSON.stringify(harry),harryBefore,'optional calendar never rewrites the world');
+assert.match(seasonalWorldNote({seasonalReferences:['hogwarts']},date,edited),/Hogwarts:/,'edited world can use explicit optional calendar');

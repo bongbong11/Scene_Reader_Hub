@@ -31,7 +31,8 @@ assert.equal(readDateField('Date: 2026-10-30\nDate: 2026-11-01',dateCandidates('
 assert.equal(seasonalWorldNote({seasonalReferences:['us_holidays']},'2026-10-30'),'', 'unconfirmed transcript cannot bypass confirmation');
 assert.match(seasonalWorldNote({seasonalReferences:['us_holidays']},date),/Halloween.*approaching/);
 assert.doesNotMatch(seasonalWorldNote({seasonalReferences:['us_holidays']},date,{calendarTopics:['holidays']}),/Halloween/);
-assert.match(seasonalWorldNote({},date,{seasonalProfile:'hogwarts',calendarTopics:['holidays']}),/31 October Halloween/);
+assert.equal(seasonalWorldNote({},date,{seasonalProfile:'hogwarts',calendarTopics:['holidays']}),'');
+assert.match(seasonalWorldNote({seasonalReferences:['hogwarts']},date,{calendarTopics:['holidays']}),/31 October Halloween/);
 for(const key of Object.keys(MONTHLY_SEASONS)) {
  assert.equal(MONTHLY_SEASONS[key].length,12);
  for(let month=1;month<=12;month++)assert.ok(monthlySeason(key,{month,day:15}).length>20);

@@ -8,6 +8,18 @@ export async function checkSeasonal(page,store,requests,setViewportSize) {
     assert.equal(await page.locator('#sr-season-holidays').count(),0);
     assert.deepEqual(store.chat.preferences.seasonalReferences,['us_university'],'obsolete selection actually removed from storage');
     assert.ok(!('characterReviewPrompt' in store.settings.global));
+    const hogwarts=page.locator('#sr-season-hogwarts');
+    assert.equal(await hogwarts.isChecked(),false);
+    await hogwarts.check();
+    for(let i=0;i<100&&!store.chat.preferences.seasonalReferences.includes('hogwarts');i++)await page.waitForTimeout(50);
+    assert.ok(store.chat.preferences.seasonalReferences.includes('hogwarts'));
+    await page.reload();await page.locator('#scene-reader-quick-button').click();
+    await page.locator('.sr-seasonal-options').evaluate(e=>e.open=true);
+    assert.equal(await hogwarts.isChecked(),true,'explicit selection survives reload');
+    await hogwarts.uncheck();
+    for(let i=0;i<100&&store.chat.preferences.seasonalReferences.includes('hogwarts');i++)await page.waitForTimeout(50);
+    assert.ok(!store.chat.preferences.seasonalReferences.includes('hogwarts'));
+
     await page.evaluate(async()=>{mock.chat=[{is_user:false,mes:"Scene.\n'''\nCurrent Date: 10/11/2026\n'''"}];ctx.chat=mock.chat;await mock.emit('GENERATION_ENDED');});
     const modal=page.locator('.sr-date-confirm');
     await modal.waitFor();
