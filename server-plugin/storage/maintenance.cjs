@@ -23,17 +23,13 @@ async function execute(root){
     const manual=Boolean(s.manual),ownerRef=s.ownerRef;s.controller=new AbortController();
     if(!s.continuing)s.totals=empty();s.continuing=true;
     s.running=(async()=>{
-        let result;
-        do{
-            const before={...s.totals};s.result={status:'running',...before};
-            result=await require('./reclaim.cjs').reclaim(root,{signal:s.controller.signal,ownerRef,
-                grace:manual?0:undefined,onProgress:progress=>{
-                    s.totals=Object.fromEntries(fields.map(key=>[key,before[key]+(progress[key]||0)]));
-                    s.result={status:'running',...s.totals};
-                }});
-            s.result={...result,...s.totals};
-            if(result?.hasMore)await new Promise(resolve=>setImmediate(resolve));
-        }while(result?.hasMore&&!s.controller.signal.aborted);
+        const before={...s.totals};s.result={status:'running',...before};
+        const result=await require('./reclaim.cjs').reclaim(root,{signal:s.controller.signal,ownerRef,drain:true,
+            grace:manual?0:undefined,onProgress:progress=>{
+                s.totals=Object.fromEntries(fields.map(key=>[key,before[key]+(progress[key]||0)]));
+                s.result={status:'running',...s.totals};
+            }});
+        s.result={...result,...s.totals};
         s.manual=false;s.continuing=false;
     })().catch(error=>{
         s.result={...s.totals,status:error.name==='AbortError'?'waiting':'failed',code:error.name==='AbortError'?'FOREGROUND_ACTIVE':error.code||'STORAGE_MAINTENANCE_FAILED'};

@@ -20,6 +20,31 @@ assert.deepEqual(sent.messages,[{role:'user',content:JSON.stringify(body.state)}
 assert.equal(calls[1].options.headers.Authorization,'Bearer synthetic-nano');
 assert.equal(calls[1].options.redirect,'error');
 assert.match(calls[1].url,/^https:\/\/nano-gpt.com\/api\/subscription\/v1\/chat\/completions$/);
+// Accept direct typed answers as well as the native-style wrapper, without
+// accepting unrelated JSON or relaxing the Hub's per-answer validation.
+for (const content of [answers, {answers}, {...answers,unrequested:{noul:1}}]) {
+    const directFetch=async(url,options)=>url.endsWith('/usage')?fetchImpl(url,options):{ok:true,json:async()=>({choices:[{message:{content:JSON.stringify(content)}}]})};
+    const result=await decide({key:'synthetic',body,fetchImpl:directFetch});
+    assert.deepEqual(result.answers,answers);
+}
+for (const content of ['invalid', '{}', '[]', '{"answers":{}}', '{"q":0.5}', '{"other":{"noul":1}}']) {
+    const invalidFetch=async(url,options)=>url.endsWith('/usage')?fetchImpl(url,options):{ok:true,json:async()=>({choices:[{message:{content}}]})};
+    await assert.rejects(decide({key:'synthetic',body,fetchImpl:invalidFetch}),{code:'NANO_INVALID_RESPONSE',phase:'response',status:502});
+}
+for (const phase of ['subscription','decision']) {
+    for (const kind of ['network','upstream','json']) {
+        const brokenFetch=async(url,options)=>{
+            if(phase==='decision' && url.endsWith('/usage'))return fetchImpl(url,options);
+            if(kind==='network')throw Object.assign(new Error('secret must not escape'),{code:'SECRET'});
+            return {ok:kind!=='upstream',status:502,json:async()=>{throw new Error('raw response');}};
+        };
+        await assert.rejects(decide({key:'synthetic',body,fetchImpl:brokenFetch}),error=>{
+            assert.equal(error.code,{network:'NANO_CONNECTION_FAILED',upstream:'NANO_UPSTREAM_ERROR',json:'NANO_INVALID_RESPONSE'}[kind]);
+            assert.equal(error.phase,phase);assert.equal(error.status,502);
+            assert.doesNotMatch(error.message,/secret|raw response/);return true;
+        });
+    }
+}
 for(const policy of [true,undefined]){
     usage={routing:{paidSpendPolicyAllowsBalance:policy,recommendedMode:'subscription'}};calls.length=0;
     await assert.rejects(decide({key:'synthetic',body,fetchImpl}),{code:'NANO_SUBSCRIPTION_ONLY_REQUIRED'});assert.equal(calls.length,1);
@@ -49,6 +74,11 @@ assert.equal(transport[0].url,'/api/plugins/scene-reader-jev/nanogpt/systemone')
 await client.callJev(body,1000,null,{provider:'nanogpt',key:'synthetic-nano-key'});
 assert.equal(transport.at(-1).options.headers['X-NanoGPT-Key'],'synthetic-nano-key');
 assert.ok(!JSON.stringify(events).includes('synthetic-nano-key'));
+for(const code of ['NANO_INVALID_RESPONSE','NANO_CONNECTION_FAILED','NANO_UPSTREAM_ERROR','NANO_TIMEOUT']){
+    const failing=createJevClient({...deps,fetch:async()=>({ok:false,status:502,json:async()=>({code,error:'Safe diagnostic',phase:'response'})})});
+    await assert.rejects(failing.callJev(body),{code,httpStatus:502,phase:'response'});
+    assert.equal(events.at(-1).errorKind,code);assert.equal(events.at(-1).phase,'response');
+}
 settings.jevOfficialModel='jev-1.14.0';
 await client.callJev(body,1000,null,{key:'synthetic-official-key'});
 assert.equal(transport.at(-1).url,deps.JEV_API_URL);
@@ -62,4 +92,22 @@ register({post:(url,fn)=>{routes[url]=fn;}},{pathsFor:()=>({root:'synthetic',sec
 const res={json:()=>{}};
 await routes['/storage/nanogpt/key']({body:{key:'nano'}},res);assert.deepEqual(secret,{jevKey:'official',nanoJevKey:'nano'});
 await routes['/storage/nanogpt/key']({body:{key:''}},res);assert.deepEqual(secret,{jevKey:'official'});
+// Exercise the server route, not only the parser: a successful upstream result
+// must reach the client; internal and upstream failures must remain distinct.
+const originalFetch=globalThis.fetch;
+try {
+    for(const direct of [true,false]){
+        globalThis.fetch=async url=>({ok:true,json:async()=>url.endsWith('/usage')?usage:{choices:[{message:{content:JSON.stringify(direct?answers:{answers})}}]}});
+        let delivered,status=200;
+        const response={on(){},off(){},status(value){status=value;return this;},json(value){delivered=value;}};
+        await routes['/nanogpt/systemone']({body,get:()=> 'synthetic'},response);
+        assert.equal(status,200);assert.deepEqual(delivered,{model:body.model,answers});
+    }
+    const brokenRoutes={};
+    register({post:(url,fn)=>{brokenRoutes[url]=fn;}},{pathsFor:()=>{throw Object.assign(new Error('private path and key'),{code:'ENOENT'});},storageHandler:fn=>fn});
+    let delivered,status;
+    const response={on(){},off(){},status(value){status=value;return this;},json(value){delivered=value;}};
+    await brokenRoutes['/nanogpt/systemone']({body,get:()=>''},response);
+    assert.equal(status,502);assert.equal(delivered.code,'NANO_CONNECTION_FAILED');assert.doesNotMatch(JSON.stringify(delivered),/private|ENOENT/);
+} finally {globalThis.fetch=originalFetch;}
 console.log('NanoGPT Jev passed: typed requests, strict subscription policy, no paid fallback, model selection, separate credentials, cancellation and response normalization.');

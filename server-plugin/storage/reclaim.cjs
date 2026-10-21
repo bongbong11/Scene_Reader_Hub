@@ -10,7 +10,7 @@ async function entries(root,kind){
     return rows.filter(row=>row.isFile()&&/^[a-f0-9]{64}\.json$/.test(row.name)).map(row=>path.join(dir,row.name));
 }
 const pause=()=>new Promise(resolve=>setImmediate(resolve));
-async function staleTemps(root,now,grace,check,onDelete){
+async function staleTemps(root,now,grace,check,onDelete,limit){
     let deleted=0;
     for(const folder of ['', 'chunks','operations','backups']){
         const directory=path.join(root,'storage-v2',folder);await safeDirectory(root,directory);
@@ -19,7 +19,8 @@ async function staleTemps(root,now,grace,check,onDelete){
             if(!entry.isFile()||!/^(?:head\.json|maintenance\.json|[a-f0-9]{64}\.(?:json|srbak))\.[a-f0-9-]{36}\.tmp$/.test(entry.name))continue;
             const file=await safeFile(root,path.join(directory,entry.name));
             const stat=await fs.stat(file);if(now-stat.mtimeMs<grace)continue;
-            await fs.unlink(file);onDelete(stat.size);if(++deleted>=64)return deleted;
+            await fs.unlink(file);onDelete(stat.size);if(++deleted>=limit)return deleted;
+            await pause();
         }
     }return deleted;
 }
@@ -38,10 +39,14 @@ async function replaceIndex(root,documents,expected,{detach=false,locked=false}=
     };
     return locked?apply():writer(root,apply);
 }
-async function reclaim(root,{signal,now=Date.now(),grace=GRACE,ownerRef,onProgress}={}){
-    return writer(root,()=>collect(root,{signal,now,grace,ownerRef,onProgress}));
+async function reclaim(root,{signal,now=Date.now(),grace=GRACE,ownerRef,onProgress,drain=false}={}){
+    return writer(root,()=>collect(root,{signal,now,grace,ownerRef,onProgress,drain}));
 }
-async function collect(root,{signal,now,grace,ownerRef,onProgress}){
+async function collect(root,{signal,now,grace,ownerRef,onProgress,drain}){
+    // Reuse this pass's verified roots and file list only while the writer lock
+    // is held. Foreground work aborts and joins the pass before changing data;
+    // the next pass builds fresh protection sets, never a cross-write cache.
+    const limit=drain?Infinity:256,tempLimit=drain?Infinity:64;
     const check=()=>signal?.throwIfAborted();check();
     const initial=await read(tx.headFile(root));if(!initial)return {status:'empty',deleted:0};
     const state=await tx.snapshot(root),documents=await backups.allDocuments(root,state);
@@ -53,16 +58,16 @@ async function collect(root,{signal,now,grace,ownerRef,onProgress}){
     const report=()=>onProgress?.({...totals});report();
     // A resumable upload protects chunks, not every unrelated completed job.
     const removeReceipts=async()=>{
-        for(const file of removable.slice(0,256)){
+        for(const file of removable.slice(0,limit)){
             check();for(const target of [file+'.upload',file])try{
                 const safe=await safeFile(root,target),stat=await fs.stat(safe);await fs.unlink(safe);
-                totals.operationFiles++;totals.bytes+=stat.size;report();
+                totals.operationFiles++;totals.bytes+=stat.size;report();await pause();
             }catch(error){if(error.code!=='ENOENT')throw error;}
         }
     };
     if(work.blocked.length){
         await removeReceipts();
-        return {status:'deferred',reason:work.blocked[0],reasons:work.blocked,...totals,remainingOperations:Math.max(0,removable.length-256),hasMore:removable.length>256};
+        return {status:'deferred',reason:work.blocked[0],reasons:work.blocked,...totals,remainingOperations:Math.max(0,removable.length-limit),hasMore:removable.length>limit};
     }
     check();
     // Convert at most one legacy reference backup per pass. Until converted,
@@ -97,16 +102,16 @@ async function collect(root,{signal,now,grace,ownerRef,onProgress}){
     for(const file of await entries(root,'chunks')){
         check();const ref=path.basename(file,'.json');if(marked.has(ref))continue;
         const stat=await fs.stat(await safeFile(root,file));if(now-stat.mtimeMs<grace){recentChunks++;continue;}
-        if(totals.deleted>=256){remainingChunks++;continue;}
+        if(totals.deleted>=limit){remainingChunks++;continue;}
         // Unreferenced damaged chunks need not parse successfully to be removed.
         // All live and backup roots have already passed validation above.
         await fs.unlink(file);totals.deleted++;totals.bytes+=stat.size;report();await pause();
     }
     await removeReceipts();
-    await staleTemps(root,now,grace,check,size=>{totals.temporaryFiles++;totals.bytes+=size;report();});
-    const remainingOperations=Math.max(0,removable.length-256);
+    await staleTemps(root,now,grace,check,size=>{totals.temporaryFiles++;totals.bytes+=size;report();},tempLimit);
+    const remainingOperations=Math.max(0,removable.length-limit);
     return {status:'completed',...totals,remainingChunks,remainingOperations,recentChunks,recentOperations:work.recent,
-        hasMore:remainingChunks>0||remainingOperations>0||totals.temporaryFiles>=64};
+        hasMore:remainingChunks>0||remainingOperations>0||totals.temporaryFiles>=tempLimit};
 
 }
 module.exports={reclaim,replaceIndex,GRACE};

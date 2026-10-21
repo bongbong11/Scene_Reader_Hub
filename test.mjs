@@ -50,7 +50,7 @@ assert.match(library, /If a new-event route fails, an existing event, relationsh
 assert.match(library, /A registered person being active does not prohibit another suitable NPC from entering/);
 assert.equal(pkg.main, 'index.js');
 assert.equal(pluginPkg.main, 'index.cjs');
-assert.equal(pluginPkg.version, '0.10.2');
+assert.equal(pluginPkg.version, '0.10.3');
 assert.match(source, /GENERATION_AFTER_COMMANDS/);
 assert.match(source, /extensionsMenu/);
 assert.match(source, /id = 'scene-reader-quick-button'/);

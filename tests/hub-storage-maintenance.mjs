@@ -35,12 +35,16 @@ try{
  assert.equal((await reclaim(root,{grace:0})).reason,'pending_upload');assert.ok(await readFile(p.location(root,'chunks',kept)));
  // A manual request drains more than one deletion batch and persists its mode.
  const batches=await init('batches');
+ await backups.capture(batches);
+ const archive=require('../server-plugin/storage/backup-archive.cjs'),verifyStored=archive.verifyStored;let checks=0;
+ archive.verifyStored=async(...args)=>{checks++;return verifyStored(...args);};
  for(let i=0;i<530;i++)await chunks.encode(batches,'unreferenced-'+i);
  await maintenance.configure(batches,{mode:'manual',chatKey:'character-avatar:A.png|chat:one'});
  await maintenance.start(batches,{chatKey:'character-avatar:A.png|chat:one'});
  const deadline=Date.now()+60000;let state;
  do{state=await maintenance.inspect(batches);if(!state.requested&&state.status!=='running')break;await new Promise(resolve=>setTimeout(resolve,10));}while(Date.now()<deadline);
  assert.equal(state.status,'completed');assert.ok(state.deleted>=530);assert.equal(state.hasMore,false);
+ archive.verifyStored=verifyStored;assert.equal(checks,1,'maintenance drains its queue without verifying the backup again per 256 chunks');
  maintenance.stop(batches);assert.equal((await maintenance.inspect(batches)).mode,'manual');
  // Foreground writes interrupt an in-progress sweep, preserving their value.
  for(let i=0;i<300;i++)await chunks.encode(batches,'interrupt-'+i);

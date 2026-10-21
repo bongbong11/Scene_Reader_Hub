@@ -1,6 +1,6 @@
 {
   "name": "scene-reader-jev-plugin",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "files": [
     {
       "path": "index.cjs",
@@ -9,13 +9,13 @@
     },
     {
       "path": "nanogpt-jev.cjs",
-      "bytes": 4938,
-      "sha256": "931d7d11eb51f547c16adfb15b26e5c28a3434cda8432ec5b44822a2d28f67c7"
+      "bytes": 6336,
+      "sha256": "fc0d696600eaf64968b9ab48716df896092368e038c71e404dadb0ff74ebd383"
     },
     {
       "path": "package.json",
       "bytes": 127,
-      "sha256": "f5a1d2c1516d524e319bc504b7025ab470ca86a297379d80e2580a86e6f5cda2"
+      "sha256": "29983a3878b25ce790abb25cc91deb863209de1e8ba4085f05bffad40d12e856"
     },
     {
       "path": "retrieval/host.cjs",
@@ -114,8 +114,8 @@
     },
     {
       "path": "storage/maintenance.cjs",
-      "bytes": 4957,
-      "sha256": "23a235d5cb4082161df29b7efd937d01a8d371cee16f871b113e0328e4097138"
+      "bytes": 4769,
+      "sha256": "3f5690e373b9db7cb02a9acbca13763902081f100601bd013cd920882e5aaac8"
     },
     {
       "path": "storage/migration.cjs",
@@ -139,8 +139,8 @@
     },
     {
       "path": "storage/reclaim.cjs",
-      "bytes": 7563,
-      "sha256": "f5b893320c2ae5461b277c41a1561c6a5aa4877385f3b64b81cc41584fac7904"
+      "bytes": 7967,
+      "sha256": "30cabf7cde003b6479d84b9a95ff91f46c9398e2e34d3e0e50671a69b217a0a0"
     },
     {
       "path": "storage/room-cleanup.cjs",

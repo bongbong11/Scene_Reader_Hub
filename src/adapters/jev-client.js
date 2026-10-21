@@ -45,7 +45,7 @@ async function callJev(body, timeoutMs = 30000, signal = null, connection = null
         }, {signal,timeoutMs,timeoutMessage:'Jev 연결 시간이 초과되었습니다.'});
         signal?.throwIfAborted();
         if (!response.ok) {
-            if(nano && ['NANO_SUBSCRIPTION_ONLY_REQUIRED','NANO_SUBSCRIPTION_UNAVAILABLE','NANO_KEY_MISSING','NANO_MODEL_INVALID','NANO_UPSTREAM_ERROR'].includes(data?.code)) throw Object.assign(new Error(data.error),{code:data.code,httpStatus:response.status});
+            if(nano && ['NANO_SUBSCRIPTION_ONLY_REQUIRED','NANO_SUBSCRIPTION_UNAVAILABLE','NANO_KEY_MISSING','NANO_MODEL_INVALID','NANO_UPSTREAM_ERROR','NANO_INVALID_RESPONSE','NANO_CONNECTION_FAILED','NANO_TIMEOUT','NANO_QUESTIONS_MISSING','NANO_REQUEST_TOO_LARGE'].includes(data?.code)) throw Object.assign(new Error(data.error),{code:data.code,httpStatus:response.status,phase:['subscription','decision','response'].includes(data.phase)?data.phase:undefined});
             if(response.status===404 && nano)throw Object.assign(new Error('나노GPT 연결에는 서버 플러그인 0.10.2 이상이 필요합니다. 업데이트하고 SillyTavern을 다시 시작하세요.'),{code:'JEV_PLUGIN_UPDATE_REQUIRED',httpStatus:404});
             if (response.status===404) throw Object.assign(new Error(pluginError(404,null,'')),{code:'JEV_PLUGIN_NOT_FOUND',httpStatus:404});
             throw requestFailure({httpStatus:response.status},'JEV',nano?'나노GPT Jev 연결':'공홈 TypeSafe Jev 연결');
@@ -59,7 +59,7 @@ async function callJev(body, timeoutMs = 30000, signal = null, connection = null
         report({status:invalidKeys.length?'degraded':'succeeded',durationMs:Date.now()-started,validCount:requested.length-invalidKeys.length,invalidCount:invalidKeys.length});
         return data;
     } catch (error) {
-        report({status:signal?.aborted?'cancelled':'failed',durationMs:Date.now()-started,errorKind:error.code || (error instanceof TypeError?'JEV_NETWORK_ERROR':'JEV_INVALID_RESPONSE'),httpStatus:error.httpStatus || 0});
+        report({status:signal?.aborted?'cancelled':'failed',durationMs:Date.now()-started,errorKind:error.code || (error instanceof TypeError?'JEV_NETWORK_ERROR':'JEV_INVALID_RESPONSE'),httpStatus:error.httpStatus || 0,...(error.phase?{phase:error.phase}:{})});
         if (signal?.aborted) throw new deps.StaleRunError();
         if (error.code === 'REQUEST_TIMEOUT' || error.name === 'AbortError') throw Object.assign(new Error('Jev 연결 시간이 초과되었습니다.'),{code:'JEV_TIMEOUT'});
         if (error instanceof TypeError) throw Object.assign(new Error('씬판독기 Jev 서버 플러그인에 연결하지 못했습니다.'),{code:'JEV_NETWORK_ERROR'});
