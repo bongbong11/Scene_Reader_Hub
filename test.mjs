@@ -50,7 +50,7 @@ assert.match(library, /If a new-event route fails, an existing event, relationsh
 assert.match(library, /A registered person being active does not prohibit another suitable NPC from entering/);
 assert.equal(pkg.main, 'index.js');
 assert.equal(pluginPkg.main, 'index.cjs');
-assert.equal(pluginPkg.version, '0.10.1');
+assert.equal(pluginPkg.version, '0.10.2');
 assert.match(source, /GENERATION_AFTER_COMMANDS/);
 assert.match(source, /extensionsMenu/);
 assert.match(source, /id = 'scene-reader-quick-button'/);
@@ -855,11 +855,11 @@ assert.equal(invalidBodyResponse.code, 400);
 const oversizedResponse = { ...response, code: 0, body: '' };
 await routes['POST /systemone']({ get: () => 'secret-key', body: { state: 'x'.repeat(1_000_100) } }, oversizedResponse);
 assert.equal(oversizedResponse.code, 413);
-await routes['POST /systemone']({ get: () => 'secret-key', body: { model: 'other', state: 'x', questions: { q: { type: 'choice', criteria: { a: 'a', b: 'b' } } } } }, response);
+await routes['POST /systemone']({ get: () => 'secret-key', body: { model: 'jev-1.14.0', state: 'x', questions: { q: { type: 'choice', criteria: { a: 'a', b: 'b' } } } } }, response);
 globalThis.fetch = previousFetch;
 assert.equal(forwarded.url, 'https://api.typesafe.ai/v1/systemone');
 assert.equal(forwarded.options.headers.Authorization, 'Bearer secret-key');
-assert.equal(JSON.parse(forwarded.options.body).model, 'jev-latest');
+assert.equal(JSON.parse(forwarded.options.body).model, 'jev-1.14.0');
 assert.equal(response.code, 200);
 
 const storageRoot = await mkdtemp(join(tmpdir(), 'scene-reader-test-'));

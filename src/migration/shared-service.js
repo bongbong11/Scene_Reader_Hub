@@ -1,3 +1,4 @@
+import {createMaintenanceClient} from '../storage/maintenance-client.js';
 import {backupSource} from '../storage/backup-label.js';
 import {preferencesForConnection} from '../storyline/preferences.js';
 import {clone,digest,chatRef,ownerRef,SHARED_LINK,bytes,fail} from '../storage/shared-document.js';
@@ -12,6 +13,7 @@ import {expandCharacterStore} from '../storage/character-pages.js';
 // Explicit user operations only. No inference, startup scans, or background migration.
 export function createSharedService(deps,router) {
     let active=null,allController=null;const {documents,required,rawPost,serial}=router;
+    const maintenance=createMaintenanceClient({post:rawPost,chatKey:()=>deps.stateChatKey(),scope:()=>router.scope?.(),isBusy:()=>Boolean(active)||Boolean(allController)||deps.isStorageActionBlocked?.()});
     const account=createAccountMigration(rawPost,()=>router.scope?.(),()=>backupSource(deps.getContext()));
     const report=(phase,status,code)=>deps.noteDiagnostic?.('shared_operation',{module:'src/migration/shared-service.js',phase,status,...(code?{code}:{})});
     const key=()=>deps.stateChatKey();
@@ -48,7 +50,7 @@ export function createSharedService(deps,router) {
     }
     async function operation(phase,task) {
         if(active)throw fail('SHARED_OPERATION_BUSY','자료 연결 작업을 마친 뒤 다시 시도하세요.');
-        if(!deps.getContext().chatId||(phase!=='rollback' && deps.chatReadyKey!==key()))throw fail('STORAGE_NOT_READY','저장된 채팅을 먼저 열고 자료를 불러와 주세요.');
+        if(phase!=='delete_room'&&(!deps.getContext().chatId||(phase!=='rollback' && deps.chatReadyKey!==key())))throw fail('STORAGE_NOT_READY','저장된 채팅을 먼저 열고 자료를 불러와 주세요.');
         if(deps.isStorageActionBlocked?.())throw fail('SHARED_GENERATION_BUSY','생성과 판독을 마치거나 취소한 뒤 자료를 연결해 주세요.');
         const startedKey=key(),controller=new AbortController();active=controller;
         const assert=()=>{controller.signal.throwIfAborted();if(key()!==startedKey)throw fail('STORAGE_STALE_CHAT','채팅이 바뀌어 자료 연결을 중단했습니다.');};
@@ -199,6 +201,19 @@ export function createSharedService(deps,router) {
         return rawPost('v2/story/delete-preview',{storylineId,chatKey:key()});
     }
     async function deleteStory(storylineId,token){return operation('delete_story',({chatKey})=>router.post('v2/story/delete',{storylineId,chatKey,token,confirm:true,source:backupSource(deps.getContext())}));}
+    async function roomRequest(route,body){
+        const caps=await rawPost('v2/capabilities');
+        if(!caps.features?.includes('room-cleanup'))throw fail('STORAGE_UPDATE_REQUIRED','방 자료를 정리하려면 서버 플러그인을 업데이트해 주세요.');
+        return rawPost('v2/room/'+route,body);
+    }
+    const listRooms=()=>roomRequest('list',{chatKey:key()});
+    const deletedRooms=deletedName=>roomRequest('list',{deletedName});
+    const previewRoom=chatKey=>roomRequest('delete-preview',{chatKey});
+    const deleteRoom=(chatKey,token)=>operation('delete_room',()=>{
+        const current=backupSource(deps.getContext()),owner=chatKey.split('|chat:')[0];
+        const characterName=current.chatKey?.split('|chat:')[0]===owner?current.characterName:owner.replace(/^character-avatar:/,'').replace(/\.[^.]+$/,'').replace(/^character:/,'').replace(/^group:/,'그룹 ');
+        return router.post('v2/room/delete',{chatKey,token,confirm:true,source:{characterName,chatKey,chatName:chatKey.split('|chat:')[1]}});
+    });
     async function inspect() {
         const chatKey=key(),view=router.views.get(chatKey);
         if(!view)return {status:'unavailable'};
@@ -213,6 +228,6 @@ export function createSharedService(deps,router) {
         return {status:hasLegacyMaterial(view.legacy?.chat,view.legacy?.characters)?'legacy':stories.length?'choose':'empty',stories:clone(stories),deferred:data.deferred.includes(chatRef(chatKey)),legacyOptOut};
     }
     async function migrateAll(){if(allController||active)throw fail('SHARED_OPERATION_BUSY','자료 이사를 마친 뒤 다시 시도하세요.');if(deps.isStorageActionBlocked?.())throw fail('SHARED_GENERATION_BUSY','생성과 판독을 마치거나 취소한 뒤 자료를 옮겨 주세요.');const controller=new AbortController(),started=key();allController=controller;try{deps.invalidateReasonerJobs?.();await deps.clearInjection?.({chatKey:started});await account.start();controller.signal.throwIfAborted();await importLegacyBrowserWorlds({signal:controller.signal});controller.signal.throwIfAborted();if(started!==key())throw fail('STORAGE_STALE_CHAT','채팅이 바뀌었습니다. 옮긴 자료는 그대로 보관됩니다.');if(deps.getContext().chatId&&deps.chatReadyKey===key()&&!router.views.get(key())?.link&&hasLegacyMaterial(deps.record(),deps.characterStore))await migrate();return account.inspect({fresh:true});}finally{if(allController===controller)allController=null;}}
-    return {migrate,migrateAll,account,connect,restore,updateBaseline,inspect,catalog,defer,inspectDeletion,deleteStory,scope:()=>router.scope?.(),importBrowserWorlds:()=>operation('browser_world_import',()=>importLegacyBrowserWorlds()),cleanStaging:()=>rawPost('v2/maintenance/cleanup'),isBusy:()=>Boolean(active)||Boolean(allController)||account.isBusy(),cancel:()=>{allController?.abort(new DOMException('Cancelled','AbortError'));active?.abort(new DOMException('Cancelled','AbortError'));account.cancel();},
+    return {migrate,migrateAll,account,maintenance,listRooms,deletedRooms,previewRoom,deleteRoom,connect,restore,updateBaseline,inspect,catalog,defer,inspectDeletion,deleteStory,scope:()=>router.scope?.(),importBrowserWorlds:()=>operation('browser_world_import',()=>importLegacyBrowserWorlds()),isBusy:()=>Boolean(active)||Boolean(allController)||account.isBusy(),cancel:()=>{allController?.abort(new DOMException('Cancelled','AbortError'));active?.abort(new DOMException('Cancelled','AbortError'));account.cancel();},
         snapshot:()=>({linked:Boolean(router.metadata(key())),active:router.metadata(key())?.active===true,busy:Boolean(active)||Boolean(allController)||account.isBusy()})};
 }

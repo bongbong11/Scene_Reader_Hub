@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {checkStorageCleanup} from './browser-storage-cleanup.mjs';
+import {checkJevSettings} from './browser-jev-settings.mjs';
 export async function checkRoomBackups(page,setViewportSize) {
     let release,entered;
     const reached=new Promise(resolve=>entered=resolve),wait=new Promise(resolve=>release=resolve);
@@ -114,5 +116,7 @@ export async function checkRoomBackups(page,setViewportSize) {
     await recovery.getByRole('button',{name:'옛 세계관 가져오기',exact:true}).waitFor();
     assert.equal(await recovery.getByRole('button',{name:'복구·기존 방식',exact:true}).count(),0);
     await recovery.getByRole('button',{name:'닫기',exact:true}).click();
+    await checkStorageCleanup(page,setViewportSize);
+    await checkJevSettings(page);
     console.log('Room/backup browser passed: pending room read hides prior preview and payload; empty room stays empty; named automatic backup fits 320/390/1280px.');
 }

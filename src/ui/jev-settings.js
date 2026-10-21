@@ -1,11 +1,13 @@
 import { notifySceneReaderToast } from './toasts.js';
+import {bindNanoJev} from './nanogpt-jev.js';
 
 export function bindJevSettings(deps) {
+    bindNanoJev(deps);
     const el = id => deps.document.getElementById(id);
     let busy = false;
     const setBusy = value => {
         busy = value;
-        for (const id of ['sr-jev-save', 'sr-jev-test']) if (el(id)) el(id).disabled = value;
+        for (const id of ['sr-jev-save', 'sr-jev-test', 'sr-jev-connection', 'sr-official-jev-model', 'sr-nano-jev-model']) if (el(id)) el(id).disabled = value;
     };
     el('sr-jev-save')?.addEventListener('click', async () => {
         if (busy) return;

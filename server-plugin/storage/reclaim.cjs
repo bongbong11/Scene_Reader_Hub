@@ -10,16 +10,16 @@ async function entries(root,kind){
     return rows.filter(row=>row.isFile()&&/^[a-f0-9]{64}\.json$/.test(row.name)).map(row=>path.join(dir,row.name));
 }
 const pause=()=>new Promise(resolve=>setImmediate(resolve));
-async function staleTemps(root,now,grace,check){
+async function staleTemps(root,now,grace,check,onDelete){
     let deleted=0;
     for(const folder of ['', 'chunks','operations','backups']){
         const directory=path.join(root,'storage-v2',folder);await safeDirectory(root,directory);
         for(const entry of await fs.readdir(directory,{withFileTypes:true})){
             check();
-            if(!entry.isFile()||!/^(?:head\.json|[a-f0-9]{64}\.(?:json|srbak))\.[a-f0-9-]{36}\.tmp$/.test(entry.name))continue;
+            if(!entry.isFile()||!/^(?:head\.json|maintenance\.json|[a-f0-9]{64}\.(?:json|srbak))\.[a-f0-9-]{36}\.tmp$/.test(entry.name))continue;
             const file=await safeFile(root,path.join(directory,entry.name));
-            if(now-(await fs.stat(file)).mtimeMs<grace)continue;
-            await fs.unlink(file);if(++deleted>=64)return deleted;
+            const stat=await fs.stat(file);if(now-stat.mtimeMs<grace)continue;
+            await fs.unlink(file);onDelete(stat.size);if(++deleted>=64)return deleted;
         }
     }return deleted;
 }
@@ -38,32 +38,31 @@ async function replaceIndex(root,documents,expected,{detach=false,locked=false}=
     };
     return locked?apply():writer(root,apply);
 }
-async function reclaim(root,{signal,now=Date.now(),grace=GRACE}={}){
-    return writer(root,()=>collect(root,{signal,now,grace}));
+async function reclaim(root,{signal,now=Date.now(),grace=GRACE,ownerRef,onProgress}={}){
+    return writer(root,()=>collect(root,{signal,now,grace,ownerRef,onProgress}));
 }
-async function collect(root,{signal,now,grace}){
+async function collect(root,{signal,now,grace,ownerRef,onProgress}){
     const check=()=>signal?.throwIfAborted();check();
     const initial=await read(tx.headFile(root));if(!initial)return {status:'empty',deleted:0};
     const state=await tx.snapshot(root),documents=await backups.allDocuments(root,state);
     const migration=documents['metadata:migration-v2'];
     if(!migration||!['completed','cleaned'].includes((await chunks.reader(root).value(migration.root)).status))return {status:'deferred',reason:'migration'};
-    const operations=[],removable=[];
-    for(const file of await entries(root,'operations')){
-        check();let op=await read(file);const stat=await fs.stat(file),age=now-Math.max(stat.mtimeMs,Date.parse(op.updatedAt||op.createdAt)||stat.mtimeMs);
-        if(op.status==='committing'){
-            op=await tx.status(root,op.operationId);
-            if(op?.status!=='committed')return {status:'deferred',reason:'unresolved_commit'};
-            await atomic(root,file,JSON.stringify(op));
+    const work=await require('./reclaim-operations.cjs').inspect(root,await entries(root,'operations'),documents,{now,signal});
+    const operations=work.protectedOperations,removable=work.removable;
+    const totals={deleted:0,bytes:0,removedDocuments:0,temporaryFiles:0,operationFiles:0,cancelledOperations:work.cancelled};
+    const report=()=>onProgress?.({...totals});report();
+    // A resumable upload protects chunks, not every unrelated completed job.
+    const removeReceipts=async()=>{
+        for(const file of removable.slice(0,256)){
+            check();for(const target of [file+'.upload',file])try{
+                const safe=await safeFile(root,target),stat=await fs.stat(safe);await fs.unlink(safe);
+                totals.operationFiles++;totals.bytes+=stat.size;report();
+            }catch(error){if(error.code!=='ENOENT')throw error;}
         }
-        if(op.status==='preparing'){
-            // Abandoned uploads are explicitly cancelled before they can be reclaimed.
-            if(age<7*DAY)return {status:'deferred',reason:'pending_upload'};
-            await atomic(root,file,JSON.stringify({...op,status:'cancelled',updatedAt:new Date(now).toISOString()}));
-            return {status:'deferred',reason:'expired_upload'};
-        }
-        if(age<grace)operations.push(op);else if(['committed','cancelled','verified'].includes(op.status)||op.kind==='character_export')removable.push(file);
-        else return {status:'deferred',reason:'unknown_operation'};
-        await pause();
+    };
+    if(work.blocked.length){
+        await removeReceipts();
+        return {status:'deferred',reason:work.blocked[0],reasons:work.blocked,...totals,remainingOperations:Math.max(0,removable.length-256),hasMore:removable.length>256};
     }
     check();
     // Convert at most one legacy reference backup per pass. Until converted,
@@ -77,7 +76,7 @@ async function collect(root,{signal,now,grace}){
         else await nodes.verify(backup.root,marked);
     }
     const recentKeys=new Set(operations.flatMap(op=>Object.keys(op.results||{})));
-    const selected=await require('./live-documents.cjs').select(root,documents,{recentKeys,signal});
+    const selected=await require('./live-documents.cjs').select(root,documents,{recentKeys,signal,ownerRef});
     const next=selected.documents,removedDocuments=Object.keys(documents).length-Object.keys(next).length;
     // Validate every retained document before publishing a compact index.
     for(const meta of Object.values(next)){check();await nodes.verify(meta.root,marked);await pause();}
@@ -93,19 +92,21 @@ async function collect(root,{signal,now,grace}){
     const compact=await tx.snapshot(root);
     await nodes.verify(head,marked);
     for(const ref of Object.values(compact.buckets))await nodes.verify(ref,marked);
-    let deleted=0,bytes=0;
+    totals.removedDocuments=removedDocuments;report();
+    let remainingChunks=0,recentChunks=0;
     for(const file of await entries(root,'chunks')){
         check();const ref=path.basename(file,'.json');if(marked.has(ref))continue;
-        const stat=await fs.stat(await safeFile(root,file));if(now-stat.mtimeMs<grace)continue;
-        await fs.unlink(file);deleted++;bytes+=stat.size;
-        // Bounded sweep; another idle pass continues without a growing journal.
-        if(deleted>=256)break;
-        await pause();
+        const stat=await fs.stat(await safeFile(root,file));if(now-stat.mtimeMs<grace){recentChunks++;continue;}
+        if(totals.deleted>=256){remainingChunks++;continue;}
+        // Unreferenced damaged chunks need not parse successfully to be removed.
+        // All live and backup roots have already passed validation above.
+        await fs.unlink(file);totals.deleted++;totals.bytes+=stat.size;report();await pause();
     }
-    for(const file of removable.slice(0,64)){
-        check();for(const target of [file+'.upload',file])try{await fs.unlink(await safeFile(root,target));}catch(error){if(error.code!=='ENOENT')throw error;}
-    }
-    const temporaryFiles=await staleTemps(root,now,grace,check);
-    return {status:'completed',deleted,bytes,removedDocuments,temporaryFiles};
+    await removeReceipts();
+    await staleTemps(root,now,grace,check,size=>{totals.temporaryFiles++;totals.bytes+=size;report();});
+    const remainingOperations=Math.max(0,removable.length-256);
+    return {status:'completed',...totals,remainingChunks,remainingOperations,recentChunks,recentOperations:work.recent,
+        hasMore:remainingChunks>0||remainingOperations>0||totals.temporaryFiles>=64};
+
 }
 module.exports={reclaim,replaceIndex,GRACE};

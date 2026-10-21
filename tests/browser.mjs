@@ -934,10 +934,11 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter returns to the room.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),4);
     await page.locator('#sr-settings-button').click();
-    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/transaction')),page.locator('#sr-reset-npc').click()]);
+    const statesBeforeReset=structuredClone(store.chat.characterStateEvents);
+    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/transaction')),page.locator('#sr-reset-current-npc').click()]);
     await page.evaluate(()=>mock.profileStateRequests[3].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:90}]})}));
     await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    assert.deepEqual(store.chat.characterStateEvents,[],'reset cannot be undone by a late background response');
+    assert.deepEqual(store.chat.characterStateEvents,statesBeforeReset,'ending an NPC rejects a late background response without clearing accumulated emotions');
     // Preparation proceeds without waiting for the previous collector. Stop must
     // still abort both paths and the late collector must not start another call.
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter checks the window.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});

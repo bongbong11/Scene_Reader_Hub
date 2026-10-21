@@ -139,6 +139,7 @@ async function migrateChatIdentity(request, chatKey, legacyChatKey) {
     await scheduleCleanup(files.root,request.user.directories,{collections:changedCharacterCollections(legacyChatKey,previousCharacters,null)});
 }
 async function init(router) {
+    require('./nanogpt-jev.cjs').register(router,{pathsFor,load:legacyV2.load,save:legacyV2.save,storageHandler});
     registerRetrieval(router);
     storageV2.register(router,{safeRoot,serialize});
     router.get('/health', (_request, response) => response.json({ ok: true, service: 'scene-reader-jev', model: MODEL, storage: true }));
@@ -151,6 +152,7 @@ async function init(router) {
         if(!context.active&&Date.now()-(tempChecks.get(files.root)||0)>3600000){tempChecks.set(files.root,Date.now());await cleanupStaleTemps(files.root);if(tempChecks.size>128)tempChecks.delete(tempChecks.keys().next().value);}
         await retryCleanup(files.root, request.user.directories).catch(error=>console.warn('[Scene Reader] Search cache cleanup will retry:',error.code || error.name));
         if(context.active&&request.body?.storageProtocol!==2)throw Object.assign(new Error('새 저장 형식을 지원하는 씬판독기 복귀판을 사용해 주세요.'),{code:'STORAGE_SCHEMA_UNSUPPORTED',status:409});
+        if(context.active)await require('./storage/room-cleanup.cjs').remember(files.root,chatKey);
         const session = await readSession(files,context);
         const [settings, chat, history, characters, secret, backups] = await Promise.all([
             context.load(files.settings, {}), session.chat, session.history, session.chat?.sharedLinkV1?null:context.load(files.characters, null), context.load(files.secret, {}), listBackups(request),
@@ -196,7 +198,9 @@ async function init(router) {
     router.post('/storage/key', storageHandler(async (request, response) => {
         const key = String(request.body?.key || '').trim();
         const files=pathsFor(request),file=files.secret;
-        if(key||await legacyV2.active(files.root))await legacyV2.save(files.root,file,key?{jevKey:key}:null);else await removeFile(file);
+        const secret={...await legacyV2.load(files.root,file,{})};
+        if(key)secret.jevKey=key;else delete secret.jevKey;
+        if(Object.keys(secret).length||await legacyV2.active(files.root))await legacyV2.save(files.root,file,secret);else await removeFile(file);
         response.json({ ok: true, keyStatus: key ? `저장됨 ····${key.slice(-4)}` : '저장된 키 없음' });
     }));
 
@@ -238,7 +242,9 @@ async function init(router) {
         if (!apiKey) return sendError(response, 401, 'Jev API key is missing.');
         const body = request.body;
         if (!body || typeof body !== 'object' || Array.isArray(body)) return sendError(response, 400, 'A JSON request body is required.');
-        const payload = JSON.stringify({ ...body, model: MODEL });
+        const selectedModel=body.model||MODEL;
+        if(!['jev-latest','jev-1.14.0','jev-1.13.0'].includes(selectedModel))return sendError(response,400,'Unsupported TypeSafe Jev model.');
+        const payload = JSON.stringify({ ...body, model: selectedModel });
         if (Buffer.byteLength(payload, 'utf8') > MAX_BODY_BYTES) return sendError(response, 413, 'The Jev request is too large.');
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);

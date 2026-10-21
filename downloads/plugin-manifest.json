@@ -1,16 +1,21 @@
 {
   "name": "scene-reader-jev-plugin",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "files": [
     {
       "path": "index.cjs",
-      "bytes": 18569,
-      "sha256": "5acf19db5ae37860cbe057b731dbd73d2ebdc6c2f27a94d04aa1a9ceffe61b60"
+      "bytes": 19117,
+      "sha256": "5afad7a463f4430f0fe50e22f548bab32ce9b2966408ae5e2ea9e69274b7181e"
+    },
+    {
+      "path": "nanogpt-jev.cjs",
+      "bytes": 4938,
+      "sha256": "931d7d11eb51f547c16adfb15b26e5c28a3434cda8432ec5b44822a2d28f67c7"
     },
     {
       "path": "package.json",
       "bytes": 127,
-      "sha256": "7b9d840821490b931e71dc5602312d871edd59f71e832644f5e63614af697b2a"
+      "sha256": "f5a1d2c1516d524e319bc504b7025ab470ca86a297379d80e2580a86e6f5cda2"
     },
     {
       "path": "retrieval/host.cjs",
@@ -104,13 +109,13 @@
     },
     {
       "path": "storage/live-documents.cjs",
-      "bytes": 4780,
-      "sha256": "3d1973b6ff343d213ced9eed65ea9be5110e2913877605bf3cc0b40e7ff24d28"
+      "bytes": 4911,
+      "sha256": "516a83b50dc6f601312e8eb72201c0ad0557b674bd92c318a3bb75df74df6e22"
     },
     {
       "path": "storage/maintenance.cjs",
-      "bytes": 1373,
-      "sha256": "4a98d2b86117f43f81fd63c10b73c67f0ca304c151a63072ecb191980cf1fa85"
+      "bytes": 4957,
+      "sha256": "23a235d5cb4082161df29b7efd937d01a8d371cee16f871b113e0328e4097138"
     },
     {
       "path": "storage/migration.cjs",
@@ -123,9 +128,24 @@
       "sha256": "fb2c6f58e41e954229b17cf0d512ca065314e558cb556d1c9b29cb0c8e6ee58c"
     },
     {
+      "path": "storage/reclaim-operations.cjs",
+      "bytes": 3032,
+      "sha256": "decfb3b4ada04425c111c3d3f03aec4b15defd08229f52452e1054da919a7824"
+    },
+    {
+      "path": "storage/reclaim-scope.cjs",
+      "bytes": 2327,
+      "sha256": "ee6e65460633450130f17069137b2c7256e9ed539c28e49f714bd059213723a6"
+    },
+    {
       "path": "storage/reclaim.cjs",
-      "bytes": 7217,
-      "sha256": "6b5e38badb978de960bb92741beb71064aea032b57748617a16b6e27a2067ecc"
+      "bytes": 7563,
+      "sha256": "f5b893320c2ae5461b277c41a1561c6a5aa4877385f3b64b81cc41584fac7904"
+    },
+    {
+      "path": "storage/room-cleanup.cjs",
+      "bytes": 6168,
+      "sha256": "e62e7047ab9719c8924817737ff803d72bce6d7da38768093260d969a0bc3f67"
     },
     {
       "path": "storage/room-restore.cjs",
@@ -134,8 +154,8 @@
     },
     {
       "path": "storage/routes.cjs",
-      "bytes": 11113,
-      "sha256": "4aaf3b57c7131abc769e9d48afa7a632e4069c810b43c7e8d41c7b32b044eea2"
+      "bytes": 11966,
+      "sha256": "8a1ebc4aabec30bb797094d3641c5cafb3c2bb417879bceaaf09f5b8d9de61e6"
     },
     {
       "path": "storage/story-delete.cjs",
@@ -144,8 +164,8 @@
     },
     {
       "path": "storage/transactions.cjs",
-      "bytes": 5993,
-      "sha256": "91ba3d4caf106dc19039c1a746d4dab9c5b71d8ccb8dcbcfe4b2404be67e2dbd"
+      "bytes": 6396,
+      "sha256": "72a4d1cd321b447e71414bef1b4454f3c07414af057b4da52e072831e3675dfd"
     },
     {
       "path": "storage/world-library.cjs",

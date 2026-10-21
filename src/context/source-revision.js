@@ -25,6 +25,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         ...(vaultRevision ? {vaultRevision} : {}),
         world: { id: world?.id || '', name: world?.name || '', hint: world?.hint || '', prompt: world?.prompt || '', franchise: Boolean(world?.franchise), calendarTopics: world?.calendarTopics || [], advanced: world?.advanced || null },
         reasoner: deps.settings.reasonerProfileId || '',
+        jev: [deps.settings.jevConnection || 'typesafe', deps.settings.jevNanoModel || 'typesafe/jev-1.14', deps.settings.jevOfficialModel || 'jev-latest'],
         retrieval: [deps.settings.retrievalProvider, deps.settings.retrievalModel, deps.settings.retrievalVertexAuth, deps.settings.retrievalVertexRegion, deps.settings.retrievalVertexProject],
         memoryReferenceEnabled: MEMORY_REFERENCE_ENABLED,
         decisionContract: DECISION_CONTRACT_VERSION,

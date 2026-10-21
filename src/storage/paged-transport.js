@@ -17,7 +17,7 @@ export function createPagedTransport(post,{noteDiagnostic}={}) {
   const response=await post('v2/metadata',{keys:[key]},{signal}),meta=response.documents[key];revisions.set(key,meta?.revision||0);return meta?decodeTree(meta.root,ref=>get(ref,signal),{signal}):null;
  }
  async function select(key,path,{signal}={}){const response=await post('v2/read',{keys:[key],paths:{[key]:path}},{signal}),meta=response.documents[key];revisions.set(key,meta?.revision||0);return meta?.value??null;}
- async function writeMany(writes,{signal,operationId,prepare}={}) {
+ async function writeMany(writes,{signal,operationId,prepare,chatKey}={}) {
   const descriptors=writes.map(item=>({key:item.key,expectedRevision:item.expectedRevision ?? revisions.get(item.key)??0,immutable:item.immutable===true}));
   // Match the exact transaction, including revisions supplied by bootstrap.
   // A cold cache after reload/restore must not reuse an older transaction ID.
@@ -28,7 +28,7 @@ export function createPagedTransport(post,{noteDiagnostic}={}) {
   const emit=async(hash,text)=>{if(!known.has(hash)&&!uploaded.has(hash)){await post('v2/operations/part',{operationId,hash,text},{signal});known.add(hash);}return hash;};
   for(const item of writes)roots[item.key]=await encodeTree(prepare?await prepare(emit):item.value,emit,{signal});
   let result;
-  try{result=await post('v2/operations/commit',{operationId,roots},{signal});}
+  try{result=await post('v2/operations/commit',{operationId,roots,...(chatKey?{chatKey}:{})},{signal});}
   catch(error){const status=await post('v2/operations/status',{operationId},{allowFailure:true});if(status?.operation?.status!=='committed')throw error;if(Object.entries(roots).some(([key,root])=>status.operation.results?.[key]?.root!==root))throw error;result=status;noteDiagnostic?.('storage_resolution',{module:'src/storage/paged-transport.js',phase:'v2/operations/commit',status:'succeeded',code:'STORAGE_COMMIT_RECOVERED'});}
   for(const hash of known){uploaded.add(hash);if(uploaded.size>32768)uploaded.delete(uploaded.values().next().value);}for(const [key,meta]of Object.entries(result.operation.results))revisions.set(key,meta.revision);return result.operation;
  }

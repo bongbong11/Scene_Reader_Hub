@@ -5,7 +5,7 @@ const PREFIX='scene-reader:shared:v1|';
 const key=(kind,id)=>PREFIX+kind+'|'+id;
 // Logical reachability precedes chunk reachability. Unknown document kinds are
 // retained; only well-understood superseded versions are collection candidates.
-async function select(root,documents,{recentKeys=new Set(),signal}={}){
+async function select(root,documents,{recentKeys=new Set(),signal,ownerRef}={}){
     const nodes=chunks.reader(root,{signal}),values=new Map(),keep=new Set(),queue=[],candidates=new Set();
     const value=async id=>{
         if(!values.has(id)){
@@ -22,6 +22,7 @@ async function select(root,documents,{recentKeys=new Set(),signal}={}){
         else if(kind==='migration'&&(await value(id))?.hubDocument?.data?.status==='active')candidates.add(id);
         else add(id);
     }
+    for(const id of await require('./reclaim-scope.cjs').retainedOutsideScope(documents,ownerRef,value,{signal}))add(id);
     for(const id of recentKeys)add(id);
     async function visit(item){
         if(!item||typeof item!=='object')return;

@@ -74,7 +74,7 @@ export function createHub({jobs,getIdentity,StaleRunError,journal=createEventJou
     }
     function endCycle() { preparation=null;event('lifecycle','GENERATION_ENDED'); }
     function report(stage,code,detail={}) { return event(stage,code,detail); }
-    return {run,stage,ensurePrepared,invalidate,endCycle,report,commands,subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
+    return {clearDiagnostics:()=>{journal.clear();for(const listener of listeners)try{listener();}catch{}},run,stage,ensurePrepared,invalidate,endCycle,report,commands,subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
         pendingRequest:()=>preparation?.identity===getIdentity()?preparation?.request:null,
         waitPrepared:()=>preparation?.identity===getIdentity()?preparation.promise:Promise.resolve(),
         snapshot:()=>({state:{...state},last:last?{...last}:null,events:journal.snapshot(),lastFailure:journal.lastFailure?.() || null}),

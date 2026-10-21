@@ -23,13 +23,14 @@ import {createWorldSelection} from '../world/selection.js';
 import {createContextRuntime} from '../context/runtime.js';
 import {createOocLifecycle} from '../lifecycle/ooc.js';
 import {createJevClient} from '../adapters/jev-client.js';
+import {jevConnection} from '../adapters/jev-connection.js';
 import {createStateSnapshots} from '../lifecycle/snapshots.js';
 import {createStatusUi} from '../ui/status.js';
 import {createShell} from '../ui/shell.js';
 import {createGenerationLifecycle} from '../lifecycle/generation.js';
 import {createStartup} from '../lifecycle/startup.js';
 import {createInjectionReconcile} from '../injection/reconcile.js';
-import {MODULE, INJECT_KEY, WORLD_INJECT_KEY, STATE_CAPTURE_KEY, IN_CHAT, SYSTEM_ROLE, JEV_KEY_STORAGE, JEV_API_URL, STORAGE_API_URL, JEV_MODEL, PROMPT_MACRO, WORLD_PROMPT_MACRO, MAX_TRANSCRIPT_CHARS, STATE_DB_NAME, STATE_DB_STORE, STATE_HISTORY_LIMIT, OWNER_UNLOCK_STORAGE, OWNER_PROMPT_STORAGE, OWNER_PASSWORD_HASH, DEFAULTS, CHAT_DEFAULTS} from '../storage/contract.js';
+import {MODULE, INJECT_KEY, WORLD_INJECT_KEY, STATE_CAPTURE_KEY, IN_CHAT, SYSTEM_ROLE, JEV_KEY_STORAGE, JEV_API_URL, STORAGE_API_URL, PROMPT_MACRO, WORLD_PROMPT_MACRO, MAX_TRANSCRIPT_CHARS, STATE_DB_NAME, STATE_DB_STORE, STATE_HISTORY_LIMIT, OWNER_UNLOCK_STORAGE, OWNER_PROMPT_STORAGE, OWNER_PASSWORD_HASH, DEFAULTS, CHAT_DEFAULTS} from '../storage/contract.js';
 import {createRuntimeState} from '../hub/state.js';
 import {createHub} from '../hub/orchestrator.js';
 import {installGenerationInterceptor} from '../adapters/generation-interceptor.js';
@@ -83,7 +84,7 @@ const runtime = createRuntimeState(() => stateChatKey());
 let analysis;
 let visibility;
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
-let {noteDiagnostic, diagnosticSnapshot} = createDiagnostics({
+let {noteDiagnostic, diagnosticSnapshot,clearDiagnostics} = createDiagnostics({
     get hub() { return hub; },
     get activeGenerationCycle() { return runtime.activeGenerationCycle; }, set activeGenerationCycle(value) { runtime.activeGenerationCycle = value; },
     get activeInjectionPayload() { return runtime.activeInjectionPayload; }, set activeInjectionPayload(value) { runtime.activeInjectionPayload = value; },
@@ -247,7 +248,7 @@ let {reversibleStateSnapshot, restoreReversibleState} = createStateSnapshots({
 let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnection} = createStatusUi({
     get noteDiagnostic() { return noteDiagnostic; },
     get localStorage() { return localStorage; },
-    get JEV_MODEL() { return JEV_MODEL; },
+    get JEV_MODEL() { return jevConnection(runtime.settings).model; },
     get StaleRunError() { return StaleRunError; },
     get callJev() { return callJev; },
     get document() { return document; },
@@ -712,7 +713,7 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     get applyRecordRelevance() { return applyRecordRelevance; },
     get CHARACTER_LIVE_SYSTEM() { return CHARACTER_LIVE_SYSTEM; },
     get FALLBACKS() { return FALLBACKS; },
-    get JEV_MODEL() { return JEV_MODEL; },
+    get JEV_MODEL() { return jevConnection(runtime.settings).model; },
     get STATE_HISTORY_LIMIT() { return STATE_HISTORY_LIMIT; },
     get StaleRunError() { return StaleRunError; },
     get actionPlanSummary() { return actionPlanSummary; },
@@ -854,7 +855,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
     get saveSession() { return saveSession; },
     get ADVANCED_ELEMENTS() { return ADVANCED_ELEMENTS; },
     get JEV_KEY_STORAGE() { return JEV_KEY_STORAGE; },
-    get JEV_MODEL() { return JEV_MODEL; },
+    get JEV_MODEL() { return jevConnection(runtime.settings).model; },
     get OWNER_PASSWORD_HASH() { return OWNER_PASSWORD_HASH; },
     get OWNER_PROMPT_STORAGE() { return OWNER_PROMPT_STORAGE; },
     get OWNER_UNLOCK_STORAGE() { return OWNER_UNLOCK_STORAGE; },
@@ -956,18 +957,19 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.31',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,clearDiagnostics,notify:message=>notifySceneReaderToast(window,'info',message,'씬판독기'),judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.31',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 const vaultNotice=message=>notifySceneReaderToast(window,'info',message,'씬판독기',{timeOut:1800});
 const vaultLauncher=createVaultLauncher({document,window,notify:vaultNotice});
-const sharedStorageUi=createSharedStorageUi({document,service:sharedStorage,record,chatKey:stateChatKey,
+const sharedStorageUi=createSharedStorageUi({document,service:sharedStorage,getContext,record,chatKey:stateChatKey,
     ready:()=>runtime.chatReadyKey===stateChatKey(),isBusy:()=>Boolean(runtime.judgeInFlight||runtime.pendingGenerationType),
     hydrate:async()=>{runtime.chatReadyKey='';if(await hydrateServerState())runtime.chatReadyKey=stateChatKey();else throw new Error('저장 상태를 다시 불러오지 못했습니다. 원본 복구나 백업 복원을 사용해 주세요.');},
     refresh:()=>{setFormValues();renderAll();},notify:vaultNotice});
 window.SceneReaderHub=Object.freeze({companionStorage,diagnostics:()=>hub.snapshot(),canUseKnowledgeVault:vaultLauncher.canUse,openKnowledgeVault:vaultLauncher.open});
 jQuery(() => void (startupPromise=init().then(()=>{
+    sharedStorageUi.watchDeletions(eventSource,event_types);
     registerSlashCommands({getContext,hub,document,openSceneReader,saveGlobal,setFormValues,invalidateReasonerJobs,clearInjection,updateStatus,diagnosticSnapshot,noteDiagnostic,get settings(){return runtime.settings;}});
 })).catch((error) => {
     console.error('[씬판독기] 초기화 실패', error);

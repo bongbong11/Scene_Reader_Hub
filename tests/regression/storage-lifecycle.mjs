@@ -62,7 +62,7 @@ try {
     const manual=(await call('backup/create')).value.backup.id;
     const exported=(await call('backup/export',{id:manual})).value.snapshot;
     assert.ok(!exported.files.some(file=>file.path.endsWith('.tmp')),'crashed temporary writes never poison backups');
-    for(let i=0;i<7;i++)assert.equal((await call('backup/restore',{id:manual})).code,200);
+    for(let i=0;i<7;i++){const restored=await call('backup/restore',{id:manual});assert.equal(restored.code,200,JSON.stringify(restored.value));}
     const backups=(await call('bootstrap',{chatKey:'chat-a'})).value.backups;
     assert.equal(backups.filter(item=>item.reason==='before_restore').length,5);
     assert.equal(backups.some(item=>item.id===manual),true,'automatic retention never deletes manual backups');

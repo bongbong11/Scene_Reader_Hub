@@ -342,41 +342,6 @@ function bindForm() {
         deps.showWorldList();
         notifySceneReaderToast(deps.window, 'success', '커스텀 세계관을 삭제했습니다.', '씬판독기');
     }), '커스텀 세계관을 삭제하지 못했습니다.'));
-    deps.document.getElementById('sr-reset-npc')?.addEventListener('click', () => deps.runUiTask((async () => {
-        deps.invalidateReasonerJobs();
-        const chatKey = deps.stateChatKey();
-        const rec = structuredClone(deps.record(true));
-        rec.npcProfile = null;
-        rec.villainProfile = null;
-        rec.eventProfile = null;
-        rec.lastNpcRoll = null;
-        rec.lastVillainRoll = null;
-        rec.lastEventRoll = null;
-        rec.pacingState = { relationship: { closer: 0, distant: 0, lastBeat: 'none', evidence: [] }, event: { qualifiedSteps: 0, evidence: [] } };
-        rec.relationshipState = { motion: 'none', trust: 'none', intimacy: 'none', romance: 'none', lastBeat: 'none' };
-        rec.observationState = { relationshipMotion: 'unclear', trustSignal: 'unclear', intimacySignal: 'unclear', romanceEvidence: 'unclear', unresolved: 'unclear', evidenceKey: '' };
-        rec.sceneState = { unresolved: 'none' };
-        rec.backgroundEvents = [];
-        rec.advancedEntities = [];
-        rec.continuity = deps.normalizeContinuity(null);
-        rec.characterState = {knowledge:[],revision:0};
-        rec.characterStateEvents = [];
-        rec.characterStateCapture = null;
-        rec.progressionState = {turnsSinceMeaningfulProgress:0,lastOutputFingerprint:""};
-        rec.observedOpportunityKeys = []; rec.sceneOpportunity = 1;
-        rec.lastVerification = null; rec.lastStateInput = null;
-        rec.pendingContinuityCandidates = [];
-        rec.lastReasonerSource = null;
-        rec.lastContinuityTrace = null;
-        rec.repetitionGuard = null;
-        rec.pendingPlan = null;
-        rec.lastJudgment = null;
-        await deps.clearInjection({chatKey});
-        await deps.saveSession(chatKey, rec, []);
-        if(chatKey!==deps.stateChatKey())return;
-        deps.renderAll();
-        notifySceneReaderToast(deps.window, 'success', '이 채팅의 판정, 관계 누적, 사건과 추첨 인물을 초기화했습니다.', '씬판독기');
-    })(), '채팅 판정 상태를 초기화하지 못했습니다.'));
     deps.document.getElementById('sr-reset-villain')?.addEventListener('click', () => deps.runUiTask((async () => {
         deps.invalidateReasonerJobs();
         const chatKey = deps.stateChatKey();
@@ -407,21 +372,6 @@ function bindForm() {
         notifySceneReaderToast(deps.window, 'success', '현재 일반 NPC를 종료하고 새 판독 대기로 전환했습니다.', '씬판독기');
     })(), '현재 일반 NPC를 종료하지 못했습니다.'));
     deps.document.getElementById('sr-reset-event')?.addEventListener('click', () => deps.runUiTask(deps.endActiveEvent(), '사건을 종료하지 못했습니다.'));
-    deps.document.getElementById('sr-reset-relationship')?.addEventListener('click', () => deps.runUiTask((async () => {
-        deps.invalidateReasonerJobs();
-        const chatKey = deps.stateChatKey();
-        const rec = structuredClone(deps.record(true));
-        rec.pacingState.relationship = { closer: 0, distant: 0, lastBeat: 'none', evidence: [] };
-        rec.relationshipState = { motion: 'none', trust: 'none', intimacy: 'none', romance: 'none', lastBeat: 'none' };
-        rec.observationState = { relationshipMotion: 'unclear', trustSignal: 'unclear', intimacySignal: 'unclear', romanceEvidence: 'unclear', unresolved: 'unclear', evidenceKey: '' };
-        rec.lastJudgment = null;
-        rec.pendingPlan = null;
-        await deps.clearInjection({chatKey});
-        await deps.saveSession(chatKey, rec, []);
-        if(chatKey!==deps.stateChatKey())return;
-        deps.renderAll();
-        notifySceneReaderToast(deps.window, 'success', '확장이 저장한 관계 누적 상태를 초기화했습니다.', '씬판독기');
-    })(), '관계 누적 상태를 초기화하지 못했습니다.'));
     deps.document.getElementById('sr-character-enabled')?.addEventListener('change', (event) => deps.runUiTask((async () => {
         const previous = deps.characterStore.enabled;
         deps.characterStore.enabled = event.target.checked;

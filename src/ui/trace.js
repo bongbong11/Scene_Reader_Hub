@@ -4,7 +4,7 @@ const SLOT_REASONS={prompt_missing:'기준 항목 없음',prompt_disabled:'기�
 const slotText=item=>`${item.kind==='scene'?'장면':'세계관'} ${item.identifier} ${item.side==='before'?'앞':'뒤'} · ${item.resultStatus==='missing'?(SLOT_REASONS[item.reason] || '주입 실패'):item.phase==='send'?'전송문 포함':'삽입 준비'}`;
 const STATES={idle:'대기',running:'진행 중',prepared:'주입 준비됨',skipped:'건너뜀',cancelled:'취소됨',failed:'확인 필요'};
 const RECEIPTS={confirmed:'포함 확인',unconfirmed:'포함 미확인',unavailable:'요청 확인 불가',unverifiable:'동적 매크로 확인 불가',not_expected:'주입 없음'};
-export function createTraceView({hub,document,copyText,judgmentFailureState=()=>null,getSettings=()=>({}),isDeveloperMode=()=>false,version='0.2.27'}) {
+export function createTraceView({hub,document,copyText,clearDiagnostics=()=>hub.clearDiagnostics(),notify=()=>{},judgmentFailureState=()=>null,getSettings=()=>({}),isDeveloperMode=()=>false,version='0.2.27'}) {
     function render() {
         const warning=document.getElementById('sr-failure-stop'),failure=judgmentFailureState();
         if(warning){warning.hidden=!failure;warning.textContent=failure?.message || '';}
@@ -17,6 +17,7 @@ export function createTraceView({hub,document,copyText,judgmentFailureState=()=>
         output.textContent=events.slice(-45).map(e=>`${e.at.slice(11,19)} ${e.cycleId||'-'} ${LABELS[e.stage]||e.stage} · ${e.code}${e.module?' · '+e.module:''}${e.durationMs?' · '+e.durationMs+'ms':''}${e.scene?' · 장면 '+(RECEIPTS[e.scene]||e.scene):''}${e.world?' · 세계관 '+(RECEIPTS[e.world]||e.world):''}${e.stage==='injection.slot' && e.kind?' · '+slotText(e):''}${e.error?' · '+e.error:''}${e.exclusions?' · '+e.exclusions.join(' / '):''}`).join('\n')||'아직 실행 기록이 없습니다.';
     }
     function bind() {
+        document.getElementById('sr-clear-diagnostics')?.addEventListener('click',()=>{clearDiagnostics();render();notify('진단 기록을 비웠어요. 현재 판독 상태와 리롤 기록은 그대로예요.');});
         document.getElementById('sr-hub-copy-trace')?.addEventListener('click',()=>{void copyText(JSON.stringify(executionReport({hub,failureStop:judgmentFailureState(),settings:getSettings(),version}),null,2)).catch(()=>{const status=document.getElementById('sr-hub-run-status');if(status)status.textContent='실행 기록을 복사하지 못했습니다.';});});
         render();
     }

@@ -12,8 +12,8 @@ import {wholeDiagnosticReport} from '../src/debug/whole-report.js';
 
 for(const value of [null,undefined,'',' ',false,true,NaN,Infinity,-1,1.1,{},[]]){
  assert.equal(validNoul(value),false);assert.equal(applyRecordRelevance({type:'noul',noul:value}).fallbackApplied,true);
- const client=createJevClient({settings:{jevProvider:'typesafe'},getSavedKey:()=> 'synthetic',getRequestHeaders:()=>({}),StaleRunError:Error,fetch:async()=>({ok:true,json:async()=>({answers:{r:{type:'noul',noul:value}}})})});
- await assert.rejects(()=>client.callJev({questions:{r:{type:'noul'}}}));
+ const client=createJevClient({JEV_API_URL:'/api/plugins/scene-reader-jev/systemone',settings:{jevConnection:'typesafe'},getSavedKey:()=> 'synthetic',getRequestHeaders:()=>({}),StaleRunError:Error,fetch:async()=>({ok:true,json:async()=>({answers:{r:{type:'noul',noul:value}}})})});
+ await assert.rejects(()=>client.callJev({questions:{r:{type:'noul'}}}),/유효하게 답하지 않았습니다/);
 }
 for(const value of [0,1,.5,'0','0.75'])assert.equal(validNoul(value),true);
 const person={id:'a',index:0,name:'Actor',recordMode:true,profileCandidates:[],contextCandidates:[]};

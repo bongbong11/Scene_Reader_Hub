@@ -36,6 +36,11 @@ async function commit(root,operationId,roots) {
  });
 }
 async function cancel(root,operationId) {return writer(root,async()=>{const op=await status(root,operationId);if(!op)return null;if(op.status==='committed')return op;op.status='cancelled';await atomic(root,location(root,'operations',operationId),JSON.stringify(op));return op;});}
+// Heartbeat keeps paused/resumed multipart writes from expiring by start date.
+async function touch(root,operationId){return writer(root,async()=>{
+ const file=location(root,'operations',operationId),op=await read(file);
+ if(op?.status==='preparing'&&Date.now()-Date.parse(op.updatedAt||op.createdAt)>60000)await atomic(root,file,JSON.stringify({...op,updatedAt:new Date().toISOString()}));
+});}
 async function readDocuments(root,keys,paths={}) {
  if(!Array.isArray(keys)||keys.length>64)throw failure('STORAGE_INVALID_OPERATION','읽을 자료를 확인하지 못했습니다.');const state=await snapshot(root),nodes=reader(root),documents={};
  for(const key of keys){const meta=await entry(root,key,state);documents[key]=meta?{...meta,value:await nodes.select(meta.root,paths[key]||[])}:null;}
@@ -45,4 +50,4 @@ async function writeDocument(root,key,value,{operationId,expectedRevision,immuta
  const current=await entry(root,key);expectedRevision ??=current?.revision||0;operationId ||=hash(JSON.stringify([key,expectedRevision,value]));
  const rootHash=await encode(root,value);await begin(root,{operationId,writes:[{key,expectedRevision,immutable}]});return commit(root,operationId,{[key]:rootHash});
 }
-module.exports={snapshot,entry,begin,status,commit,cancel,readDocuments,writeDocument,headFile};
+module.exports={snapshot,entry,begin,status,commit,cancel,touch,readDocuments,writeDocument,headFile};

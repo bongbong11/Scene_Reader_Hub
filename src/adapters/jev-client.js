@@ -1,6 +1,7 @@
 import {normalizeJevAnswers} from './jev-answer-normalizer.js';
 import {withRequestLifetime} from './request-lifetime.js';
 import {requestFailure} from './failure-info.js';
+import {jevConnection} from './jev-connection.js';
 export function createJevClient(deps) {
 function apiError(data, fallback) {
     if (typeof data?.detail === 'string') return data.detail;
@@ -15,24 +16,26 @@ function pluginError(status, data, fallback) {
 }
 
 async function callJev(body, timeoutMs = 30000, signal = null, connection = null) {
-    const provider = 'typesafe';
-    const key = String(connection ? connection.key || '' : deps.getSavedKey() || '').trim();
+    const {provider,model} = jevConnection(deps.settings,connection);
+    const nano = provider === 'nanogpt';
+    const route = nano ? '/nanogpt/systemone' : '/systemone';
+    const key = String(connection ? connection.key || '' : nano ? '' : deps.getSavedKey() || '').trim();
     // Reject recognizable foreign credentials without sending them to another service.
-    if (/^(sk-or-v1-|vck_)/.test(key)) throw Object.assign(new Error('공홈 TypeSafe에서 발급받은 Jev 키를 입력하세요.'), {code:'JEV_CREDENTIAL_PROVIDER'});
-    if (!key && !deps.serverKeyStatus?.startsWith('저장됨')) {
+    if (!nano && /^(sk-or-v1-|vck_)/.test(key)) throw Object.assign(new Error('공홈 TypeSafe에서 발급받은 Jev 키를 입력하세요.'), {code:'JEV_CREDENTIAL_PROVIDER'});
+    if (!nano && !key && !deps.serverKeyStatus?.startsWith('저장됨')) {
         deps.noteDiagnostic?.('jev_request',{module:'src/adapters/jev-client.js',provider,status:'failed',errorKind:'JEV_CREDENTIAL_MISSING'});
         throw Object.assign(new Error('공홈 TypeSafe Jev API 키를 먼저 저장하세요.'),{code:'JEV_CREDENTIAL_MISSING'});
     }
     timeoutMs=Math.min(timeoutMs,30000);
     const started = Date.now();
-    const requestBody = JSON.stringify({...body,model:deps.JEV_MODEL || 'jev-latest'});
+    const requestBody = JSON.stringify({...body,model});
     const report = detail => { try { deps.noteDiagnostic?.('jev_request',{module:'src/adapters/jev-client.js',provider,requestChars:requestBody.length,timeoutMs,questionCount:Object.keys(body?.questions || {}).length,requestKind:body?.questions?.scene_status||body?.questions?.scene_level?'scene':'decision',...detail}); } catch { /* diagnostic only */ } };
     report({status:'started'});
     try {
         const {response,data} = await withRequestLifetime(async requestSignal => {
-        const response = await deps.fetch(deps.JEV_API_URL, {
+        const response = await deps.fetch(deps.JEV_API_URL.replace(/\/systemone$/, route), {
             method: 'POST',
-            headers: { ...deps.getRequestHeaders(), ...(key ? { 'X-Jev-Key': key } : {}), 'Content-Type': 'application/json', Accept: 'application/json' },
+            headers: { ...deps.getRequestHeaders(), ...(key ? { [nano?'X-NanoGPT-Key':'X-Jev-Key']: key } : {}), 'Content-Type': 'application/json', Accept: 'application/json' },
             body: requestBody,
             signal: requestSignal,
         });
@@ -42,8 +45,10 @@ async function callJev(body, timeoutMs = 30000, signal = null, connection = null
         }, {signal,timeoutMs,timeoutMessage:'Jev 연결 시간이 초과되었습니다.'});
         signal?.throwIfAborted();
         if (!response.ok) {
+            if(nano && ['NANO_SUBSCRIPTION_ONLY_REQUIRED','NANO_SUBSCRIPTION_UNAVAILABLE','NANO_KEY_MISSING','NANO_MODEL_INVALID','NANO_UPSTREAM_ERROR'].includes(data?.code)) throw Object.assign(new Error(data.error),{code:data.code,httpStatus:response.status});
+            if(response.status===404 && nano)throw Object.assign(new Error('나노GPT 연결에는 서버 플러그인 0.10.2 이상이 필요합니다. 업데이트하고 SillyTavern을 다시 시작하세요.'),{code:'JEV_PLUGIN_UPDATE_REQUIRED',httpStatus:404});
             if (response.status===404) throw Object.assign(new Error(pluginError(404,null,'')),{code:'JEV_PLUGIN_NOT_FOUND',httpStatus:404});
-            throw requestFailure({httpStatus:response.status},'JEV','공홈 TypeSafe Jev 연결');
+            throw requestFailure({httpStatus:response.status},'JEV',nano?'나노GPT Jev 연결':'공홈 TypeSafe Jev 연결');
         }
         if (!data?.answers || typeof data.answers !== 'object' || Array.isArray(data.answers) || !Object.keys(data.answers).length) throw new Error('Jev 응답에 판정 결과가 없습니다.');
         const requested=Object.entries(body?.questions||{});

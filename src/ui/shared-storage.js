@@ -1,7 +1,11 @@
+import {attachStorageMaintenance} from './storage-maintenance.js';
+import {createRoomCleanupUi} from './room-cleanup.js';
+import {persistCleanChatMetadata} from '../storage/chat-cleanup.js';
 // User choices never hold a generation hook open. No model calls belong here.
 export function createSharedStorageUi(deps) {
     let dialog,seen='',scope='',accountScope,busy=false;const inspected=new Map();
     const doc=deps.document;
+    const roomCleanup=createRoomCleanupUi({document:doc,service:deps.service,notify:deps.notify,onChanged:reload});
     const node=(tag,text,className)=>{const element=doc.createElement(tag);if(text)element.textContent=text;if(className)element.className=className;return element;};
     function close(){if(dialog?.open)dialog.close();}
     async function reload(){await deps.hydrate();deps.refresh();inspected.delete(deps.chatKey());await refresh();}
@@ -48,6 +52,12 @@ export function createSharedStorageUi(deps) {
     async function open(mode) {
         if(mode==='migrate'){await showMigration();return;}
         if(mode==='cleanup'){await showCleanup();return;}
+        if(mode==='rooms'){await roomCleanup.open();return;}
+        if(mode==='maintenance'){
+            const panel=create('저장 파일 정리','사용하지 않는 저장 조각과 끝난 작업을 정리해요. 방 자료나 백업 자체를 삭제하는 기능은 아니에요.');
+            attachStorageMaintenance({document:doc,host:panel,service:deps.service.maintenance,chatKey:deps.chatKey,notify:deps.notify});
+            panel.append(button('닫기',async()=>close(),true));show();return;
+        }
         const current=deps.chatKey();let state;
         try{state=await deps.service.inspect();if(current!==deps.chatKey())return;}
         catch(error){deps.notify(error.message);return;}
@@ -102,6 +112,7 @@ export function createSharedStorageUi(deps) {
             const line=doc.getElementById('sr-story-status');if(line)line.textContent='현재 채팅의 자료를 불러오는 중';
             return;
         }
+        void deps.service.maintenance?.refreshContext().catch(()=>{});
         let state=inspected.get(key);
         if(deps.record()?.sharedSource){state={status:deps.record().sharedSource.active?'active':'archived'};inspected.set(key,state);}
         else if(!state){inspected.set(key,{status:'loading'});try{state=await deps.service.inspect();inspected.set(key,state);}catch{state={status:'unavailable'};inspected.set(key,state);}}
@@ -123,12 +134,15 @@ export function createSharedStorageUi(deps) {
         const host=doc.getElementById('sr-backup-list')?.parentElement;if(!host)return;
         const section=node('section','','sr-settings-card');section.id='sr-shared-storage';section.append(node('h3','자료·이야기 연결'));
         const roomLink=button('이 방 자료 연결',async()=>open('room'),true);roomLink.id='sr-room-link';roomLink.hidden=true;section.append(roomLink);
-        const row=node('div','','sr-action-row');row.append(button('이야기 연결',async()=>open('connect'),true),button('이전 파일 정리',async()=>open('cleanup'),true),button('임시 자료 정리',async()=>{const result=await deps.service.cleanStaging();deps.notify(`오래된 임시 작업 ${result.deleted}개를 정리했어요. 저장 자료와 백업은 그대로 있어요.`);}));section.append(row);host.before(section);
+        const row=node('div','','sr-action-row');row.append(button('이야기 연결',async()=>open('connect'),true));section.append(row);host.before(section);
+        const cleaning=doc.getElementById('sr-cleanup-actions');
+        for(const [mode,title]of [['maintenance','저장 파일 정리'],['rooms','방 자료 삭제…'],['cleanup','이전 파일 정리']]){const item=button(title,async()=>open(mode),true);item.id='sr-cleanup-'+mode;cleaning?.append(item);}
+        const metadata=button('채팅의 옛 확장 정보 정리',async()=>{await persistCleanChatMetadata(deps);deps.notify('채팅의 옛 씬판독기 정보를 정리했어요. 대화와 다른 확장 정보는 그대로예요.');},true);metadata.id='sr-cleanup-chat-metadata';cleaning?.append(metadata);
         const migrationRow=node('div','','sr-migration-row');migrationRow.id='sr-migration-row';migrationRow.hidden=true;
         const move=button('📦 자료 이사',async()=>open('migrate'),true);move.id='sr-migration-button';move.classList.add('sr-migration-button');migrationRow.append(move);doc.querySelector('.sr-header')?.after(migrationRow);
         deps.service.account.subscribe(state=>{const progress=doc.getElementById('sr-migration-progress');if(progress)progress.textContent=state.status==='running'?`자료를 옮기고 있어요${state.files?.length?` · ${state.converted?.length||0}/${state.files.length}`:''}`:state.status==='completed'?'백업과 자료 확인을 마쳤어요.':'';if(['completed','cleaned'].includes(state.status))migrationRow.hidden=true;});
         const line=node('p','','sr-help sr-explanation');line.id='sr-story-status';line.setAttribute('role','status');doc.querySelector('.sr-main')?.prepend(line);
         void refresh().catch(()=>{});
     }
-    return {bind,refresh:()=>void refresh().catch(()=>{}),open};
+    return {bind,refresh:()=>void refresh().catch(()=>{}),open,watchDeletions:roomCleanup.watch};
 }

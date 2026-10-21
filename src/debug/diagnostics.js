@@ -25,5 +25,5 @@ function diagnosticSnapshot() {
     };
 }
 
-return {noteDiagnostic, diagnosticSnapshot};
+return {noteDiagnostic, diagnosticSnapshot,clearDiagnostics:()=>{deps.diagnosticEvents.length=0;deps.hub?.clearDiagnostics();}};
 }

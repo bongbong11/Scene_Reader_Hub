@@ -1,4 +1,5 @@
 import {emptyProgress} from '../../scene/progress-tracking.js';
+import {renderJevConnection} from '../nanogpt-jev.js';
 import {renderBehaviorToggle} from '../behavior-toggle.js';
 import {normalizeBehaviorMode} from '../../injection/character-behavior.js';
 import {renderOpportunitySettings} from '../opportunity-settings.js';
@@ -14,6 +15,7 @@ import { SEASONAL_OPTIONS } from "../../world/seasonal.js";
 
 export function createSettingsForm(deps) {
 function setFormValues() {
+    renderJevConnection(deps);
     renderBehaviorToggle(deps);
     const prefs = deps.preferences();
     const setValue = (id, value) => { const element = deps.document.getElementById(id); if (element) element.value = value; };

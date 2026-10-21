@@ -58,7 +58,7 @@ export function createSharedRouter(deps) {
         const sessionKey='legacy:sessions/'+chatRef(chatKey)+'.json',writes=[{key:sessionKey,value:{chat:stored,history},expectedRevision:view.sessionRevision},...extra];
         if(story)writes.push({key:documentKey('storyline',story.id),value:envelope('storyline',story.id,story,story.revision,story.lastOperationId)});
         if(story&&story.headCheckpointId!==view.story.headCheckpointId){const checkpoint=story.checkpoints[story.headCheckpointId];writes.push({key:documentKey('story_history',story.id+':'+checkpoint.id),value:envelope('story_history',story.id+':'+checkpoint.id,checkpoint,1,story.lastOperationId),immutable:true});}
-        const result=await documents.paged.writeMany(writes);view.sessionRevision=result.results[sessionKey].revision;return {ok:true};
+        const result=await documents.paged.writeMany(writes,{chatKey});view.sessionRevision=result.results[sessionKey].revision;return {ok:true};
     }
     async function persist(chatKey,record,history) {
         const view=views.get(chatKey);
@@ -133,7 +133,7 @@ export function createSharedRouter(deps) {
             if(data.storageV2?.scope&&data.storageV2.scope!==userScope){clear();userScope=data.storageV2.scope;setWorldScope(userScope);}
             try{const result=await resolve(body.chatKey,data);if(result.settings?.worldCatalog)result.settings=await worlds.hydrate(result.settings,result.chat?.preferences?.selectedWorldId,options);return result;}catch(error){report('load','failed',error.code);if(options.allowFailure)return null;throw error;}
         }
-        if(['backup/restore','backup/import','v2/backup/restore','v2/backup/restore-room','v2/backup/import/finish','v2/story/delete'].includes(route)){clear();const result=await deps.post(route,body,options);clear();return result;}
+        if(['backup/restore','backup/import','v2/backup/restore','v2/backup/restore-room','v2/backup/import/finish','v2/story/delete','v2/room/delete'].includes(route)){clear();const result=await deps.post(route,body,options);clear();return result;}
         const view=views.get(body.chatKey);
         const incoming=body.chat || body.value;
         if(!view?.link && ['chat','transaction','history','characters'].includes(route) && (incoming?.sharedSource || deps.chatRecords?.get(body.chatKey)?.sharedSource))throw fail('SHARED_NOT_READY','연결 자료를 다시 불러온 뒤 저장해 주세요.');
