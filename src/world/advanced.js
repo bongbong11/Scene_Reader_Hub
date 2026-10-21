@@ -8,7 +8,7 @@ Use the source included below, or the world material the user pastes or attaches
 ## STORAGE VALIDATION CRITERIA
 - Root fields: format, version, name, short_description, fixed_rules, franchise, calendar_topics, records. format must be exactly "scene-reader-world"; version must be the number 1, not a string.
 - name: a nonempty string, at most 120 characters. short_description: a short English description, 1–700 characters. fixed_rules: fixed English rules, 1–10,000 characters. Do not invent unsupported rules to fill empty fields.
-- franchise: true or false, without quotes. calendar_topics is an array; use [] without calendar evidence. Allowed values are holidays, college_football, pro_football, us_university, uk_university only.
+- franchise: true or false, without quotes. calendar_topics is an array; use [] without calendar evidence. Allowed values are us_holidays, uk_holidays, kr_holidays, holidays (legacy umbrella), college_football, pro_football, us_university, uk_university only.
 - records: an array of 0–80 objects. Each record requires id, category, when, keywords, rule, source_quote.
 - id: 1–40 characters, starting with an English letter and containing only English letters, digits, underscores, or hyphens. Make IDs such as W001, W002 unique throughout the file.
 - category: mechanism/active_state/society/scope/knowledge/consequence. Do not confuse this with the type categories in person files.
@@ -46,7 +46,7 @@ export function parseAdvancedWorld(value) {
     const fixed = field(raw.fixed_rules, '고정문', 10000);
     if (typeof raw.franchise !== 'boolean') throw new Error('원작 세계 여부는 true 또는 false여야 합니다.');
     const calendarTopics = raw.calendar_topics === undefined ? [] : raw.calendar_topics;
-    if (!Array.isArray(calendarTopics) || calendarTopics.some(topic => !['holidays', 'college_football', 'pro_football', 'us_university', 'uk_university'].includes(topic))) throw new Error('세계관에 포함된 시즌 분류가 올바르지 않습니다.');
+    if (!Array.isArray(calendarTopics) || calendarTopics.some(topic => !['holidays', 'us_holidays', 'uk_holidays', 'kr_holidays', 'college_football', 'pro_football', 'us_university', 'uk_university'].includes(topic))) throw new Error('세계관에 포함된 시즌 분류가 올바르지 않습니다.');
     if (!Array.isArray(raw.records) || raw.records.length > 80) throw new Error('장면별 기록은 최대 80개까지 넣을 수 있습니다.');
     const ids = new Set();
     const records = raw.records.map((record, index) => {

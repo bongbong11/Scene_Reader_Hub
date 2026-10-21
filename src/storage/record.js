@@ -1,3 +1,4 @@
+import {normalizeSeasonalReferences} from '../world/seasonal.js';
 import {normalizeProgress} from '../scene/progress-tracking.js';
 import {normalizeOpportunities} from '../scene/opportunities.js';
 import {restoreOpportunityPreferences,normalizeChance} from '../scene/opportunity-settings.js';
@@ -29,7 +30,7 @@ function record(create = false) {
         for (const key of ['injectionMode', 'worldInjectionMode']) value.preferences[key] = value.preferences[key]==='macro' ? 'preset' : ['depth', 'preset'].includes(value.preferences[key]) ? value.preferences[key] : deps.CHAT_DEFAULTS[key];
         for(const key of ['scenePresetSlot','worldPresetSlot'])value.preferences[key]=normalizePresetSlot(value.preferences[key]);
         value.preferences.selectedWorldId = typeof value.preferences.selectedWorldId === 'string' && value.preferences.selectedWorldId ? value.preferences.selectedWorldId : deps.CHAT_DEFAULTS.selectedWorldId;
-        value.preferences.seasonalReferences = [...new Set((Array.isArray(value.preferences.seasonalReferences) ? value.preferences.seasonalReferences : []).filter(key => Object.hasOwn(deps.SEASONAL_OPTIONS, key)))];
+        value.preferences.seasonalReferences = normalizeSeasonalReferences(value.preferences.seasonalReferences);
         value.preferences.advancedElements = [...new Set((Array.isArray(value.preferences.advancedElements) ? value.preferences.advancedElements : deps.ADVANCED_DEFAULT_ELEMENTS).filter((key) => deps.ADVANCED_ELEMENTS[key]))];
         for (const key of ['worldAgencyEnabled', 'charmMemory', 'lorebookMemory', 'advancedEnabled', 'negativePriority', 'fightSustain', 'villainEnabled', 'socialEnabled', 'worldHostility', 'privatePromptEnabled', 'npcToUser', 'userMisfortune', 'allowUserImpersonation', 'profileEmotionJudgment']) value.preferences[key] = Boolean(value.preferences[key]);
         value.preferences.appearanceChance = normalizeChance(value.preferences.appearanceChance,deps.CHAT_DEFAULTS.appearanceChance);

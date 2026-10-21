@@ -1,3 +1,4 @@
+import {cleanSeasonalSettings} from './obsolete-settings.js';
 // Compatibility cleanup for the removed character-change collector only.
 // Never infer ownership from sourceRefs: ordinary continuity uses them too.
 const fields=['analysisRuntimeV1','characterEvolutionV1','historyAnalysisV1','approvedHistorySourcesV1','analysisJournalV1'];
@@ -5,7 +6,8 @@ const own=(o,k)=>Object.prototype.hasOwnProperty.call(o,k);
 const collected=e=>Boolean(e?.collectionOriginV1||String(e?.id||'').startsWith('continuity:delta:')||String(e?.factId||'').startsWith('continuity_fact:'));
 export function hasRetiredCollection(record){return Boolean(record&&(fields.some(k=>own(record,k))||own(record,'retiredCollectionV1')||record.continuity?.items?.some(collected)||record.continuity?.knowledge?.some(collected)||record.characterState?.knowledge?.some(collected)));}
 export function retireCollection(record){
- if(!record||!hasRetiredCollection(record))return false;
+ const seasonalRemoved=cleanSeasonalSettings(record);
+ if(!record||!hasRetiredCollection(record))return seasonalRemoved;
  const items=structuredClone(record.continuity?.items||[]);
  const knowledge=structuredClone(record.characterState?.knowledge||[]);
  for(const entry of record.continuity?.knowledge||[])if(!knowledge.some(e=>(e.characterId||e.character)===(entry.characterId||entry.character)&&e.factId===entry.factId))knowledge.push(structuredClone(entry));

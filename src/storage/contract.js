@@ -29,6 +29,7 @@ export const DEFAULTS = {
     ownerUnlocked: false,
     characterMacroEnabled: false,
     characterBehaviorMode: 'glm',
+    seasonalDateFormats: {},
     continuityEnabled: false,
     reasonerProfileId: '',
     retrievalProvider: 'transformers',

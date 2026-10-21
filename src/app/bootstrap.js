@@ -1,3 +1,6 @@
+import {createSeasonalDate} from '../world/seasonal-date-runtime.js';
+import {seasonalEnabled} from '../world/seasonal.js';
+import {createSeasonalDateUi} from '../ui/seasonal.js';
 import {createVisibilityLifecycle} from '../lifecycle/visibility.js';
 import {createVisibilityAdapter} from '../adapters/message-visibility.js';
 import {createAuxiliaryRuntime} from '../continuity/auxiliary-runtime.js';
@@ -60,7 +63,6 @@ import {latestStateForChat, latestStateEventForChat, selectedStateSwipe, storeSt
 import {eventSource, event_types, saveSettingsDebounced, setExtensionPrompt, chat_metadata, getRequestHeaders, isStreamingEnabled} from '../../st-adapter.js';
 import {extension_settings} from '../../st-adapter.js';
 import {WORLD_DIRECTIONS, RELATIONSHIP_DIRECTIONS, PROGRESSION_MODES, JUDGMENT_STYLES, DEVELOPMENT_STYLES, normalizeDevelopmentPreferences, PACE_OPTIONS, buildQuestions, buildInjection, buildPausedInjection} from '../../prompt-library.js';
-import {SEASONAL_OPTIONS} from '../world/seasonal.js';
 import {ADVANCED_STYLES, ADVANCED_ELEMENTS, ADVANCED_DEFAULT_ELEMENTS, BUILTIN_WORLDS} from "../world/advanced-library.js";
 import {allWorlds, isFranchiseWorld, loadCustomWorlds, saveCustomWorlds} from "../world/catalog.js";
 import {buildInputKey, buildRecentContext, filterNonRpHistory, generationCycleSalt, isVisibleRoleplayMessage, pendingComposerText, splitOocText} from "../context/messages.js";
@@ -188,7 +190,6 @@ let {record, preferences, persistChat} = createRecordRepository({
     get CHAT_DEFAULTS() { return CHAT_DEFAULTS; },
     get PACE_OPTIONS() { return PACE_OPTIONS; },
     get RELATIONSHIP_DIRECTIONS() { return RELATIONSHIP_DIRECTIONS; },
-    get SEASONAL_OPTIONS() { return SEASONAL_OPTIONS; },
     get WORLD_DIRECTIONS() { return WORLD_DIRECTIONS; },
     get chatRecords() { return runtime.chatRecords; }, set chatRecords(value) { runtime.chatRecords = value; },
     get migrateKnowledge() { return migrateKnowledge; },
@@ -353,8 +354,17 @@ const presetRequest=createPresetRequest({
     report:(...args)=>hub.report(...args),verifyRequest:promptObserver.verifyRequest,
     isCharacterMacroEnabled:()=>runtime.settings.characterMacroEnabled===true,
 });
+const seasonalDateUi=createSeasonalDateUi({document});
+const seasonalDate=createSeasonalDate({
+    getContext,record:()=>record(),chatKey:()=>stateChatKey(),settings:()=>runtime.settings,
+    preset:presetRequest.calendarPreset,fingerprint:stableFingerprint,
+    enabled:()=>Boolean(runtime.settings?.enabled&&seasonalEnabled(record()?.preferences,selectedWorld())),
+    busy:()=>Boolean(runtime.judgeInFlight||runtime.pendingGenerationType),
+    save:formats=>saveGlobal('seasonalDateFormats',formats),report:(...args)=>noteDiagnostic(...args),
+    render:seasonalDateUi.render,confirm:seasonalDateUi.confirm,
+});
 let {init} = createStartup({
-    initVisibility:()=>{void visibility.check({notify:false});visibilityAdapter.init();},
+    initVisibility:()=>{void visibility.check({notify:false});visibilityAdapter.init();seasonalDate.init(eventSource,event_types);},
     get hub() { return hub; },
     initPresetRequest:presetRequest.init,
     resetPresetRequest:presetRequest.reset,
@@ -687,6 +697,7 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
 });
 
 let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandidates, sourceUserRpForOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+    seasonalDate,
     checkVisibility:()=>visibility?.check(),
     get analysis() { return analysis; },
     isStorageBusy:()=>sharedStorage.isBusy(),
@@ -818,8 +829,9 @@ visibility=createVisibilityLifecycle({
     getInjection:()=>runtime.activeGenerationCycle?.injection,invalidateTransport:value=>presetRequest.invalidate(value),
     notify:(message,level='info')=>notifySceneReaderToast(window,level,message,'씬판독기',{timeOut:1800}),
 });
-const visibilityAdapter=createVisibilityAdapter({window,document,eventSource,event_types,check:()=>visibility.check()});
+const visibilityAdapter=createVisibilityAdapter({window,document,eventSource,event_types,check:async()=>{await visibility.check();seasonalDate.refresh();}});
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
+    seasonalDate,
     get companionStorage(){return companionStorage;},
     get analysis() { return analysis; },checkVisibility:()=>visibility.check(),
     noteDiagnostic,
@@ -944,7 +956,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
-const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.30',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.31',copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});

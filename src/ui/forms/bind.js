@@ -24,6 +24,7 @@ import {SEASONAL_OPTIONS} from "../../world/seasonal.js";
 export function createFormBindings(deps) {
 function bindForm() {
     bindBehaviorToggle(deps);
+    deps.document.getElementById('sr-season-date-check')?.addEventListener('click',()=>deps.runUiTask(deps.seasonalDate.recheck(),'날짜를 다시 확인하지 못했습니다.'));
     bindPresetSlots(deps);
     bindOpportunitySettings(deps);
     const updateWorldCopy=()=>worldCopyNotice(deps.document,deps.availableWorlds());

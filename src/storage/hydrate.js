@@ -1,3 +1,4 @@
+import {cleanGlobalSettings} from './obsolete-settings.js';
 import { commonPreferences, migrateCommonPreferences } from './common-preferences.js';
 import {normalizeBehaviorMode} from '../injection/character-behavior.js';
 import { recentTurnCount } from '../context/turn-settings.js';
@@ -39,6 +40,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     }
     deps.backupList = Array.isArray(data.backups) ? data.backups : [];
     const saved = data.settings && typeof data.settings === 'object' ? data.settings : {};
+    const obsoleteGlobal=cleanGlobalSettings(saved.global);
     if (saved.global && typeof saved.global === 'object') {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
         deps.settings.characterBehaviorMode = normalizeBehaviorMode(deps.settings.characterBehaviorMode);
@@ -68,14 +70,14 @@ async function hydrateServerState({ migrate = true } = {}) {
     const loadedChat = deps.chatRecords.get(chatKey);
     const retiredCollection = retireCollection(loadedChat);
     const migratedCommon = deps.getContext().chatId && migrateCommonPreferences(deps.settings, loadedChat?.preferences);
-    if (migratedCommon) {
+    if (migratedCommon || obsoleteGlobal) {
         const target=deps.settings, previous=target.commonPreferences;
-        target.commonPreferences=migratedCommon;
-        const migratedSettings={...saved,global:{...saved.global,commonPreferences:migratedCommon}};
+        if(migratedCommon)target.commonPreferences=migratedCommon;
+        const migratedSettings={...saved,global:{...saved.global,...(migratedCommon?{commonPreferences:migratedCommon}:{})}};
         // A hydrated world list is a view; retain its catalog without rewriting it.
         if(migratedSettings.worldCatalog)delete migratedSettings.worlds;
         try { await deps.storagePost('settings',{settings:migratedSettings}); }
-        catch(error) { if(target.commonPreferences===migratedCommon)target.commonPreferences=previous;throw error; }
+        catch(error) { if(migratedCommon && target.commonPreferences===migratedCommon)target.commonPreferences=previous;throw error; }
         if (!current()) return false;
     }
     if (loadedChat) {

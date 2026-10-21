@@ -1,3 +1,4 @@
+import {checkSeasonal} from './browser-seasonal.mjs';
 import {checkBehaviorToggle} from './browser-behavior-toggle.mjs';
 import {checkCharacterMacro} from './browser-character-macro.mjs';
 import {checkWorldAgency} from './browser-world-agency.mjs';
@@ -134,7 +135,7 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#scene-reader-quick-button').waitFor();
     await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
-    if(process.env.SR_BROWSER_CASE==='behavior'){await page.locator('#scene-reader-quick-button').click();await checkBehaviorToggle(page,store,requests,setViewportSize);assert.deepEqual(errors,[]);}else if(process.env.SR_BROWSER_CASE==='storage'){await page.locator('#scene-reader-quick-button').click();await checkRoomBackups(page,setViewportSize);assert.deepEqual(errors,[]);console.log('Storage-only browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='character-macro'){await checkRecordProtection(page,store,requests,review=>{recordReview=review;});await checkCharacterMacro(page,store,requests,setViewportSize);assert.deepEqual(errors,[]);}else if(process.env.SR_BROWSER_CASE==='record-files'){await checkRecordFiles(page,store,setViewportSize);assert.deepEqual(errors,[]);console.log('Record-file browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='opportunity'){await page.locator('#scene-reader-quick-button').click();await checkOpportunitySettings(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Opportunity-only browser checks passed.');}else{
+    if(process.env.SR_BROWSER_CASE==='seasonal'){await checkSeasonal(page,store,requests,setViewportSize);assert.deepEqual(errors,[]);}else if(process.env.SR_BROWSER_CASE==='behavior'){await page.locator('#scene-reader-quick-button').click();await checkBehaviorToggle(page,store,requests,setViewportSize);assert.deepEqual(errors,[]);}else if(process.env.SR_BROWSER_CASE==='storage'){await page.locator('#scene-reader-quick-button').click();await checkRoomBackups(page,setViewportSize);assert.deepEqual(errors,[]);console.log('Storage-only browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='character-macro'){await checkRecordProtection(page,store,requests,review=>{recordReview=review;});await checkCharacterMacro(page,store,requests,setViewportSize);assert.deepEqual(errors,[]);}else if(process.env.SR_BROWSER_CASE==='record-files'){await checkRecordFiles(page,store,setViewportSize);assert.deepEqual(errors,[]);console.log('Record-file browser checks passed.');}else if(process.env.SR_BROWSER_CASE==='opportunity'){await page.locator('#scene-reader-quick-button').click();await checkOpportunitySettings(page,store,requests,setViewportSize,root);assert.deepEqual(errors,[]);console.log('Opportunity-only browser checks passed.');}else{
     const inferenceRequests=()=>requests.filter(item=>/systemone|\/api\/vector\/|chat-completions\/generate/.test(item.url)).length;
     assert.equal(inferenceRequests(),0,'startup performs no inference or embedding');
     assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0);
@@ -797,15 +798,18 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     gateScenario=null;
     await page.locator('#sr-world-profile').selectOption('current');
     await page.locator('.sr-seasonal-options').evaluate(e=>e.open=true);
-    await page.locator('#sr-season-holidays').check();
+    await page.locator('#sr-season-us_holidays').check();
     await page.locator('#sr-season-college_football').check();
     await page.locator('#sr-season-us_university').check();
     await new Promise((resolve,reject)=>{const started=Date.now();const poll=()=>store.chat.preferences?.seasonalReferences?.length===3?resolve():Date.now()-started>3000?reject(new Error('Seasonal choices were not saved')):setTimeout(poll,20);poll();});
-    await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-30. The American campus prepares for the weekend.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    await page.waitForFunction(async()=>(await mock.slotText('world')).includes('Halloween week'));
+    await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-30. The American campus prepares for the weekend.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_ENDED');});
+    await page.locator('.sr-date-confirm button').filter({hasText:'맞아요'}).click();
+    await page.waitForFunction(()=>!document.querySelector('.sr-date-confirm'));
+    await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
+    await page.waitForFunction(async()=>(await mock.slotText('world')).includes('Halloween'));
     const seasonalPayload=await page.evaluate(async()=>await mock.slotText('world'));
-    assert.match(seasonalPayload,/college-football/);
-    assert.match(seasonalPayload,/autumn semester/);
+    assert.match(seasonalPayload,/college football/);
+    assert.match(seasonalPayload,/US university/);
     assert.equal(await page.locator('.sr-tabs [data-sr-tab]').count(),4,'world tools stay within the existing tabs');
     for(const width of [320,390,768,1280]) {
         await setViewportSize({width,height:850});
@@ -818,7 +822,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.locator('#sr-world-injection-mode').evaluate(element=>element.closest('details').open=true);
     await page.locator('#sr-world-injection-mode').selectOption('depth');
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-31. They continue across campus.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    assert.match(await page.evaluate(()=>JSON.stringify(mock.prompts)),/Halloween week/,'seasonal world reaches depth injection');
+    assert.match(await page.evaluate(()=>JSON.stringify(mock.prompts)),/Halloween/,'seasonal world reaches depth injection');
     assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']()),'','depth mode leaves no duplicate world macro');
     assert.equal(await page.locator('#sr-retrieval-provider').isVisible(),true);
     assert.equal(await page.locator('#sr-retrieval-vertex-region').count(),0,'region is fixed, not editable');
@@ -956,7 +960,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'turning the option off restores main-model collection inside the scene slot');
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-enabled').uncheck();
-    await page.waitForFunction(()=>!JSON.stringify(mock.prompts).includes('Halloween week'));
+    await page.waitForFunction(()=>!JSON.stringify(mock.prompts).includes('Halloween'));
     assert.equal(await page.evaluate(async()=>await mock.slotText('world')),'','disabled extension removes world macro');
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),'','disabled extension also removes state collection');
     store.settings.global.ownerUnlocked=true;

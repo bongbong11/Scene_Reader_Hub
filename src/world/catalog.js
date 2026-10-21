@@ -282,11 +282,11 @@ export function saveCustomWorlds(worlds) {
 }
 
 export function allWorlds(builtins, customs = loadCustomWorlds()) {
-    return [...builtins.map((world) => bundledWorldBank({ ...world, franchise: Boolean(world.franchise), builtin: true })), ...customs.map((world) => {
+    return [...builtins.map((world) => bundledWorldBank({ ...world, franchise: Boolean(world.franchise), builtin: true, ...({'campus-us':'us_university','campus-uk':'uk_university'}[world.id]?{seasonalProfile:{'campus-us':'us_university','campus-uk':'uk_university'}[world.id]}:{}) })), ...customs.map((world) => {
         const normalized = { ...normalizeCustomWorld(world), builtin: false };if(world.worldStub)return normalized;
         const original = INITIAL_CUSTOM_WORLDS.find(item => item.id === world.id);
         const oldHarryPrompt = original?.id === 'custom-harry-potter' ? original.prompt.replace(/\n\nAt Hogwarts,[\s\S]*?magical school\./, '') : '';
-        if (!world.advanced && original && [original.prompt, oldHarryPrompt].includes(world.prompt)) return bundledWorldBank({ ...normalized, prompt: original.prompt, calendarTopics: original.calendarTopics || [] });
+        if (!world.advanced && original && [original.prompt, oldHarryPrompt].includes(world.prompt)) return bundledWorldBank({ ...normalized, prompt: original.prompt, calendarTopics: original.calendarTopics || [], ...(original.id==='custom-harry-potter'?{seasonalProfile:'hogwarts'}:{}) });
         return normalized;
     })];
 }

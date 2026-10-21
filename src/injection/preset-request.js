@@ -124,5 +124,5 @@ export function createPresetRequest(deps) {
         try{host=await (deps.loadHost?deps.loadHost():import('/scripts/openai.js'));}catch{host={};}
         capture();installFetch();
     }
-    return {init,start,observeAssembly,observeRequest,reset,preview,finish:()=>reset({keepPreview:true}),invalidate:value=>{preview.clear();invalidated=value||ready||pending?.expected;},prompts:()=>activePresetPrompts(host,deps.getContext())};
+    return {init,start,observeAssembly,observeRequest,reset,preview,finish:()=>reset({keepPreview:true}),invalidate:value=>{preview.clear();invalidated=value||ready||pending?.expected;},calendarPreset:()=>({name:host.oai_settings?.preset_settings_openai||deps.getContext().chatCompletionSettings?.preset_settings_openai||"",prompts:activePresetPrompts(host,deps.getContext())}),prompts:()=>activePresetPrompts(host,deps.getContext())};
 }

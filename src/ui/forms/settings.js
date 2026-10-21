@@ -28,6 +28,7 @@ function setFormValues() {
     setValue('sr-npc-record-limit', prefs.npcRecordLimit || 3);
     setValue('sr-world-profile', prefs.selectedWorldId);
     for (const key of Object.keys(SEASONAL_OPTIONS)) setChecked(`sr-season-${key}`, prefs.seasonalReferences?.includes(key));
+    deps.seasonalDate?.refresh();
     setChecked('sr-advanced-enabled', prefs.advancedEnabled);
     setValue('sr-advanced-style', prefs.advancedStyle);
     for (const key of Object.keys(deps.ADVANCED_ELEMENTS)) setChecked(`sr-advanced-${key}`, prefs.advancedElements.includes(key));
@@ -82,6 +83,13 @@ function setFormValues() {
 }
 
 async function saveGlobal(key, value) {
+    if(key==='seasonalDateFormats')return deps.queueWrite('seasonal-date-settings',async()=>{
+        const target=deps.settings,previous=target[key];
+        deps.invalidateReasonerJobs();target[key]=value;
+        try{await deps.saveServerSettings({retryUnavailable:true});deps.saveSettingsDebounced();}
+        catch(error){if(deps.settings===target)target[key]=previous;throw error;}
+        await deps.applyStoredInjection();
+    });
     if(key==='characterBehaviorMode')return deps.queueWrite('character-behavior',async()=>{
         const target=deps.settings,previous=target.characterBehaviorMode;
         deps.invalidateReasonerJobs();

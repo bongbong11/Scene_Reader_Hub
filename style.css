@@ -647,3 +647,16 @@
 #scene-reader-dialog .sr-behavior-toggle button:disabled { opacity:.6; cursor:wait; }
 #scene-reader-dialog .sr-header h2, #scene-reader-dialog .sr-header-actions { grid-row:2; }
 #scene-reader-dialog .sr-header p { grid-row:3; }
+
+/* Date confirmation has one scroll area, including on small screens. */
+.sr-date-confirm { width:min(440px,calc(100vw - 28px)); max-height:80dvh; overflow:auto; padding:16px; border:1px solid var(--SmartThemeBorderColor,#666); border-radius:12px; background:var(--SmartThemeBlurTintColor,#222); color:var(--SmartThemeBodyColor,#eee); box-sizing:border-box; }
+.sr-date-confirm::backdrop { background:#0008; }
+.sr-date-confirm select { width:100%; font-size:13px; }
+.sr-date-sample { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; opacity:.85; }
+.sr-date-actions, .sr-season-date-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.sr-date-actions { justify-content:flex-end; }
+.sr-season-date-row small { flex:1; min-width:150px; }
+.sr-date-actions button, #scene-reader-dialog .sr-season-date-row button { font-size:12px; padding:4px 8px; }
+
+.sr-date-confirm .sr-help { font-size:13px; line-height:1.5; }
+.sr-date-actions button { color:inherit; border:1px solid var(--SmartThemeBorderColor,#666); border-radius:5px; background:var(--SmartThemeBlurTintColor,#333); cursor:pointer; }
