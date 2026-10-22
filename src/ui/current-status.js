@@ -1,11 +1,16 @@
 import {createCurrentStatusModel} from './current-status-model.js';
 import {MASCOT_ICON_URL,MASCOT_ERROR_URL} from './mascot.js';
 
-const STATES={idle:'미확인 / 미사용',unused:'사용 안 함',not_needed:'호출 생략',waiting:'주기 / 재시도 대기',previous_failure:'이전 기록',needs_setup:'설정 필요',partial:'일부 미확인',running:'진행 중',success:'성공',failed:'확인 필요',cancelled:'중단',skipped:'건너뜀'};
-const TITLES={error:'확인할 문제가 있습니다',success:'실행·요청 포함 확인 완료',neutral:'대기 / 진행 중 / 확인 전'};
+const STATES={idle:'확인 전',unused:'사용 안 함',not_run:'실행 전',needs_setup:'설정 필요',running:'진행 중',success:'완료',failed:'오류',cancelled:'중단',skipped:'주입할 내용 없음'};
+const TITLES={error:'확인할 문제가 있습니다',success:'주입·연속성 상태',neutral:'주입·연속성 상태'};
+function resultLabel(row) {
+    if(row.id==='delivery')return ({success:'확인됨',idle:'확인 전',failed:'오류',skipped:'주입할 내용 없음'})[row.state] || STATES[row.state];
+    if(row.id==='continuity')return ({running:'실행 중',success:'실행 완료'})[row.state] || STATES[row.state];
+    return STATES[row.state];
+}
 
-export function createCurrentStatusView({hub,document,getScope=()=>'',getProfileUsage=()=>({})}) {
-    const model=createCurrentStatusModel({getProfileUsage});
+export function createCurrentStatusView({hub,document,getScope=()=>'',getContinuityEnabled=()=>true}) {
+    const model=createCurrentStatusModel({getContinuityEnabled});
     let sequence=0,scope=getScope(),open=false,bound=null,boundDialog=null;
     function sync() {
         const snapshot=hub.snapshot(),nextScope=getScope();
@@ -27,13 +32,14 @@ export function createCurrentStatusView({hub,document,getScope=()=>'',getProfile
         panel.hidden=!open;
         if(!open)return;
         const title=document.createElement('strong');title.textContent=TITLES[state.tone];
-        const note=document.createElement('p');note.className='sr-status-note';note.textContent='현재 접속에서 확인한 상태입니다. 새 판독 시 갱신되며, 준비 완료와 실제 요청 포함은 따로 표시합니다.';
+        const note=document.createElement('p');note.className='sr-status-note';note.textContent='실제 주입은 전송 요청에서, 연속성 추론은 분석 실행 결과로 확인합니다. 자세한 분석 내용은 아래 연속성 추론에서 확인하세요.';
         const rows=document.createElement('div');rows.className='sr-status-rows';
-        for(const row of state.rows){
-            const item=document.createElement('div');item.className='sr-status-row';item.dataset.state=row.state;
+        const order={delivery:0,continuity:1};
+        for(const row of state.rows.filter(row=>row.id in order||row.state==='failed').sort((a,b)=>(order[a.id]??2)-(order[b.id]??2))){
+            const item=document.createElement('div');item.className='sr-status-row';item.dataset.state=row.state;item.dataset.statusId=row.id;
             const label=document.createElement('span');label.textContent=row.label;
-            const result=document.createElement('b');result.textContent=STATES[row.state];
-            const detail=document.createElement('small');detail.textContent=row.message+(row.code?` (${row.code})`:'');
+            const result=document.createElement('b');result.textContent=resultLabel(row);
+            const detail=document.createElement('small');detail.textContent=row.message;
             item.append(label,result,detail);rows.append(item);
         }
         panel.replaceChildren(title,note,rows);

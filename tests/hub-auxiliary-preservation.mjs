@@ -14,6 +14,8 @@ for(const message of [{is_user:true,mes:'User'},{is_user:false,is_hidden:true,me
 let commits=0,abandons=0;const vault=auxiliaryFixture({settings:{continuityEnabled:false}});
 vault.deps.window.KnowledgeVaultV1={version:'0.1.0',isEnabled:()=>true,beginAnalysis:()=>({token:'token',input:{cards:[]},system:'VAULT_AUDIT',count:1}),analysisCurrent:()=>true,commitAnalysis:async()=>{commits++;return {status:'succeeded'};},abandonAnalysis:()=>abandons++};
 await vault.turn();assert.equal(vault.requests.length,1);assert.equal(commits,1);assert.equal(abandons,1);assert.match(vault.requests[0][2],/VAULT_AUDIT/);assert.doesNotMatch(vault.requests[0][2],/CONTINUITY_REASONER/);
+assert.equal(vault.events.find(event=>event.code==='analysis_started').continuityIncluded,false);
+assert.equal(vault.events.at(-1).continuityIncluded,false,'vault completion is not continuity completion');
 vault.deps.window.KnowledgeVaultV1.isEnabled=()=>false;await vault.turn();assert.equal(vault.requests.length,1);
 // A malformed ordinary section may not delete the prior valid candidates.
 const malformed=auxiliaryFixture();const pending=[{id:'ordinary'}];malformed.records.get('room-A').pendingContinuityCandidates=pending;
@@ -28,6 +30,8 @@ for(const operation of ['edit','hide','switch','stop']){
  if(operation==='switch')r.deps.stateChatKey=()=> 'room-B';
  if(operation==='stop')r.analysis.cancel('generation_stopped');
  resolve(emptyResponse());assert.equal((await run).status,'cancelled');assert.equal(r.stored.length,0);
+ assert.equal(r.events.some(event=>event.code==='analysis_cancelled'),operation!=='switch','cancelled status must not leak into a different room');
+ assert.ok(!r.events.some(event=>event.code==='analysis_result'&&event.status==='succeeded'));
 }
 // Network and persistence failures retain the last good state and terminate.
 for(const kind of ['network','storage']){const r=auxiliaryFixture();r.records.get('room-A').relationshipState={trust:'keep'};if(kind==='network')r.deps.requestWithConnectionProfile=async()=>{throw new Error('failure');};else r.deps.storagePost=async()=>{throw new Error('failure');};await r.turn();await r.turn();assert.equal((await r.turn()).status,'failed');assert.equal(r.analysis.busy,false);assert.deepEqual(r.records.get('room-A').relationshipState,{trust:'keep'});}

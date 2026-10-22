@@ -1,11 +1,11 @@
 // A read-only projection of diagnostic events. Never starts requests or changes Hub state.
 const ROWS = {
     embedding:'임베딩 생성·확인', search:'관련 기록 검색', scene:'Jev 장면 확인',
-    decision:'Jev 인물·전개 판정', profile:'연결모델 요청', continuity:'연속성 분석', emotion:'감정 수집', storage:'저장소',
-    preparation:'주입 준비', delivery:'실제 요청 포함', execution:'판독 실행',
+    decision:'Jev 인물·전개 판정', continuity:'연속성 추론', storage:'저장소',
+    preparation:'주입 준비', delivery:'실제 주입', execution:'판독 실행',
 };
 const BAD = new Set(['failed','degraded','warning']);
-const AUXILIARY = new Set(['profile','continuity','emotion']);
+const AUXILIARY = new Set(['continuity']);
 const normalize = value => value==='started'?'running':BAD.has(value)?'failed':value==='succeeded'?'success':value==='cancelled'?'cancelled':'idle';
 const errorCode = event => /^[A-Z][A-Z0-9_]{0,70}$/.test(event.errorKind || '') ? event.errorKind : '';
 
@@ -15,24 +15,29 @@ function advice(id,event) {
     if(code==='EMBEDDING_DIMENSION_MISMATCH')return '현재 모델과 저장된 벡터의 차원이 다릅니다. 해당 자료의 임베딩을 다시 준비하세요.';
     if (/CREDENTIAL|AUTH|FORBIDDEN/.test(code) || [401,403].includes(event.httpStatus)) return '설정에서 발급처와 저장된 키를 확인해 주세요.';
     if (/RATE|QUOTA/.test(code) || event.httpStatus===429) return '사용 한도와 요금을 확인한 뒤 잠시 후 다시 시도해 주세요.';
-    if (/^ANALYSIS_(?:INPUT_)?CAPACITY$/.test(code)) return '추가 분석 자료 한도에 도달했습니다. 기존 자료와 기본 판독은 유지합니다. 전체 로그로 입력·누적 한도를 확인하세요.';
-    if (code==='ANALYSIS_BUSY_TIMEOUT') return '앞선 판독이 길어 추가 분석 대기를 종료했습니다. 기본 RP는 계속 진행하며, 다음 답변이나 지금 확인으로 다시 시도합니다.';
-    if (AUXILIARY.has(id)&&/TIMEOUT/.test(code)) return '확장 연결모델 응답 시간이 초과됐습니다. 기본 RP는 유지합니다. 잠시 후 지금 확인으로 다시 시도하거나 프로필 연결을 확인하세요.';
     if(id==='embedding')return '상단 임베딩 재시도로 누락된 기록을 다시 처리하세요. 정상 완료된 기록은 재사용합니다.';
     if(id==='search')return '검색 실패 시 단어 매칭으로 진행합니다. 연결을 확인한 뒤 판독을 다시 시도하세요. 전체 재생성은 필요하지 않을 수 있습니다.';
     if(id==='scene'||id==='decision')return /TIMEOUT/.test(code)?'제브 응답 시간이 초과됐습니다. 잠시 후 판독을 다시 시도해 주세요.':'제브 판정 응답을 확인하지 못했습니다. 연결 확인 또는 전체 로그 복사를 이용하세요.';
-    if(AUXILIARY.has(id))return '설정의 확장 연결모델 프로필과 연결을 확인해 주세요.';
     if(id==='storage')return '저장 성공을 확인하지 못했습니다. 저장소 연결을 확인해 주세요.';
     if(id==='delivery'||id==='preparation')return '주입 위치와 프리셋 기준 항목을 확인해 주세요. 상세 원인은 전체 로그로 확인할 수 있습니다.';
     return '이번 실행을 완료하지 못했습니다. 전체 로그를 복사해 실패 원인을 확인해 주세요.';
 }
 
-export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
+function continuityError(event) {
+    const code=event.reasonCode || errorCode(event);
+    if (/STORAGE|SAVE/.test(code)) return '저장 오류';
+    if (/INVALID_RESPONSE|INVALID_JSON|RESPONSE_FORMAT/.test(code)) return '응답 확인 오류';
+    if (/^PROFILE_/.test(code)) return '연결모델 오류';
+    if (/^ANALYSIS_(?:INPUT_CAPACITY|CAPACITY|BUSY_TIMEOUT)$/.test(code)) return '확장 처리 오류';
+    return '원인 확인 필요';
+}
+
+export function createCurrentStatusModel({getContinuityEnabled = () => true} = {}) {
     let entries=new Map(),cycleId='',settled=false,valid=false,sharedSearch='';
     const pendingFailures=new Map();
     function reset() {entries.clear();pendingFailures.clear();cycleId='';settled=false;valid=false;sharedSearch='';}
     function rememberFailures(id) {
-        for(const row of entries.values())if(row.state==='failed' && (!id||row.id===id))pendingFailures.set(row.id,row);
+        for(const row of entries.values())if(row.state==='failed' && !AUXILIARY.has(row.id) && (!id||row.id===id))pendingFailures.set(row.id,row);
     }
     function set(id,event,{key='',state=normalize(event.status),message='',sticky=true}={}) {
         const identity=`${id}:${key}`,prior=entries.get(identity);
@@ -79,44 +84,32 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
         if(event.stage==='jev_request') {
             set(event.requestKind==='scene'?'scene':'decision',event,{message:event.status==='degraded'?'일부 판정 응답이 누락되거나 형식이 맞지 않습니다. 전체 로그를 확인해 주세요.':''});return;
         }
-        if(event.stage==='history_analysis') {set('profile',event,{state:event.status==='failed'?'failed':event.status==='running'?'running':event.status==='partial'?'partial':'success',sticky:false,message:event.status==='failed'?'이전 이야기 확인 실패 · 완료한 자료는 유지합니다.':event.status==='running'?'이전 이야기 확인 중 · 롤플은 계속 진행됩니다.':event.status==='partial'?'이전 이야기 일부 확인 · 이어 확인할 수 있습니다.':'이전 이야기 확인 완료 · 후보를 검토해 주세요.'});return;}
+        if(['history_analysis','profile_request','character_state_capture','auxiliary_result','analysis_vault'].includes(event.stage))return;
         if(event.stage==='visibility') {set('preparation',event,{state:event.status==='failed'?'failed':'skipped',sticky:false,message:event.status==='failed'?'숨김 반영 실패 · 다음 실행 전에 확인해 주세요.':'가시성 변경 반영 · 이전 주입은 해제했습니다.'});return;}
-        if(event.stage==='analysis_manual'||event.stage==='analysis_started') {rememberFailures('continuity');set('continuity',event,{state:'running',sticky:false,message:event.turnCount?`RP 답변 ${event.turnCount}개 분석 중`:'확인 요청 접수 · 분석 준비 중'});return;}
-        if(event.stage==='profile_request') {
-            if(event.testing)return;
-            if(event.status==='started')rememberFailures('profile');
-            if(event.status==='succeeded')pendingFailures.delete('profile');
-            set('profile',event,{sticky:false});return;
+        // Transport/capture events cannot prove that continuity actually ran.
+        if(event.stage?.startsWith('analysis_') || event.stage==='auxiliary_usage') {
+            if(event.continuityIncluded===false || !getContinuityEnabled())return;
+            if(event.stage==='analysis_started') {
+                set('continuity',event,{state:'running',sticky:false});return;
+            }
+            if(event.stage==='analysis_failed' || event.stage==='analysis_result' && event.status==='degraded') {
+                if(event.reasonCode==='ANALYSIS_CANCELLED') {
+                    set('continuity',event,{state:'cancelled',sticky:false});return;
+                }
+                set('continuity',{...event,errorKind:event.reasonCode || event.errorKind},{state:'failed',sticky:false,message:continuityError(event)});return;
+            }
+            if(event.stage==='analysis_result') {
+                set('continuity',event,{state:event.status==='succeeded'?'success':'cancelled',sticky:false});return;
+            }
+            if(event.stage==='analysis_cancelled') {
+                set('continuity',event,{state:'cancelled',sticky:false});return;
+            }
+            if(event.stage==='auxiliary_usage' && event.reasonCode==='profile_not_configured') {
+                set('continuity',event,{state:'failed',message:'연결모델 설정 필요'});return;
+            }
+            // Waiting/duplicate notices do not replace an actual result or failure.
+            return;
         }
-        if(event.stage==='analysis_failed') {set('continuity',{...event,errorKind:event.reasonCode,status:'failed'},{sticky:false});return;}
-        if(event.stage==='analysis_result') {
-            if(event.status==='succeeded')pendingFailures.delete('continuity');
-            set('continuity',event,{sticky:false,state:event.status==='succeeded'?'success':event.status==='degraded'?'failed':'cancelled',message:event.status==='succeeded'?`분석 완료 · 반영 ${event.acceptedCount||0}개 · 재사용 ${event.reusedCount||0}개`:event.status==='degraded'?`분석 결과 중 ${event.invalidCount||0}개 확인 필요 · 정상 결과는 유지합니다.`:'입력이 바뀌거나 작업이 중단되어 결과를 적용하지 않았습니다.'});return;
-        }
-        if(event.stage==='character_state_capture') {
-            const messages={collecting:'현재 답변의 참여 인물 감정을 수집 중입니다.',collected:`감정 수집 완료 · ${event.count||0}명`,empty:'수집 완료 · 이번 답변에서 반환된 감정값이 없습니다.',partial:'일부 감정값의 형식을 확인하지 못했습니다. 정상 값은 유지합니다.',incomplete:'요청한 인물의 감정값 일부가 누락됐습니다. 기존 값은 유지합니다.',request:'감정 수집 요청 실패 · 확장 연결모델의 응답을 확인하세요.',timeout:'감정 수집 응답 시간이 초과됐습니다.',format:'감정값 형식을 확인하지 못했습니다.',save_failed:'수집한 감정값을 저장하지 못했습니다.',unavailable:'감정 수집에 사용할 연결모델을 확인해 주세요.',too_long:'답변이 감정 수집 길이 한도를 넘었습니다.',missing:'답변에서 감정 수집 블록을 찾지 못했습니다.',opening:'감정 수집 블록의 시작 형식이 맞지 않습니다.',closing:'감정 수집 블록이 끝까지 반환되지 않았습니다.',trailing:'감정 수집 블록이 중복 반환됐습니다.',empty_output:'감정을 수집할 답변 본문이 비어 있습니다.'};
-            if(event.status==='collecting')rememberFailures('emotion');
-            if(['collected','empty'].includes(event.status))pendingFailures.delete('emotion');
-            const skipped={no_capture_targets:'이번 실행의 감정 수집 명단이 비었습니다. 인물 판정과 등록된 인물을 확인하세요.',main_capture_unavailable:'주 답변에서 감정값을 수집할 준비가 되지 않았습니다.'};
-            const state=event.status==='collecting'?'running':['collected','empty'].includes(event.status)?'success':['partial','incomplete'].includes(event.status)?'partial':['skipped','paused'].includes(event.status)?'skipped':messages[event.status]?'failed':'idle';
-            const mode=event.collectorMode==='main-output'?'주 답변에서 수집 · ':event.collectorMode==='profile-output'?'확장 연결모델로 수집 · ':'';
-            set('emotion',event,{state,sticky:false,message:mode+(event.status==='paused'?'현재 장면 설정에 따라 감정 수집을 쉬고 있습니다.':skipped[event.skipReason]||messages[event.status]||'이번 감정 수집 상태를 아직 확인하지 못했습니다.')});return;
-        }
-        if(event.stage==='auxiliary_usage') {
-            const messages = {
-                no_completed_output:'분석할 완성된 응답이 없습니다.', no_rp_output:'이번 출력은 RP 분석 대상이 아닙니다.',
-                analysis_disabled:'보조 분석 기능을 사용하지 않습니다.', no_continuity_change:'연속성 추가 분석 조건에 해당하지 않아 호출하지 않았습니다.',
-                profile_not_configured:'설정에서 확장 연결모델 프로필을 선택해 주세요.', already_analyzed:'이 출력은 이미 분석했습니다. 중복 호출하지 않습니다.',
-                analysis_in_progress:'보조 분석을 이미 진행 중입니다. 중복 호출하지 않습니다.',
-                interval_pending:`RP 답변 ${event.turnCount??0}/${event.requiredTurns??3}개 수집 · 주기가 차면 분석합니다.`,
-                retry_interval_pending:`미완료 자료 유지 · 새 RP 답변 ${event.turnCount??0}/${event.requiredTurns??3}개 수집 후 함께 재시도합니다.`,
-                retry_backoff:`실패 후 재시도 대기 · 약 ${event.retrySeconds??0}초 남음. 다음 실행 시 다시 확인합니다.`, scene_end_pending:'장면 종료 후 이어서 분석합니다.',
-                needs_review:'수집 완료 · 확인 대기 항목을 검토해 주세요.', source_unavailable:'숨김·수정으로 읽을 수 없는 구간이 있습니다.',
-            };
-            rememberFailures('continuity');
-            set('continuity',event,{sticky:false,state:event.status==='failed'?'failed':event.status==='running'?'running':event.status==='needs_setup'?'needs_setup':event.status==='waiting'?'waiting':event.status==='not_needed'?'not_needed':'idle',message:messages[event.reasonCode] || '추가 분석의 실행 사유를 아직 확인하지 못했습니다.'});return;
-        }
-        if(event.stage==='auxiliary_result' && event.status==='partial') {set('profile',event,{state:'partial',message:'모델은 응답했지만 일부 분석 결과를 확인하지 못했습니다.'});return;}
         if(event.stage==='storage_resolution'&&event.status==='succeeded'){set('storage',event,{key:event.phase||'',sticky:false,message:'실제 저장 완료를 다시 확인했습니다.'});pendingFailures.delete('storage');return;}
         if(event.stage==='storage_request') {set('storage',event,{key:event.phase || ''});return;}
         if(event.code==='PROMPT_REGISTERED') {
@@ -145,22 +138,18 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
         const rows=Object.entries(ROWS).map(([id,label])=>{
             const matches=values.filter(value=>value.id===id);
             const selected=matches.find(value=>value.state==='failed') || matches.find(value=>value.state==='running') || matches.at(-1);
-            if (id === 'profile' && !selected) {
-                let usage = {};
-                try { usage = getProfileUsage() || {}; } catch { /* Optional extension status cannot break the UI. */ }
-                return {id,label,state:usage.enabled && !usage.configured?'needs_setup':usage.enabled?'idle':'unused',message:usage.enabled && !usage.configured?'설정에서 확장 연결모델 프로필을 선택해 주세요.':usage.enabled?'이번 실행의 요청 기록이 아직 없습니다. 연속성 분석과 감정 수집 상태를 함께 확인하세요.':'연결모델을 사용하는 자동 분석 기능이 꺼져 있습니다.'};
-            }
+            if(id==='continuity')return {id,label,state:'not_run',message:'',...selected,...(!getContinuityEnabled()?{state:'unused',message:'',code:''}:{})};
+            if(id==='delivery' && !selected)return {id,label,state:'idle',message:''};
             return {id,label,state:'idle',message:'이번 실행에서 아직 확인하지 않았거나 사용하지 않는 항목입니다.',...selected};
         });
         const failed=rows.some(row=>row.state==='failed');
         const delivered=rows.find(row=>row.id==='delivery');
-        const complete=valid&&settled&&!rows.some(row=>row.state==='running')&&['success','skipped'].includes(delivered.state);
+        const complete=valid&&settled&&!rows.some(row=>row.id!=='continuity'&&row.state==='running')&&['success','skipped'].includes(delivered.state);
         if(complete&&!failed)for(const id of pendingFailures.keys())if(!AUXILIARY.has(id))pendingFailures.delete(id);
         let unresolved=false;
         for(const previous of pendingFailures.values()){
-            const historical=AUXILIARY.has(previous.id);
-            if(!historical)unresolved=true;
-            rows.push({...previous,id:historical?`previous-${previous.id}`:'previous',state:historical?'previous_failure':previous.state,label:historical?'이전 보조 분석 실패':'이전 실패 · 복구 확인 중',message:`${ROWS[previous.id]} · ${previous.message}${historical?' 현재 판독 결과와 별개이며, 해당 분석의 성공은 아직 확인 전입니다.':''}`});
+            unresolved=true;
+            rows.push({...previous,id:'previous',label:'이전 오류 · 복구 확인 전',message:`${ROWS[previous.id]} · ${previous.message}`});
         }
         return {tone:failed||unresolved?'error':complete?'success':'neutral',rows};
     }

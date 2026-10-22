@@ -41,7 +41,8 @@ export function createAuxiliaryRuntime(deps){
   if(enabled&&progress.processed.get(group)!==sourceKey&&progress.groups.get(group)?.key!==sourceKey)progress.groups.set(group,{key:sourceKey,refs,offset:0});
   return scheduler.request(async job=>{
    const valid=()=>job.current()&&!stopped&&deps.settings.enabled&&deps.stateChatKey()===key&&deps.settings.reasonerProfileId===profile&&Boolean(deps.settings.continuityEnabled)===enabled&&visibilityKey(deps.getContext().chat||[])===stamp&&validateSourceRefs(refs,{chatRef:key,chat:deps.getContext().chat||[],fingerprint:deps.fingerprint});
-   let vault=null,bridge;
+   let vault=null,bridge,continuityIncluded=false,analysisStarted=false,analysisFinished=false;
+   const reportAnalysis=(code,details)=>report(code,{...details,continuityIncluded});
    try{
     await idle(job.signal);if(!valid())return {status:'cancelled'};
     const current=deps.record(true),nowChat=deps.getContext().chat;
@@ -49,6 +50,7 @@ export function createAuxiliaryRuntime(deps){
     const attempted=new Map((current.auxiliaryStateV1?.pending?.groups||[]).map(entry=>[entry.group,entry.key]));
     const freshGroups=[...progress.groups].filter(([group,entry])=>attempted.get(group)!==entry.key).length;
     const due=enabled&&Boolean(window?.text)&&(attempted.size?freshGroups>=3:progress.groups.size>=3||[...progress.groups.values()].some(entry=>entry.offset>0));
+    continuityIncluded=due;
     const analysisKey=deps.fingerprint([sourceKey,due?window.consumed:[]]);
     if(current.auxiliaryStateV1?.sourceKey===analysisKey){report('auxiliary_usage',{status:'not_needed',reasonCode:'already_analyzed'});return {status:'already_analyzed'};}
     const source=`USER:\n${user>=0?sourceRp(nowChat[user]):''}\nCHARACTER:\n${sourceRp(nowChat[index])}`,sourceText=source.slice(-9000);
@@ -59,7 +61,7 @@ export function createAuxiliaryRuntime(deps){
      const alreadyProcessed=!progress.groups.size&&progress.processed.get(group)===sourceKey;
      report('auxiliary_usage',{status:enabled&&!alreadyProcessed?'waiting':'not_needed',reasonCode:!enabled?'analysis_disabled':alreadyProcessed?'already_analyzed':!window?.text?'source_unavailable':attempted.size?'retry_interval_pending':'interval_pending',turnCount:attempted.size?freshGroups:progress.groups.size,requiredTurns:3});return {status:'waiting'};
     }
-    if(!profile||!deps.connectionRequestService){vault&&bridge.failAnalysis?.(vault.token,'PROFILE_UNAVAILABLE');report('auxiliary_usage',{status:'needs_setup',reasonCode:'profile_not_configured'});return {status:'needs_setup'};}
+    if(!profile||!deps.connectionRequestService){vault&&bridge.failAnalysis?.(vault.token,'PROFILE_UNAVAILABLE');reportAnalysis('auxiliary_usage',{status:'needs_setup',reasonCode:'profile_not_configured'});return {status:'needs_setup'};}
     if(current.auxiliaryStateV1?.retryAfter>Date.now()){report('auxiliary_usage',{status:'waiting',reasonCode:'retry_backoff',retrySeconds:Math.ceil((current.auxiliaryStateV1.retryAfter-Date.now())/1000)});return {status:'waiting'};}
     const repetition=due?repetitionWindow(nowChat,index,deps.settings,current.nonRpOutputIndices||[],deps.fingerprint):null;
     const repeatedRefs=repetition?.refs||[];
@@ -69,7 +71,8 @@ export function createAuxiliaryRuntime(deps){
     const input={source_rp:continuityText,...(due?{active_continuity:state,actor_names:continuityActors(deps.characterStore,deps.getContext(),continuityText),existing_state_refs:{event:current.eventProfile?{id:'event:current',title:current.eventProfile.title}:null,relationship:{id:'relationship:current',...current.relationshipState}},...(repetition.turns.length>=2?{repetition_context:{turns:repetition.turns}}:{})}:{}),...(vault?{vault_audit:vault.input}:{})};
     const system=[due?REASONER_SYSTEM:'',repetition?.turns.length>=2?REPETITION_SYSTEM:'',vault?.system||'',vault&&due?'Return the continuity arrays, topic_fixation and vault_results in one JSON object. Sections are independent. Do not duplicate vault knowledge into knowledge_updates. Vault card contents are not RP evidence.':''].filter(Boolean).join('\n');
     const request=analysisRequestBudget(deps.requestWithConnectionProfile,{maxRequests:2,totalMs:180000});
-    report('analysis_started',{status:'running',turnCount:due?window.groupCount:1,inputChars:JSON.stringify(input).length});
+    analysisStarted=true;
+    reportAnalysis('analysis_started',{status:'running',turnCount:due?window.groupCount:1,inputChars:JSON.stringify(input).length});
     const response=await request(deps.connectionRequestService,profile,system,input,{signal:job.signal,maxTokens:Math.min(4800,(due?2400:800)+(vault?.count||0)*160),timeoutMs:120000});
     await idle(job.signal);if(!sourceValid())return {status:'cancelled'};
     if(vault)await completeVaultAudit({bridge,vault,result:response.result,sourceText,request:(system,input,options)=>request(deps.connectionRequestService,profile,system,input,options),signal:job.signal,valid:sourceValid,idle,report});
@@ -101,15 +104,20 @@ export function createAuxiliaryRuntime(deps){
      else rec.auxiliaryStateV1={...rec.auxiliaryStateV1,sourceKey:analysisKey};return {chat:rec,history};
     },()=>sourceValid()&&foregroundIdle());
     if(saved&&due){if(!incomplete)advanceContinuityWindow(progress,window);if(foregroundIdle())await deps.clearInjection?.({chatKey:key});}
-    report('analysis_result',{...counts,status:saved?malformed||counts.invalidCount?'degraded':'succeeded':'deferred',...(malformed||counts.invalidCount?{reasonCode:'CONTINUITY_INVALID_RESPONSE'}:{})});
+    analysisFinished=true;
+    reportAnalysis('analysis_result',{...counts,status:saved?malformed||counts.invalidCount?'degraded':'succeeded':'deferred',...(malformed||counts.invalidCount?{reasonCode:'CONTINUITY_INVALID_RESPONSE'}:{})});
     return {status:saved?'complete':'cancelled'};
    }catch(error){
     if(!valid()||job.signal.aborted)return {status:'cancelled'};
     const reasonCode=analysisFailureCode(error);vault&&bridge?.failAnalysis?.(vault.token,reasonCode);
-    report('analysis_failed',{status:'failed',reasonCode});
-    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={...rec.auxiliaryStateV1,retryAfter:Date.now()+30000,...(enabled?{pending:pendingAnalysisState(progress,rec.auxiliaryStateV1?.pending?.receipts)}:{})};rec.lastContinuityTrace={status:'error',retryPending:enabled,error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch{report('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
+    analysisFinished=true;
+    reportAnalysis('analysis_failed',{status:'failed',reasonCode});
+    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={...rec.auxiliaryStateV1,retryAfter:Date.now()+30000,...(enabled?{pending:pendingAnalysisState(progress,rec.auxiliaryStateV1?.pending?.receipts)}:{})};rec.lastContinuityTrace={status:'error',retryPending:enabled,error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch{reportAnalysis('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
     return {status:'failed',reasonCode};
-   }finally{vault&&bridge?.abandonAnalysis?.(vault.token);}
+   }finally{
+    if(analysisStarted&&!analysisFinished&&deps.stateChatKey()===key)reportAnalysis('analysis_cancelled',{status:'cancelled'});
+    vault&&bridge?.abandonAnalysis?.(vault.token);
+   }
   });
  }
  function observe(index){stopped=false;void queue(index);}

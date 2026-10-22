@@ -22,6 +22,8 @@ const options={sourceText:promise.evidence,continuity:{items:[]},sourceIdentity:
   assert.equal(event.turnCount,n);assert.equal(event.requiredTurns,3);assert.equal(normal.requests.length,0);
  }
  await normal.turn('He waits.');assert.equal(normal.requests.length,1,'third ordinary RP output triggers the model without a separate eligibility judgment');
+ assert.equal(normal.events.find(event=>event.code==='analysis_started').continuityIncluded,true);
+ assert.equal(normal.events.at(-1).continuityIncluded,true);
  assert.equal(normal.events.at(-1).code,'analysis_result');assert.equal(normal.events.at(-1).status,'succeeded');
  await normal.analysis.queue(5);assert.equal(normal.requests.length,1);assert.equal(normal.events.at(-1).reasonCode,'already_analyzed');
  const disabled=auxiliaryFixture({settings:{continuityEnabled:false}});await disabled.turn();
@@ -36,8 +38,8 @@ const counts={};
 assert.equal(validateReasonerResult({new_items:[promise,promise,promise]}, {...options,diagnostics:counts}).length,2);
 assert.equal(counts.candidateCount,3);assert.equal(counts.limitOmittedCount,1);assert.equal(counts.invalidCount,0,'selection cap is not a validation error');
 let diagnostic;
-analysisDiagnostic((_code,detail)=>{diagnostic=safeDetail(detail);},'analysis_result',{invalidEvidenceTypeCount:1,sourceText:'private',evidence:'private'});
-assert.equal(diagnostic.invalidEvidenceTypeCount,1);assert.ok(!JSON.stringify(diagnostic).includes('private'));
+analysisDiagnostic((_code,detail)=>{diagnostic=safeDetail(detail);},'analysis_result',{invalidEvidenceTypeCount:1,continuityIncluded:false,sourceText:'private',evidence:'private'});
+assert.equal(diagnostic.continuityIncluded,false);assert.equal(diagnostic.invalidEvidenceTypeCount,1);assert.ok(!JSON.stringify(diagnostic).includes('private'));
 for(const [value,reason] of [
  [{...promise,evidence:'An invented statement.'},'invalidEvidenceCount'],
  [{...promise,source_type:'invented'},'invalidEvidenceTypeCount'],

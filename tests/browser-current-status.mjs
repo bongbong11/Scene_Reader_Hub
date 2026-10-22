@@ -22,9 +22,19 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
         statusFixture.emit({stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3});
         statusFixture.emit({stage:'character_state_capture',status:'collected',collectorMode:'profile-output',count:2});
     });
-    assert.match(await page.locator('#sr-current-status-panel').textContent(),/RP 답변 2\/3개 수집/);
-    assert.match(await page.locator('#sr-current-status-panel').textContent(),/확장 연결모델로 수집/);
-    assert.doesNotMatch(await page.locator('#sr-current-status-panel').textContent(),/이번 실행 대상 없음/);
+    const panel=page.locator('#sr-current-status-panel');
+    const continuity=panel.locator('[data-status-id="continuity"]');
+    const delivery=panel.locator('[data-status-id="delivery"]');
+    assert.equal(await panel.locator('.sr-status-row').count(),2,'only injection and continuity normal status rows');
+    assert.match(await continuity.textContent(),/실행 전/);assert.match(await delivery.textContent(),/확인 전/);
+    assert.doesNotMatch(await panel.textContent(),/연결모델 요청|감정 수집|2\/3|미확인 \/ 미사용|실행·요청 포함 확인 완료/);
+    await page.evaluate(()=>statusFixture.emit({stage:'analysis_started',continuityIncluded:true}));
+    assert.match(await continuity.textContent(),/실행 중/);assert.match(await delivery.textContent(),/확인 전/);
+    await page.evaluate(()=>statusFixture.emit({stage:'analysis_result',status:'succeeded',continuityIncluded:true,acceptedCount:0}));
+    assert.match(await continuity.textContent(),/실행 완료/);assert.match(await delivery.textContent(),/확인 전/);
+    await page.evaluate(()=>statusFixture.emit({stage:'analysis_failed',reasonCode:'PROFILE_NETWORK_ERROR',continuityIncluded:true}));
+    assert.match(await continuity.textContent(),/연결모델 오류/);
+    assert.doesNotMatch(await continuity.textContent(),/PROFILE_NETWORK_ERROR|미확인/);
     assert.equal(await page.locator('#sr-current-status').innerText(),'','status trigger is an icon, not a text button');
     await page.evaluate(()=>{
         statusFixture.emit({code:'RUN_STARTED'});
@@ -60,6 +70,10 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
     assert.match(await page.locator('#scene-reader-quick-button img').getAttribute('src'),/mascot-face-error\.png$/);
     await page.evaluate(()=>statusFixture.emit({code:'PROMPT_OBSERVED',phase:'request',scene:'confirmed',world:'not_expected'}));
     assert.equal(await page.locator('#sr-current-status').getAttribute('data-tone'),'success');
+    await page.locator('#sr-current-status').click();
+    assert.match(await delivery.textContent(),/확인됨/);assert.match(await continuity.textContent(),/실행 전/);
+    assert.equal(await panel.locator('.sr-status-row').count(),2);
+    await page.locator('#sr-current-status').click();
     assert.match(await page.locator('#scene-reader-quick-button img').getAttribute('src'),/mascot-face\.webp$/);
     await page.evaluate(()=>statusFixture.scope('different-room'));
     assert.equal(await page.locator('#sr-current-status').getAttribute('data-tone'),'neutral');

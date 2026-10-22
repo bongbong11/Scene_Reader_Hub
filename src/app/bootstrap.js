@@ -958,7 +958,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
 const traceView=createTraceView({hub,document,clearDiagnostics,notify:message=>notifySceneReaderToast(window,'info',message,'씬판독기'),judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.31',copyText:value=>copyText(value)});
-const currentStatusView=createCurrentStatusView({hub,document,getProfileUsage:()=>({enabled:runtime.settings?.continuityEnabled || record()?.preferences?.profileEmotionJudgment || !['', '[]', undefined].includes(window.KnowledgeVaultV1?.getRevision?.()),configured:Boolean(runtime.settings?.reasonerProfileId && runtime.connectionRequestService)}),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
+const currentStatusView=createCurrentStatusView({hub,document,getContinuityEnabled:()=>Boolean(runtime.settings?.enabled && runtime.settings?.continuityEnabled),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 const vaultNotice=message=>notifySceneReaderToast(window,'info',message,'씬판독기',{timeOut:1800});

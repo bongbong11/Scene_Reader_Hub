@@ -55,57 +55,75 @@ emit({code:'PROMPT_OBSERVED',phase:'request',scene:'unconfirmed',world:'not_expe
 assert.equal(model.snapshot().tone,'error');
 receipt('request');assert.equal(model.snapshot().tone,'success','a verified final receipt may resolve an earlier assembly mismatch');
 model.reset();assert.equal(model.snapshot().tone,'neutral');
-assert.ok(model.snapshot().rows.filter(item=>item.id!=='profile').every(item=>item.state==='idle'));
-assert.equal(row('profile').state,'unused');
-let profileUsage={enabled:true,configured:false};
-const profileModel=createCurrentStatusModel({getProfileUsage:()=>profileUsage});
-assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'needs_setup');
-assert.equal(profileModel.snapshot().tone,'neutral','missing optional profile is setup, not a failed request');
-profileUsage={enabled:true,configured:true};
-assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'idle','absence of request events is not proof of no eligible targets');
-profileModel.accept({stage:'auxiliary_usage',status:'not_needed',reasonCode:'no_continuity_change'});
-assert.match(profileModel.snapshot().rows.find(item=>item.id==='continuity').message,/조건/);
-for (const [status, expected] of [['succeeded','success'],['cancelled','cancelled'],['failed','failed']]) {
-    profileModel.reset();
-    profileModel.accept({stage:'profile_request',status:'started'});
-    profileModel.accept({stage:'auxiliary_usage',status:'running',reasonCode:'analysis_in_progress'});
-    profileModel.accept({stage:'profile_request',status});
-    assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,expected,'terminal request clears duplicate-running notice');
-}
-console.log('Current status: embedding/search separation, retained failures, request receipt, cancellation, repair, privacy and reset passed.');
-
-for(const code of ['ANALYSIS_CAPACITY','ANALYSIS_INPUT_CAPACITY','ANALYSIS_BUSY_TIMEOUT','PROFILE_TIMEOUT']){const analysisStatus=createCurrentStatusModel();analysisStatus.accept({stage:'analysis_failed',status:'failed',reasonCode:code});const text=analysisStatus.snapshot().rows.find(r=>r.id==='continuity').message;assert.match(text,code.includes('CAPACITY')?/한도/:code==='ANALYSIS_BUSY_TIMEOUT'?/대기를 종료/:/응답 시간이 초과/);}
-
+assert.ok(model.snapshot().rows.filter(item=>item.id!=='continuity').every(item=>item.state==='idle'));
+assert.equal(row('continuity').state,'not_run');
+assert.equal(row('profile'),undefined);assert.equal(row('emotion'),undefined);
 {
-    const view=createCurrentStatusModel({getProfileUsage:()=>({enabled:true,configured:true})});
+    let enabled=true;
+    const view=createCurrentStatusModel({getContinuityEnabled:()=>enabled});
     const get=id=>view.snapshot().rows.find(row=>row.id===id);
     view.accept({code:'RUN_STARTED'});
-    view.accept({stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3});
-    assert.equal(get('continuity').state,'waiting');assert.match(get('continuity').message,/2\/3/);
-    view.accept({stage:'character_state_capture',status:'collecting',participantCount:2});
-    assert.equal(get('emotion').state,'running');assert.equal(get('continuity').state,'waiting');
-    view.accept({stage:'profile_request',status:'failed',errorKind:'PROFILE_NETWORK_ERROR'});
-    view.accept({stage:'character_state_capture',status:'request'});
-    assert.equal(get('emotion').state,'failed');assert.equal(view.snapshot().tone,'error');
+    for(const event of [
+        {stage:'profile_request',status:'succeeded',testing:true},
+        {stage:'profile_request',status:'failed',errorKind:'PROFILE_NETWORK_ERROR'},
+        {stage:'character_state_capture',status:'collected'},
+        {stage:'character_state_capture',status:'failed'},
+        {stage:'history_analysis',status:'failed'},
+        {stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3},
+        {stage:'analysis_manual',status:'running'},
+    ])view.accept(event);
+    assert.equal(get('continuity').state,'not_run');
+    assert.equal(get('delivery').state,'idle');
+    assert.equal(view.snapshot().tone,'neutral','unrelated calls cannot become continuity or injection errors');
+    for(const stage of ['analysis_started','analysis_result','analysis_failed'])view.accept({stage,status:'succeeded',continuityIncluded:false});
+    assert.equal(get('continuity').state,'not_run','vault-only call is not continuity analysis');
+    view.accept({stage:'analysis_started',continuityIncluded:true});
+    assert.equal(get('continuity').state,'running');
+    view.accept({stage:'analysis_result',status:'succeeded',acceptedCount:0,continuityIncluded:true});
+    assert.equal(get('continuity').state,'success','valid zero findings is still completed analysis');
+    assert.equal(get('delivery').state,'idle','analysis completion cannot prove injection');
+    view.accept({stage:'auxiliary_usage',status:'not_needed',reasonCode:'already_analyzed'});
+    assert.equal(get('continuity').state,'success','duplicate notice cannot erase completion');
     view.accept({code:'RUN_STARTED'});
-    assert.equal(view.snapshot().tone,'neutral','historical optional failure does not mark a new main judgment as failed');
-    assert.equal(get('previous-profile').state,'previous_failure');
+    assert.equal(get('continuity').state,'not_run','new execution does not reuse old success');
     view.accept({code:'PROMPT_REGISTERED',payloadChars:1});view.accept({code:'RUN_PREPARED'});
     view.accept({code:'PROMPT_OBSERVED',phase:'assembly',scene:'confirmed',character:'unconfirmed'});
-    assert.equal(get('delivery').state,'idle','assembly is not the final macro check');
+    assert.equal(get('delivery').state,'idle');
     view.accept({code:'PROMPT_OBSERVED',phase:'request',scene:'confirmed',character:'unconfirmed'});
-    assert.equal(get('delivery').state,'failed','scene inclusion cannot hide a missing character block');
+    assert.equal(get('delivery').state,'failed','scene inclusion cannot hide missing character block');
     view.accept({code:'PROMPT_OBSERVED',phase:'request',scene:'confirmed',character:'confirmed'});
-    assert.equal(view.snapshot().tone,'success');assert.ok(get('previous-profile'),'main success does not claim recovery of an uncalled model');
-    view.accept({stage:'profile_request',status:'succeeded',testing:true});assert.ok(get('previous-profile'),'connection test is not analysis recovery');
-    view.accept({stage:'profile_request',status:'succeeded'});assert.equal(get('previous-profile'),undefined);
-    assert.ok(get('previous-emotion'),'transport success alone is not valid emotion data');
-    view.accept({stage:'character_state_capture',status:'collected',count:2});assert.equal(get('previous-emotion'),undefined);
-    view.accept({stage:'character_state_capture',status:'skipped',skipReason:'no_capture_targets'});
-    assert.match(get('emotion').message,/명단이 비었습니다/);
-    view.accept({stage:'character_state_capture',status:'missing',collectorMode:'main-output'});
-    assert.equal(get('emotion').state,'failed');assert.match(get('emotion').message,/주 답변에서 수집/);
+    assert.equal(get('delivery').state,'success');assert.equal(get('continuity').state,'not_run');
+    view.accept({stage:'analysis_started',continuityIncluded:true});
+    assert.equal(get('delivery').state,'success');assert.equal(get('continuity').state,'running');
+    for(const [code,label] of [
+        ['PROFILE_NETWORK_ERROR','연결모델 오류'],['PROFILE_TIMEOUT','연결모델 오류'],
+        ['PROFILE_INVALID_RESPONSE','응답 확인 오류'],['CONTINUITY_INVALID_RESPONSE','응답 확인 오류'],
+        ['AUXILIARY_STORAGE_FAILED','저장 오류'],['ANALYSIS_CAPACITY','확장 처리 오류'],
+        ['ANALYSIS_INPUT_CAPACITY','확장 처리 오류'],['ANALYSIS_BUSY_TIMEOUT','확장 처리 오류'],
+        ['ANALYSIS_FAILED','원인 확인 필요'],
+    ]){
+        view.accept({stage:'analysis_failed',reasonCode:code});
+        assert.equal(get('continuity').state,'failed');assert.equal(get('continuity').message,label);
+        assert.equal(get('delivery').state,'success','analysis error cannot claim missing injection');
+        view.accept({stage:'auxiliary_usage',status:'waiting',reasonCode:'retry_backoff'});
+        assert.equal(get('continuity').state,'failed','waiting cannot hide actual error');
+    }
+    view.accept({stage:'analysis_started'});assert.equal(get('continuity').state,'running');
+    view.accept({stage:'analysis_cancelled'});assert.equal(get('continuity').state,'cancelled');
+    view.accept({stage:'analysis_started'});
+    view.accept({stage:'analysis_result',status:'degraded',reasonCode:'CONTINUITY_INVALID_RESPONSE'});
+    assert.equal(get('continuity').state,'failed');
+    view.accept({code:'RUN_STARTED'});
+    assert.equal(get('continuity').state,'not_run');
+    assert.ok(!view.snapshot().rows.some(row=>row.id.startsWith('previous')),'no stale auxiliary errors in new run');
+    enabled=false;
+    view.accept({stage:'analysis_started'});assert.equal(get('continuity').state,'unused');
+    view.reset();enabled=true;assert.equal(get('continuity').state,'not_run');
+    view.accept({stage:'auxiliary_usage',status:'needs_setup',reasonCode:'profile_not_configured',continuityIncluded:true});
+    assert.equal(get('continuity').state,'failed');assert.equal(get('continuity').message,'연결모델 설정 필요');
 }
+console.log('Current status: separate injection/continuity evidence, scoped errors, cancellation, repair, privacy and reset passed.');
+
 {
     const view=createCurrentStatusModel();
     view.accept({stage:'retrieval_request',phase:'shared_search',code:'SHARED_VECTOR_UNAVAILABLE',status:'fallback'});
