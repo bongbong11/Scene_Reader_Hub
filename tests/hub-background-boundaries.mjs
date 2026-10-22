@@ -82,6 +82,6 @@ assert.equal(searches,2);assert.equal(results.get('other').status,'ready','one p
  deps.chatReadyKey='different-room';await index.prepareApplied([other.id]);
  assert.ok(events.some(event=>event.phase==='index_sync'&&event.status==='failed'),'preflight failures are visible and do not reject successful file application');
  deps.chatReadyKey='room';store.npcs=[entry];
- await index.prepareApplied([entry.id]);assert.equal(events.at(-1).code,'EMBEDDING_INDEX_PENDING','paged banks require explicit maintenance');
+ await index.prepareApplied([entry.id]);assert.equal(events.at(-1).code,'EMBEDDING_PREPARE_ON_SEARCH','paged banks wait until actually searched');
  assert.equal(rebuilt.length,2);
 }

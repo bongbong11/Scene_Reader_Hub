@@ -6,6 +6,10 @@ const ITEM_KINDS = new Set(['commitment', 'plan', 'schedule', 'obligation', 'del
 const KNOWLEDGE_SOURCES = new Set(['direct', 'observed', 'told', 'reported', 'public', 'role_based', 'privileged']);
 const PRESSURES = new Set(['none', 'strained', 'at_risk', 'blocked']);
 const LIFECYCLES = new Set(['active', 'confirmed', 'delegated', 'contested', 'cancel_pending', 'resolved', 'cancelled', 'completed']);
+export const CONTINUITY_VALIDATION_LABELS = Object.freeze({invalidShapeCount:'필수 항목·형식',invalidEvidenceTypeCount:'근거 종류',invalidEvidenceCount:'원문 근거 불일치',invalidStateCount:'기존 기록 ID 불일치',invalidLifecycleCount:'사실·완료 상태 불일치',invalidActorCount:'인물 확인 불가',limitOmittedCount:'항목 수 제한'});
+export function continuityValidationCounts(value) {
+    return Object.fromEntries(Object.keys(CONTINUITY_VALIDATION_LABELS).filter(key=>Number.isSafeInteger(value?.[key])&&value[key]>0).map(key=>[key,value[key]]));
+}
 
 export const REASONER_SYSTEM = `<CONTINUITY_REASONER>
 You are a continuity dependency reasoner, not a story writer. Identify direct effects of newly established RP on existing promises, schedules, obligations, delegations, important knowledge and access boundaries. Off-screen people and commitments continue to exist, but never invent completed off-screen actions.
@@ -52,42 +56,47 @@ export function validateReasonerResult(raw, { sourceText, continuity, sourceIden
     const knownIds = new Set(current.items.map((item) => item.id));
     const knownState=id=>knownIds.has(id)||(stateRefs?stateRefs.includes(id):/^(event|relationship|npc):/.test(id));
     const candidates = [];
+    let invalidCount=0;
+    const reject = key => { invalidCount++;if(diagnostics)diagnostics[key]=(diagnostics[key]||0)+1; };
     const add = (type, value, index) => {
-        if (!value || typeof value !== 'object') return;
+        if (!value || typeof value !== 'object') return reject('invalidShapeCount');
         const evidence = short(value.evidence, 260);
         const sourceType = short(value.source_type, 40);
-        if (!SOURCE_TYPES.has(sourceType) || !evidencePresent(evidence, sourceText)) return;
+        if (!SOURCE_TYPES.has(sourceType)) return reject('invalidEvidenceTypeCount');
+        if (!evidencePresent(evidence, sourceText)) return reject('invalidEvidenceCount');
         const id = `${type}:${index}:${sourceIdentity.outputFingerprint}`;
         const sources=evidenceSources?.filter(source=>evidencePresent(evidence,source.text));
         const refs=sources?.length?[...new Map(sources.flatMap(source=>source.refs).map(ref=>[ref.messageIndex,ref])).values()]:sourceIdentity.refs;
         const identity=refs?.length?{...sourceIdentity,refs,assistantIndex:Math.max(...refs.filter(ref=>ref.role==='assistant').map(ref=>ref.messageIndex))}:sourceIdentity;
         const base = { id, type, evidence, sourceType, sourceIdentity:identity, label: '', data: {} };
         if (type === 'new_item') {
-            if (!ITEM_KINDS.has(value.kind) || !['promise', 'delegation', 'world_fact', 'intention'].includes(sourceType)) return;
-            if(['promise','intention','delegation'].includes(sourceType)&&['completed','resolved'].includes(value.lifecycle))return;
+            if (!ITEM_KINDS.has(value.kind)) return reject('invalidShapeCount');
+            if (!['promise', 'delegation', 'world_fact', 'intention'].includes(sourceType)) return reject('invalidEvidenceTypeCount');
+            if(['promise','intention','delegation'].includes(sourceType)&&['completed','resolved'].includes(value.lifecycle))return reject('invalidLifecycleCount');
             const label = short(value.label, 140);
-            if (!label) return;
+            if (!label) return reject('invalidShapeCount');
             base.label = label;
             base.data = { kind: value.kind, label, lifecycle: LIFECYCLES.has(value.lifecycle) ? value.lifecycle : 'active', owners: Array.isArray(value.owners) ? value.owners.map((item) => short(item, 60)).slice(0, 4) : [] };
         } else if (type === 'affected') {
             const stateId = short(value.state_id, 100);
-            if (!stateId || !knownState(stateId)) return;
+            if (!stateId || !knownState(stateId)) return reject('invalidStateCount');
             const relation = short(value.relation, 40);
-            if (!['changed', 'pressured'].includes(relation)) return;
-            if(relation==='changed'&&['completed','resolved'].includes(value.lifecycle)&&!['world_fact','completed_action'].includes(sourceType))return;
+            if (!['changed', 'pressured'].includes(relation)) return reject('invalidShapeCount');
+            if(relation==='changed'&&['completed','resolved'].includes(value.lifecycle)&&!['world_fact','completed_action'].includes(sourceType))return reject('invalidLifecycleCount');
             base.label = `${stateId} · ${relation}`;
             base.data = { stateId, relation, lifecycle: LIFECYCLES.has(value.lifecycle) ? value.lifecycle : null, pressure: PRESSURES.has(value.pressure) ? value.pressure : relation==='pressured'?'strained':'none', reason: short(value.reason, 240) };
         } else if (type === 'knowledge') {
             const factId = short(value.fact_id, 100);
             const character = short(value.character, 80);
-            if (!factId || !character || !KNOWLEDGE_SOURCES.has(value.source)) return;
-            if(!supportedActor(character,actors,sourceText))return;
+            if (!factId || !character || !KNOWLEDGE_SOURCES.has(value.source)) return reject('invalidShapeCount');
+            if(!supportedActor(character,actors,sourceText))return reject('invalidActorCount');
             base.label = `${character} · ${factId}`;
             base.data = { factId, character, source: value.source, summary: short(value.summary, 160) };
         } else if (type === 'followup') {
             const relatedStateId = short(value.related_state_id, 100);
             const action = short(value.action, 180);
-            if (!relatedStateId || !action || !knownState(relatedStateId)) return;
+            if (!action) return reject('invalidShapeCount');
+            if (!relatedStateId || !knownState(relatedStateId)) return reject('invalidStateCount');
             base.label = action;
             base.data = { relatedStateId, action, reason: short(value.reason, 240) };
         }
@@ -96,11 +105,12 @@ export function validateReasonerResult(raw, { sourceText, continuity, sourceIden
     for (const [field, type, limit] of [['new_items', 'new_item', 2], ['affected', 'affected', 3], ['knowledge_updates', 'knowledge', 4], ['possible_followups', 'followup', 2]]) {
         const entries = Array.isArray(raw[field]) ? raw[field] : [];
         if(diagnostics)diagnostics.candidateCount=(diagnostics.candidateCount||0)+entries.length;
+        if(diagnostics&&entries.length>limit)diagnostics.limitOmittedCount=(diagnostics.limitOmittedCount||0)+entries.length-limit;
         entries.slice(0, limit).forEach((value, index) => add(type, value, index));
     }
     // These are stored facts, not competing Jev candidates. Keep every valid
     // entry within the documented per-section limits; injection has its own cap.
-    if(diagnostics)diagnostics.invalidCount=(diagnostics.candidateCount||0)-candidates.length;
+    if(diagnostics)diagnostics.invalidCount=invalidCount;
     return candidates;
 }
 

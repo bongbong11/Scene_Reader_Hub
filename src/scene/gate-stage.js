@@ -2,6 +2,7 @@ import {DECISION_CONTRACT_VERSION} from '../decision/policy.js';
 import {sceneDisplayState} from './display-state.js';
 import {inheritedStates, CONTINUATION_POLICY, storylineInjection, storylineRetrievalCue} from '../context/storyline-reference.js';
 import {bankIdentity} from '../retrieval/bank-identity.js';
+import {requirePreparedIndex} from '../retrieval/record-hashes.js';
 import {notifySceneReaderToast} from "../ui/toasts.js";
 import {MEMORY_REFERENCE_ENABLED} from "../context/memory.js";
 import {visibilityKey} from '../context/visibility.js';
@@ -55,6 +56,7 @@ async function prepareGate(run,frame) {
     (frame.worldRetrieval = frame.world?.advanced && frame.worldRecords.length
         ? await deps.vectorRetrieval.search({kind:'world',bankId:bankIdentity('world',frame.world.id,frame.worldRecords,Boolean(frame.rec.sharedSource)),items:frame.worldRecords,transcript: frame.retrievalTranscript,sharedTranscript:frame.retrievalTranscript,limit:10,signal:run.controller.signal})
         : {indices:[],status:'plain'});
+    requirePreparedIndex(frame.worldRetrieval);
     run.assert();
     (frame.worldRecordCandidates = addWorldQuestions(frame.gateRequest, frame.world, frame.transcript, frame.worldRetrieval.indices));
     if (deps.characterStore.enabled) deps.addCharacterNeedsQuestions(frame.gateRequest, frame.gatePeople);

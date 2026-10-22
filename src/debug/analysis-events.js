@@ -1,4 +1,5 @@
-const numeric=new Set(['turnCount','messageCount','candidateCount','acceptedCount','pendingCount','inputChars','outputChars','durationMs','baselineCount','baselineTotal','repairCount','invalidCount','translationMissing','comparedCount','missingComparison','recordChangeCount']);
+import {CONTINUITY_VALIDATION_LABELS} from '../continuity/engine.js';
+const numeric=new Set([...Object.keys(CONTINUITY_VALIDATION_LABELS),'reusedCount','turnCount','messageCount','candidateCount','acceptedCount','pendingCount','inputChars','outputChars','durationMs','baselineCount','baselineTotal','repairCount','invalidCount','translationMissing','comparedCount','missingComparison','recordChangeCount']);
 export function analysisFailureCode(error){return typeof error?.code==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:error?.name==='AbortError'?'ANALYSIS_CANCELLED':'ANALYSIS_FAILED';}
 export function analysisDiagnostic(note,code,details={}) {
  const safe={module:'src/continuity/auxiliary-runtime.js',status:details.status||'info'};

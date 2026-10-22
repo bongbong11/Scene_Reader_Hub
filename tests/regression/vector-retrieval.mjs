@@ -24,8 +24,8 @@ async function fetch(url,{body}) {
     }
     throw new Error(route);
 }
-const progress=[];
-const retrieval=createVectorRetrieval({fetch,getRequestHeaders:()=>({'Content-Type':'application/json'}),getSettings:()=>settings,onProgress:event=>progress.push(event)});
+const progress=[],diagnostics=[];
+const retrieval=createVectorRetrieval({fetch,getRequestHeaders:()=>({'Content-Type':'application/json'}),getSettings:()=>settings,onProgress:event=>progress.push(event),onDiagnostic:event=>diagnostics.push(event)});
 settings.retrievalProvider='vertexai';
 assert.equal(retrieval.config().vertexai_region,'global','new Vertex connection uses the global region');
 settings.retrievalVertexRegion='us-central1';
@@ -39,8 +39,9 @@ const entry={id:'rowan',kind:'npc',name:'Rowan',source:'Rowan has documented hab
 entry.recordBank=createRecordBank({entity_type:'npc',entity_name:'Rowan',records:rules},entry,'audit');
 const transcript='Ellis texted Rowan about the investigation. Rowan considers how to reply.';
 const deferred=await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9});
-assert.equal(deferred.code,'EMBEDDING_INDEX_PENDING');
-assert.equal(calls.filter(item=>item.route==='insert').length,0,'large cold bank does not block the scene with bulk inference');
+assert.equal(deferred.status,'ready');
+const pending=diagnostics.find(event=>event.phase==='index_check');assert.equal(pending.missingCount,69);assert.equal(pending.generatedCount,0);assert.equal(pending.savedCount,0);
+assert.equal(calls.filter(item=>item.route==='insert').flatMap(item=>item.data.items).length,69,'prepare the required bank before querying');
 assert.equal((await retrieval.rebuild({kind:'character',bankId:'room:rowan',items:rules})).status,'rebuilt');
 const result=await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9});
 assert.equal(result.status,'ready');
@@ -80,10 +81,10 @@ assert.equal(activeCollection.size,69,'repeated version switches replace stale r
 assert.ok([...activeCollection.values()].some(item=>item.text.includes('Ellis')));
 const before=calls.filter(call=>call.route==='query').length;
 settings.retrievalModel='Qwen/Qwen3-Embedding-4B';
-assert.equal((await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9})).code,'EMBEDDING_INDEX_PENDING','model switch cannot reuse the old model index');
+assert.equal((await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9})).status,'ready','model switch prepares the new model index before search');
 assert.equal((await retrieval.rebuild({kind:'character',bankId:'room:rowan',items:rules})).status,'rebuilt');
 await retrieval.search({kind:'character',bankId:'room:rowan',items:rules,transcript,limit:9});
-assert.equal(calls.filter(call=>call.route==='query').length,before+1,'model switch uses a separate index and query');
+assert.equal(calls.filter(call=>call.route==='query').length,before+2,'model switch uses a separate index and query');
 fail=true;
 const fallback=await retrieval.search({kind:'world',bankId:'world',items:[{id:'W1',category:'mechanism',when:'current',rule:'A rule.',keywords:[]}],transcript});
 assert.equal(fallback.status,'fallback');

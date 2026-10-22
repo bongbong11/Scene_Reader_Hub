@@ -48,8 +48,8 @@ async function runJudge(options={}) {
  });
 }
 const executeJudge=createPipeline({stages:[{stage:'context',module:'src/context/prepare.js',timeoutMs:90000,execute:prepareContext},
-{stage:'scene',module:'src/scene/gate-stage.js',timeoutMs:180000,execute:prepareGate},
-{stage:'retrieval',module:'src/decision/prepare.js',timeoutMs:75000,execute:prepareQuestions},
+{stage:'scene',module:'src/scene/gate-stage.js',timeoutMs:360000,execute:prepareGate},
+{stage:'retrieval',module:'src/decision/prepare.js',timeoutMs:330000,execute:prepareQuestions},
 {stage:'decision',module:'src/decision/request.js',timeoutMs:65000,execute:requestDecision},
 {stage:'policy',module:'src/decision/resolve.js',timeoutMs:0,execute:resolveDecision},
 {stage:'injection.assemble',module:'src/injection/prepare.js',timeoutMs:0,execute:prepareInjection},

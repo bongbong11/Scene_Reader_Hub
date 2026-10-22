@@ -15,6 +15,7 @@ import {visibilityKey} from '../context/visibility.js';
 import {analysisDiagnostic,analysisFailureCode} from '../debug/analysis-events.js';
 import {continuitySourceWindow,advanceContinuityWindow} from './source-window.js';
 import {commitAnalyzedContinuity} from './commit-analysis.js';
+import {restorePendingAnalysis,pendingAnalysisReceipt,pendingAnalysisState} from './pending-analysis.js';
 
 // Detached ordinary continuity / topic review and optional vault audit only.
 // No character-file comparison, evolution collection, historical scan or repair.
@@ -35,6 +36,7 @@ export function createAuxiliaryRuntime(deps){
   const refs=[...(user>=0&&sourceRp(chat[user])?[messageRef(key,chat,user,deps.fingerprint)]:[]),messageRef(key,chat,index,deps.fingerprint)];
   const stamp=visibilityKey(chat),sourceKey=deps.fingerprint(refs),group=index;
   let progress=observed.get(key);if(!progress){progress={groups:new Map(),processed:new Map()};observed.set(key,progress);if(observed.size>16)observed.delete(observed.keys().next().value);}
+  restorePendingAnalysis(progress,record?.auxiliaryStateV1?.pending,{chatRef:key,chat,fingerprint:deps.fingerprint});
   for(const [id,entry] of progress.groups)if(!validateSourceRefs(entry.refs,{chatRef:key,chat,fingerprint:deps.fingerprint}))progress.groups.delete(id);
   if(enabled&&progress.processed.get(group)!==sourceKey&&progress.groups.get(group)?.key!==sourceKey)progress.groups.set(group,{key:sourceKey,refs,offset:0});
   return scheduler.request(async job=>{
@@ -44,7 +46,9 @@ export function createAuxiliaryRuntime(deps){
     await idle(job.signal);if(!valid())return {status:'cancelled'};
     const current=deps.record(true),nowChat=deps.getContext().chat;
     const window=enabled?continuitySourceWindow(progress.groups,{chatRef:key,chat:nowChat,fingerprint:deps.fingerprint}):null;
-    const due=enabled&&Boolean(window?.text)&&(progress.groups.size>=3||[...progress.groups.values()].some(entry=>entry.offset>0));
+    const attempted=new Map((current.auxiliaryStateV1?.pending?.groups||[]).map(entry=>[entry.group,entry.key]));
+    const freshGroups=[...progress.groups].filter(([group,entry])=>attempted.get(group)!==entry.key).length;
+    const due=enabled&&Boolean(window?.text)&&(attempted.size?freshGroups>=3:progress.groups.size>=3||[...progress.groups.values()].some(entry=>entry.offset>0));
     const analysisKey=deps.fingerprint([sourceKey,due?window.consumed:[]]);
     if(current.auxiliaryStateV1?.sourceKey===analysisKey)return {status:'already_analyzed'};
     const source=`USER:\n${user>=0?sourceRp(nowChat[user]):''}\nCHARACTER:\n${sourceRp(nowChat[index])}`,sourceText=source.slice(-9000);
@@ -67,7 +71,7 @@ export function createAuxiliaryRuntime(deps){
     await idle(job.signal);if(!sourceValid())return {status:'cancelled'};
     if(vault)await completeVaultAudit({bridge,vault,result:response.result,sourceText,request:(system,input,options)=>request(deps.connectionRequestService,profile,system,input,options),signal:job.signal,valid:sourceValid,idle,report});
     await idle(job.signal);if(!sourceValid())return {status:'cancelled'};
-    let malformed=false,counts={candidateCount:0,invalidCount:0,acceptedCount:0};
+    let malformed=false,incomplete=false,counts={candidateCount:0,invalidCount:0,acceptedCount:0};
     const saved=await commitSession(key,({current:rec,history})=>{
      if(due){
       const identity={chatKey:key,assistantIndex:Math.max(...window.refs.filter(ref=>ref.role==='assistant').map(ref=>ref.messageIndex)),outputFingerprint:deps.fingerprint([continuityText,window.refs]),refs:window.refs,sourceRevision:deps.sourceRevisionKey(rec,deps.selectedWorld(rec))};
@@ -79,23 +83,28 @@ export function createAuxiliaryRuntime(deps){
       counts.invalidCount=0;
       const actors=[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[]),deps.characterStore.persona].filter(Boolean).flatMap(actor=>[actor.name,...(actor.aliases||[])]);
       const candidates=malformed?[]:validateReasonerResult(response.result,{sourceText:continuityText,continuity:continuityView(rec),sourceIdentity:identity,stateRefs:['relationship:current',...(rec.eventProfile?['event:current']:[])],actors:[...actors,deps.getContext().name1,deps.getContext().name2].filter(Boolean),evidenceSources:window.sources,diagnostics:counts});
-      counts.invalidCount+=invalidSections;
+      counts.invalidCount+=invalidSections||(malformed?1:0);
+      if(invalidSections||malformed)counts.invalidShapeCount=(counts.invalidShapeCount||0)+(invalidSections||1);
       malformed ||= !candidates.length&&counts.invalidCount>0;
-      const applied=commitAnalyzedContinuity(rec,history,candidates);
+      incomplete=malformed||counts.invalidCount>0;
+      const receipt=pendingAnalysisReceipt(candidates,rec.auxiliaryStateV1?.pending,{chatRef:key,chat:deps.getContext().chat||[],fingerprint:deps.fingerprint});
+      const applied=commitAnalyzedContinuity(rec,history,receipt.candidates);
+      counts.reusedCount=receipt.reusedCount;
       counts.acceptedCount=applied.accepted.length;
-      rec.lastContinuityTrace={...counts,status:malformed?'error':counts.invalidCount?'partial':applied.accepted.length?'verified':'empty',trigger:'periodic',repetitionStatus:review.status,groupCount:window.groupCount,partial:window.partial,verdicts:applied.accepted.map(({type,label,verdict})=>({type,label,verdict,reason:'연결모델 분석 · 형식과 가시 근거 확인'})),acceptedCount:applied.accepted.length};
+      rec.lastContinuityTrace={...counts,status:malformed?'error':counts.invalidCount?'partial':applied.accepted.length||counts.reusedCount?'verified':'empty',trigger:'periodic',repetitionStatus:review.status,groupCount:window.groupCount,partial:window.partial,retryPending:incomplete,verdicts:applied.accepted.map(({type,label,verdict})=>({type,label,verdict,reason:'연결모델 분석 · 형식과 가시 근거 확인'})),acceptedCount:applied.accepted.length};
       rec.lastReasonerSource=identity;rec.lastJudgment=null;
+      rec.auxiliaryStateV1={sourceKey:analysisKey,retryAfter:incomplete?Date.now()+30000:0,...(incomplete?{pending:pendingAnalysisState(progress,receipt.receipts)}:{})};
      }
-     rec.auxiliaryStateV1={...(malformed?{}:{sourceKey:analysisKey}),retryAfter:malformed?Date.now()+30000:0};return {chat:rec,history};
+     else rec.auxiliaryStateV1={...rec.auxiliaryStateV1,sourceKey:analysisKey};return {chat:rec,history};
     },()=>sourceValid()&&foregroundIdle());
-    if(saved&&due){if(!malformed)advanceContinuityWindow(progress,window);if(foregroundIdle())await deps.clearInjection?.({chatKey:key});}
+    if(saved&&due){if(!incomplete)advanceContinuityWindow(progress,window);if(foregroundIdle())await deps.clearInjection?.({chatKey:key});}
     report('analysis_result',{...counts,status:saved?malformed||counts.invalidCount?'degraded':'succeeded':'deferred',...(malformed||counts.invalidCount?{reasonCode:'CONTINUITY_INVALID_RESPONSE'}:{})});
     return {status:saved?'complete':'cancelled'};
    }catch(error){
     if(!valid()||job.signal.aborted)return {status:'cancelled'};
     const reasonCode=analysisFailureCode(error);vault&&bridge?.failAnalysis?.(vault.token,reasonCode);
     report('analysis_failed',{status:'failed',reasonCode});
-    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={retryAfter:Date.now()+30000};rec.lastContinuityTrace={status:'error',error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch{report('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
+    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={...rec.auxiliaryStateV1,retryAfter:Date.now()+30000,...(enabled?{pending:pendingAnalysisState(progress,rec.auxiliaryStateV1?.pending?.receipts)}:{})};rec.lastContinuityTrace={status:'error',retryPending:enabled,error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch{report('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
     return {status:'failed',reasonCode};
    }finally{vault&&bridge?.abandonAnalysis?.(vault.token);}
   });

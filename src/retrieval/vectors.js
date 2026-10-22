@@ -5,6 +5,7 @@ import { requestFailure } from '../adapters/failure-info.js';
 import { createEmbeddingCredentialDiagnostics, embeddingCredentialStore } from './credentials.js';
 import {hash32,hash53,queryText,recordText} from './identity.js';
 import {createSharedQuery} from './shared-query.js';
+import {recordHashes} from './record-hashes.js';
 // Scene Reader owns retrieval. SillyTavern owns embedding inference, indexes and API secrets.
 export const RETRIEVAL_PROVIDERS = Object.freeze({
     transformers: { label: 'SillyTavern 로컬', model: '', secret: '' },
@@ -38,8 +39,9 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         const relay = () => controller.abort(signal?.reason);
         if (signal?.aborted) relay();
         else signal?.addEventListener('abort', relay, { once: true });
-        const timer = setTimeout(() => controller.abort(Object.assign(new Error('검색 연결 시간이 초과되었습니다.'),{code:'REQUEST_TIMEOUT'})), maintenance?300000:recovery?Math.max(timeoutMs,70000):timeoutMs);
-        return { signal: controller.signal, finish: () => { clearTimeout(timer); signal?.removeEventListener('abort', relay); } };
+        const started=Date.now(),expire=()=>controller.abort(Object.assign(new Error('검색 연결 시간이 초과되었습니다.'),{code:'REQUEST_TIMEOUT'}));
+        let timer = setTimeout(expire, maintenance?300000:recovery?Math.max(timeoutMs,70000):timeoutMs);
+        return { signal: controller.signal, preparing:()=>{clearTimeout(timer);timer=setTimeout(expire,Math.max(1,300000-(Date.now()-started)));},finish: () => { clearTimeout(timer); signal?.removeEventListener('abort', relay); } };
     }
     async function post(route, body, signal, recovery=false, sharedText='') {
         const started = Date.now();
@@ -78,11 +80,12 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         if (source !== 'transformers' && !model) throw new Error('검색 모델 이름을 설정하세요.');
         return { source, model, ...(source === 'vertexai' ? { api: 'vertexai', vertexai_auth_mode: settings.retrievalVertexAuth === 'full' ? 'full' : 'express', vertexai_region: VERTEX_EMBEDDING_REGION, vertexai_express_project_id: settings.retrievalVertexProject || '' } : {}) };
     }
-    function entryMap(kind, items) {
+    function entryMap(kind, items, savedHashes=new Set()) {
         const map = new Map();
         for (const [index, item] of items.entries()) {
             const text = recordText(kind, item);
-            const hash = hash53(JSON.stringify([kind, item.id || index, item, text]));
+            const hashes=recordHashes(kind,item,index);
+            const hash = hashes.find(value=>savedHashes.has(value))??hashes[0];
             if (map.has(hash)) throw new Error('검색 기록 해시 충돌');
             map.set(hash, { hash, index, text, item });
         }
@@ -94,7 +97,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         if(indexOnly)maintenanceCount++;
         const bounded = boundedSignal(signal,recovery,indexOnly);
         const progress = background ? () => {} : onProgress;
-        let indexCounts;
+        let indexCounts,preparing=false;
         try {
             validate();
             const options = config();
@@ -103,9 +106,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             validate();
             const collectionId = `scene-reader-${kind}-${hash32(bankId)}`;
             const body = { ...options, collectionId };
-            const entries = entryMap(kind, items);
-            const revision = JSON.stringify([body, [...entries.keys()]]);
-            const cacheKey = `${revision}\n${queryText(transcript)}\n${limit}`;
+            let entries;
             // The same bank can switch A -> B -> A, or be changed in another tab.
             // A cheap list request checks the actual index; it does not embed text.
             {
@@ -114,13 +115,13 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 validate();
                 if (!Array.isArray(saved)) throw new Error('검색 색인 목록 오류');
                 const savedHashes = new Set(saved.map(Number));
+                entries=entryMap(kind,items,savedHashes);
                 const stale = [...savedHashes].filter(hash => !entries.has(hash));
                 const missing = [...entries.values()].filter(entry => forceRebuild || !savedHashes.has(entry.hash));
-                indexCounts = {totalCount:entries.size,reusedCount:forceRebuild?0:entries.size-missing.length,generatedCount:missing.length};
-                if(!indexOnly&&(missing.length>20||missing.reduce((sum,item)=>sum+item.text.length,0)>16000)) {
-                    report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'deferred',code:'EMBEDDING_INDEX_PENDING',...indexCounts});
-                    throw Object.assign(new Error('준비할 임베딩이 많아 기록 매칭으로 진행합니다. 임베딩 재시도를 눌러 준비해 주세요.'),{code:'EMBEDDING_INDEX_PENDING'});
-                }
+                indexCounts = {totalCount:entries.size,savedCount:savedHashes.size,missingCount:missing.length,staleCount:stale.length,reusedCount:forceRebuild?0:entries.size-missing.length,generatedCount:0};
+                report({module:'src/retrieval/vectors.js',phase:'index_check',status:'succeeded',bankHash:hash32(collectionId),provider:options.source,model:options.model||'host_configured',...indexCounts});
+                preparing=missing.length>0;
+                if(preparing)bounded.preparing();
                 if (indexOnly) {
                     progress({kind,phase:'syncing',...indexCounts});
                     report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'started',bankHash:hash32(bankId),...indexCounts,forceRebuild});
@@ -140,11 +141,22 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                     if (replaceHashes.length) await post('delete',{...body,hashes:replaceHashes},bounded.signal,recovery);
                     validate();
                     await post('insert', { ...body, items:batch.map(({hash,index,text}) => ({hash,index,text})) }, bounded.signal,recovery);
+                    indexCounts.generatedCount+=batch.length;
                     validate();
+                }
+                // A successful HTTP insert is not proof that the index contains
+                // the records. Verify before deleting old entries or querying.
+                if(missing.length){
+                    const actual=await post('list',body,bounded.signal,recovery);
+                    validate();const verified=new Set(Array.isArray(actual)?actual.map(Number):[]);
+                    if(!Array.isArray(actual)||[...entries.keys()].some(hash=>!verified.has(hash)))throw Object.assign(new Error('필요한 임베딩의 저장을 확인하지 못했습니다. 판독을 중단합니다. 재시도하면 저장된 부분은 재사용합니다.'),{code:'EMBEDDING_VERIFY_FAILED'});
                 }
                 // Do not remove the previous index until new records were accepted.
                 if (stale.length) await post('delete', { ...body, hashes:stale }, bounded.signal,recovery);
+                preparing=false;
             }
+            const revision = JSON.stringify([body, [...entries.keys()]]);
+            const cacheKey = `${revision}\n${queryText(transcript)}\n${limit}`;
             if (indexOnly) {
                 const saved=await post('list',body,bounded.signal,recovery);
                 validate();
@@ -171,8 +183,9 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         } catch (error) {
             if (signal?.aborted) throw signal.reason || error;
             const reason = bounded.signal.aborted ? '검색 연결 시간이 초과되었습니다.' : status(error);
-            progress({kind, phase:'fallback', error:reason});
-            return { indices: [], status: 'fallback', error: reason, code:error.code || 'RETRIEVAL_FAILED' };
+            if(preparing)report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'failed',errorKind:error.code||'EMBEDDING_PREPARATION_FAILED',...indexCounts});
+            progress({kind, phase:preparing?'prepare_failed':'fallback', error:reason});
+            return { indices: [], status: 'fallback', error: reason, code:error.code || 'RETRIEVAL_FAILED',...(preparing?{preparationFailed:true}:{}) };
         } finally {
             if(indexOnly)maintenanceCount--;
             bounded.finish();
@@ -202,12 +215,23 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         }
         return `${RETRIEVAL_PROVIDERS[options.source].label} 연결 성공`;
     }
-    async function searchPaged({kind,bankId,count,transcript,sharedTranscript='',signal,recovery=false}) {
+    async function searchPaged({kind,bankId,count,transcript,sharedTranscript='',signal,recovery=false,pages}) {
         if(maintenanceCount)return {indices:[],hashes:[],status:'fallback',code:'EMBEDDING_MAINTENANCE',error:'임베딩 정비 중 · 이번 판독은 기록 매칭으로 진행합니다.'};
         const bounded=boundedSignal(signal,recovery);
-        try {const options=config();const sharedText=queryText(sharedTranscript)&&await sharedQuery.supported(options.source,bounded.signal)?queryText(sharedTranscript):'';await credentials.inspect(options,bounded.signal);const result=await post('query',{...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`,searchText:queryText(transcript),topK:Math.min(12,count),threshold:.01},bounded.signal,recovery,sharedText);
-            if(!Array.isArray(result?.metadata))throw new Error('검색 결과 형식 오류');return {...(result.sharedVector?{sharedVector:true}:{}),status:result.metadata.length?'ready':'fallback',indices:result.metadata.map(item=>item.index).filter(index=>Number.isInteger(index)&&index>=0&&index<count),hashes:result.metadata.map(item=>item.hash),...(!result.metadata.length?{code:'EMBEDDING_INDEX_MISSING',error:'임베딩이 준비되지 않아 기록 매칭으로 찾습니다. 임베딩 재시도를 사용할 수 있습니다.'}:{})};
-        }catch(error){if(signal?.aborted)throw signal.reason||error;return {status:'fallback',indices:[],hashes:[],code:error.code||'RETRIEVAL_FAILED',error:'검색 연결에 실패해 기록 매칭으로 찾습니다.'};}finally{bounded.finish();}
+        let preparing=false;
+        try {const options=config();const body={...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`};await credentials.inspect(options,bounded.signal);
+            const saved=await post('list',body,bounded.signal,recovery);if(!Array.isArray(saved))throw new Error('검색 색인 목록 오류');
+            if(new Set(saved.map(Number)).size<count){
+                preparing=true;bounded.preparing();
+                if(!pages)throw Object.assign(new Error('누락된 임베딩의 원본 기록을 불러오지 못했습니다.'),{code:'EMBEDDING_SOURCE_UNAVAILABLE'});
+                const prepared=await rebuildPaged({kind,bankId,count,pages:pages(bounded.signal),signal:bounded.signal});
+                if(prepared.status!=='rebuilt')throw Object.assign(new Error(prepared.error),{code:prepared.code});
+                preparing=false;
+            }
+            const sharedText=queryText(sharedTranscript)&&await sharedQuery.supported(options.source,bounded.signal)?queryText(sharedTranscript):'';
+            const result=await post('query',{...body,searchText:queryText(transcript),topK:Math.min(12,count),threshold:.01},bounded.signal,recovery,sharedText);
+            if(!Array.isArray(result?.metadata))throw new Error('검색 결과 형식 오류');return {...(result.sharedVector?{sharedVector:true}:{}),status:'ready',indices:result.metadata.map(item=>item.index).filter(index=>Number.isInteger(index)&&index>=0&&index<count),hashes:result.metadata.map(item=>item.hash)};
+        }catch(error){if(signal?.aborted)throw signal.reason||error;onProgress({kind,phase:preparing?'prepare_failed':'fallback',error:status(error)});return {status:'fallback',indices:[],hashes:[],code:error.code||'RETRIEVAL_FAILED',error:status(error),...(preparing?{preparationFailed:true}:{})};}finally{bounded.finish();}
     }
     async function rebuildPaged({kind,bankId,count,pages,signal,forceRebuild=false,validate=()=>{}}){
         maintenanceCount++;
@@ -216,7 +240,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             validate();const options=config();await credentials.inspect(options,signal);const body={...options,collectionId:`scene-reader-${kind}-${hash32(bankId)}`};
             const saved=await post('list',body,signal,true);if(!Array.isArray(saved))throw new Error('검색 색인 목록 오류');const savedHashes=new Set(saved.map(Number));
             for await(const page of pages){validate();signal?.throwIfAborted();const missing=[];
-                for(let at=0;at<page.records.length;at++){const item=page.records[at],index=page.indices[at],text=recordText(kind,item),hash=hash53(JSON.stringify([kind,item.id||index,item,text]));if(entries.has(hash))throw new Error('검색 기록 해시 충돌');entries.add(hash);if(!forceRebuild&&savedHashes.has(hash))reusedCount++;else missing.push({hash,index,text});}
+                for(let at=0;at<page.records.length;at++){const item=page.records[at],index=page.indices[at],text=recordText(kind,item),hashes=recordHashes(kind,item,index),hash=hashes.find(value=>savedHashes.has(value))??hashes[0];if(entries.has(hash))throw new Error('검색 기록 해시 충돌');entries.add(hash);if(!forceRebuild&&savedHashes.has(hash))reusedCount++;else missing.push({hash,index,text});}
                 for(let offset=0;offset<missing.length;){const batch=[];let chars=0;while(offset<missing.length&&batch.length<20){const entry=missing[offset];if(batch.length&&chars+entry.text.length>16000)break;batch.push(entry);chars+=entry.text.length;offset++;}validate();if(forceRebuild){const hashes=batch.map(item=>item.hash).filter(hash=>savedHashes.has(hash));if(hashes.length)await post('delete',{...body,hashes},signal,true);}validate();await post('insert',{...body,items:batch},signal,true);generatedCount+=batch.length;}
                 onProgress({kind,phase:'syncing',totalCount:count,reusedCount,generatedCount});
             }

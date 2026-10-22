@@ -57,9 +57,9 @@ export function createEmbeddingMaintenance(deps) {
         const targets=banks().filter(bank=>entryIds.includes(bank.entryId));
         if(!targets.length)return;
         // Explicit file application may prepare one small batch in the background.
-        // A large library requires the visible retry command, never a startup job.
+        // Large libraries are prepared when actually searched, not on startup.
         if(targets.some(bank=>bank.pagedBank)||targets.reduce((n,bank)=>n+bank.items.length,0)>20||JSON.stringify(targets.map(bank=>bank.items)).length>16000){
-            deps.noteDiagnostic('retrieval_request',{module:'src/retrieval/maintenance.js',phase:'index_sync',status:'deferred',code:'EMBEDDING_INDEX_PENDING'});
+            deps.noteDiagnostic('retrieval_request',{module:'src/retrieval/maintenance.js',phase:'index_sync',status:'deferred',code:'EMBEDDING_PREPARE_ON_SEARCH'});
             return;
         }
         await rebuild({entryIds,background:true});

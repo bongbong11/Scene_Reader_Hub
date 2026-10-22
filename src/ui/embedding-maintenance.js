@@ -1,9 +1,9 @@
 import { notifySceneReaderToast } from './toasts.js';
 
-export function renderEmbeddingProgress(document,{kind,phase,totalCount,reusedCount,generatedCount}) {
+export function renderEmbeddingProgress(document,{kind,phase,totalCount,reusedCount,generatedCount,missingCount}) {
     if(phase!=='syncing')return;
     const node=document.getElementById('sr-embedding-progress');
-    if(node)node.textContent=`${kind==='world'?'세계관':'인물'} · 전체 ${totalCount}개 · 기존 ${reusedCount}개 재사용 · 생성 ${generatedCount}개`;
+    if(node)node.textContent=`${kind==='world'?'세계관':'인물'} · 전체 ${totalCount}개 · 기존 ${reusedCount}개 재사용 · ${Number.isInteger(missingCount)?`생성 필요 ${missingCount}`:`생성 ${generatedCount}`}개`;
 }
 export function renderRetrievalProgress({document,updateActivity},progress) {
     renderEmbeddingProgress(document,progress);
@@ -11,6 +11,7 @@ export function renderRetrievalProgress({document,updateActivity},progress) {
     const message=phase==='checking'?`${label} 검색 데이터 확인 중…`
         :phase==='indexing'?`${label} 누락·갱신 기록 ${count}개 벡터화 중…`
         :phase==='querying'?`${label} 관련 기록 검색 중…`
+        :phase==='prepare_failed'?`${label} 필요한 임베딩 준비 실패 · 판독 중단 (${error})`
         :phase==='fallback'?`${label} 임베딩 검색 실패 · 글자 검색으로 진행 (${error})`:'';
     if(message)updateActivity(message);
 }

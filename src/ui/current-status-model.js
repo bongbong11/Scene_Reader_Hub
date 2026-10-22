@@ -68,6 +68,7 @@ export function createCurrentStatusModel({getProfileUsage = () => ({})} = {}) {
             if(event.phase==='scene_vector'){set('embedding',event,{key:'scene-vector',message:event.cache==='miss'?'장면 임베딩 생성 완료':'장면 임베딩 재사용'});return;}
             if(event.phase==='connection_test')return; // A test does not verify the current record bank.
             if(event.phase==='index_sync'&&event.status==='deferred') {
+                if(event.code==='EMBEDDING_PREPARE_ON_SEARCH'){set('embedding',event,{key:`${event.bankHash||''}:pending`,state:'idle',message:'해당 자료를 검색할 때 필요한 임베딩을 확인하고 준비합니다.'});return;}
                 set('embedding',event,{key:`${event.bankHash||''}:pending`,state:'needs_setup',message:'임베딩 재시도로 준비할 기록이 있습니다. 이번 판독은 기록 매칭으로 진행합니다.'});return;
             }
             const id=event.phase==='query'?'search':'embedding';

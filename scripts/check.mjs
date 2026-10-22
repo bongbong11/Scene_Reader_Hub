@@ -20,6 +20,10 @@ for(const test of ['tests/hub-seasonal.mjs','tests/hub-behavior-toggle.mjs','tes
     const result=spawnSync(process.execPath,[test],{cwd:root,stdio:'inherit'});
     if(result.status!==0)process.exit(result.status||1);
 }
+const continuityRecovery=spawnSync(process.execPath,['tests/hub-continuity-recovery.mjs'],{cwd:root,stdio:'inherit'});
+if(continuityRecovery.status!==0)process.exit(continuityRecovery.status||1);
+const embeddingPreparation=spawnSync(process.execPath,['tests/hub-embedding-preparation.mjs'],{cwd:root,stdio:'inherit'});
+if(embeddingPreparation.status!==0)process.exit(embeddingPreparation.status||1);
 const classificationChecks=spawnSync(process.execPath,['tests/hub-classification-routing.mjs'],{cwd:root,stdio:'inherit'});
 if(classificationChecks.status!==0)process.exit(classificationChecks.status||1);
 const stopChecks=spawnSync(process.execPath,['tests/hub-stop-boundaries.mjs'],{cwd:root,stdio:'inherit'});

@@ -1,7 +1,8 @@
 import { recordBankIsCurrent } from '../character/records.js';
 import { sexualEligible } from '../character/sexual-conduct.js';
 import {bankIdentity} from './bank-identity.js';
-import {loadBankRecords} from '../storage/character-pages.js';
+import {loadBankRecords,bankPages,completeBankMatches} from '../storage/character-pages.js';
+import {requirePreparedIndex} from './record-hashes.js';
 
 // Retrieval failures keep the existing lexical fallback. Failure is recorded on
 // the result; it is never evidence that a person is absent or has no records.
@@ -19,8 +20,9 @@ export async function searchCharacterRecords({ entries, priorStates, transcript,
             ...['anger','joy','fear','sadness'].filter(key => values[key] > 0)].filter(Boolean).join(' ');
         signal?.throwIfAborted();
         if(entry.recordBank?.pagedRecords){
-            const bank=entry.recordBank,result=unavailable?{...unavailable,indices:[]}:await retrieval.searchPaged({kind:'character',bankId:bank.pagedRecords.bankId,count:bank.pagedRecords.count,transcript:query,sharedTranscript:transcript,signal,recovery});
-            let loaded;try{loaded=await loadBankRecords(bank,{query:result.sharedVector?[cue,query].filter(Boolean).join('\n'):query,hashes:result.hashes||[],signal});}catch(error){if(signal?.aborted)throw signal.reason||error;bank.records=[];bank.recordIndices=[];results.set(entry.id,{status:'failed',indices:[],code:error.code||'CHARACTER_RECORD_READ_FAILED'});return;}signal?.throwIfAborted();bank.records=loaded.records;bank.recordIndices=loaded.indices;if(loaded.status==='fallback')Object.assign(result,{status:'fallback',code:loaded.code,indices:[]});
+            const bank=entry.recordBank,result=unavailable?{...unavailable,indices:[]}:await retrieval.searchPaged({kind:'character',bankId:bank.pagedRecords.bankId,count:bank.pagedRecords.count,transcript:query,sharedTranscript:transcript,signal,recovery,pages:pageSignal=>bankPages(bank,{signal:pageSignal})});
+            requirePreparedIndex(result);
+            let loaded;try{loaded=await loadBankRecords(bank,{query:result.sharedVector?[cue,query].filter(Boolean).join('\n'):query,hashes:result.hashes||[],signal});if(result.status==='ready')loaded=await completeBankMatches(bank,loaded,result.indices||[],{signal});}catch(error){if(signal?.aborted)throw signal.reason||error;bank.records=[];bank.recordIndices=[];results.set(entry.id,{status:'failed',indices:[],code:error.code||'CHARACTER_RECORD_READ_FAILED'});return;}signal?.throwIfAborted();bank.records=loaded.records;bank.recordIndices=loaded.indices;if(loaded.status==='fallback')Object.assign(result,{status:'fallback',code:loaded.code,indices:[]});
             if(result.sharedVector)result.retrievalCue=cue;
             results.set(entry.id,result);if(connectionFailure(result))unavailable=result;return;
         }
@@ -30,6 +32,7 @@ export async function searchCharacterRecords({ entries, priorStates, transcript,
         const result = unavailable ? {...unavailable,indices:[]} : await retrieval.search({kind:'character',bankId:bankIdentity('character',`${identity}:${entry.id}`,items,shared),items,
             transcript:cue ? `${query}\n${cue}` : query,sharedTranscript:transcript,limit:12,signal,recovery});
         signal?.throwIfAborted();
+        requirePreparedIndex(result);
         if(result.sharedVector)result.retrievalCue=cue;
         if (connectionFailure(result)) unavailable=result;
         results.set(entry.id, result);
