@@ -1,3 +1,4 @@
+const failure=(code,message)=>Object.assign(new Error(message),{code});
 function extractSingleJsonObject(text) {
     const objects=[];
     let start=-1,depth=0,quoted=false,escaped=false;
@@ -15,8 +16,8 @@ function extractSingleJsonObject(text) {
             if(depth===0) { objects.push(text.slice(start,index+1));start=-1; }
         }
     }
-    if(start>=0)throw new Error('JSON 객체가 끝나지 않았습니다.');
-    if(objects.length!==1)throw new Error(objects.length?'JSON 객체가 여러 개라 결과를 특정할 수 없습니다.':'JSON 객체를 찾지 못했습니다.');
+    if(start>=0)throw failure('PROFILE_UNFINISHED_JSON','JSON 객체가 끝나지 않았습니다.');
+    if(objects.length!==1)throw failure(objects.length?'PROFILE_MULTIPLE_JSON':'PROFILE_JSON_NOT_FOUND',objects.length?'JSON 객체가 여러 개라 결과를 특정할 수 없습니다.':'JSON 객체를 찾지 못했습니다.');
     return objects[0];
 }
 
@@ -35,13 +36,13 @@ export function parseReasonerReply(content) {
     }
     if (typeof value === 'string') {
         const raw = value.replace(/^\uFEFF/, '').trim();
-        if (!raw) throw new Error('모델 응답이 비어 있습니다.');
+        if (!raw) throw failure('PROFILE_EMPTY_RESPONSE','모델 응답이 비어 있습니다.');
         const fences = [...raw.matchAll(/```(?:json)?[ \t]*(?:\r?\n)?([\s\S]*?)```/gi)];
-        if (fences.length > 1) throw new Error('JSON 코드 블록이 여러 개라 결과를 특정할 수 없습니다.');
+        if (fences.length > 1) throw failure('PROFILE_MULTIPLE_JSON','JSON 코드 블록이 여러 개라 결과를 특정할 수 없습니다.');
         const text = fences.length ? fences[0][1].trim() : extractSingleJsonObject(raw);
         try { value = JSON.parse(text); }
-        catch (error) { throw new Error(`JSON 문법이 불완전합니다: ${error.message}`); }
+        catch { throw failure('PROFILE_INVALID_JSON','JSON 문법이 불완전합니다.'); }
     }
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('모델이 JSON 객체를 반환하지 않았습니다.');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw failure(value==null?'PROFILE_EMPTY_RESPONSE':'PROFILE_RESPONSE_NOT_OBJECT','모델이 JSON 객체를 반환하지 않았습니다.');
     return value;
 }

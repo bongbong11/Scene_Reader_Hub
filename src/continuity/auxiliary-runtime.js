@@ -17,6 +17,7 @@ import {analysisDiagnostic,analysisFailureCode} from '../debug/analysis-events.j
 import {continuitySourceWindow,advanceContinuityWindow} from './source-window.js';
 import {commitAnalyzedContinuity} from './commit-analysis.js';
 import {restorePendingAnalysis,pendingAnalysisReceipt,pendingAnalysisState} from './pending-analysis.js';
+import {analysisFailure,safeAnalysisInfo,recordAnalysisDiagnostic} from './failure.js';
 
 // Detached ordinary continuity / topic review and optional vault audit only.
 // No character-file comparison, evolution collection, historical scan or repair.
@@ -42,7 +43,8 @@ export function createAuxiliaryRuntime(deps){
   if(enabled&&progress.processed.get(group)!==sourceKey&&progress.groups.get(group)?.key!==sourceKey)progress.groups.set(group,{key:sourceKey,refs,offset:0});
   return scheduler.request(async job=>{
    const valid=()=>job.current()&&!stopped&&deps.settings.enabled&&deps.stateChatKey()===key&&deps.settings.reasonerProfileId===profile&&Boolean(deps.settings.continuityEnabled)===enabled&&visibilityKey(deps.getContext().chat||[])===stamp&&validateSourceRefs(refs,{chatRef:key,chat:deps.getContext().chat||[],fingerprint:deps.fingerprint});
-   let vault=null,bridge,continuityIncluded=false,analysisStarted=false,analysisFinished=false;
+   let vault=null,bridge,continuityIncluded=false,analysisStarted=false,analysisFinished=false,phase='prepare',failure=null;
+   const started=Date.now(),attempt={startedAt:new Date().toISOString(),profileHash:deps.fingerprint(profile),status:'running'};
    const reportAnalysis=(code,details)=>report(code,{...details,continuityIncluded});
    try{
     await idle(job.signal);if(!valid())return {status:'cancelled'};
@@ -52,6 +54,7 @@ export function createAuxiliaryRuntime(deps){
     const freshGroups=[...progress.groups].filter(([group,entry])=>attempted.get(group)!==entry.key).length;
     const due=enabled&&Boolean(window?.text)&&(attempted.size?freshGroups>=3:progress.groups.size>=3||[...progress.groups.values()].some(entry=>entry.offset>0));
     continuityIncluded=due;
+    attempt.continuityIncluded=due;
     const analysisKey=deps.fingerprint([sourceKey,due?window.consumed:[]]);
     if(current.auxiliaryStateV1?.sourceKey===analysisKey){report('auxiliary_usage',{status:'not_needed',reasonCode:'already_analyzed'});return {status:'already_analyzed'};}
     const source=`USER:\n${user>=0?sourceRp(nowChat[user]):''}\nCHARACTER:\n${sourceRp(nowChat[index])}`,sourceText=source.slice(-9000);
@@ -73,22 +76,35 @@ export function createAuxiliaryRuntime(deps){
     const system=[due?REASONER_SYSTEM:'',repetition?.turns.length>=2?REPETITION_SYSTEM:'',vault?.system||'',vault&&due?'Return the continuity arrays, topic_fixation and vault_results in one JSON object. Sections are independent. Do not duplicate vault knowledge into knowledge_updates. Vault card contents are not RP evidence.':''].filter(Boolean).join('\n');
     const request=analysisRequestBudget(deps.requestWithConnectionProfile,{maxRequests:2,totalMs:180000});
     analysisStarted=true;
-    reportAnalysis('analysis_started',{status:'running',turnCount:due?window.groupCount:1,inputChars:JSON.stringify(input).length});
+    Object.assign(attempt,{inputHash:deps.fingerprint(input),inputChars:JSON.stringify(input).length,groupCount:due?window.groupCount:1,messageCount:due?window.refs.length:refs.length,firstMessageIndex:Math.min(...(due?window.refs:refs).map(ref=>ref.messageIndex)),lastMessageIndex:Math.max(...(due?window.refs:refs).map(ref=>ref.messageIndex)),maxTokens:Math.min(4800,(due?2400:800)+(vault?.count||0)*160),timeoutMs:120000});
+    Object.assign(attempt,{sourceIndices:input.source_indices||refs.map(ref=>ref.messageIndex),windowPartial:Boolean(window?.partial)});
+    reportAnalysis('analysis_started',{...safeAnalysisInfo(attempt),phase:'prepare',status:'running',turnCount:attempt.groupCount});
     let response,modelFailure='';
     try {
+     phase='request';
      response=await request(deps.connectionRequestService,profile,system,input,{signal:job.signal,maxTokens:Math.min(4800,(due?2400:800)+(vault?.count||0)*160),timeoutMs:120000});
-     if(due&&!RESPONSE_FIELDS.some(field=>Array.isArray(response.result?.[field])))modelFailure='PROFILE_INVALID_RESPONSE';
+     Object.assign(attempt,safeAnalysisInfo(response.diagnostic),{responseReceived:true});
+     attempt.requestMs=response.diagnostic?.durationMs;
+     phase='response';
+     attempt.sectionCount=RESPONSE_FIELDS.filter(field=>Array.isArray(response.result?.[field])).length;
+     attempt.sectionCounts=Object.fromEntries(RESPONSE_FIELDS.filter(field=>Array.isArray(response.result?.[field])).map(field=>[field,response.result[field].length]));
+     reportAnalysis('analysis_phase',{...safeAnalysisInfo(attempt),phase,status:'succeeded'});
+     if(due&&!attempt.sectionCount){modelFailure='CONTINUITY_SECTIONS_MISSING';failure=analysisFailure({code:modelFailure},'response',attempt);}
     } catch(error) {
      if(!due||!sourceValid()||job.signal.aborted)throw error;
      modelFailure=analysisFailureCode(error);
+     failure=analysisFailure(error,phase,attempt);Object.assign(attempt,safeAnalysisInfo(error.diagnostic));attempt.requestMs=error.diagnostic?.durationMs;
     }
     await idle(job.signal);if(!sourceValid())return {status:'cancelled'};
     if(modelFailure)vault&&bridge?.failAnalysis?.(vault.token,modelFailure);
     let incomplete=false,counts={candidateCount:0,invalidCount:0,acceptedCount:0};
+    phase='storage';const storageStarted=Date.now();
     const saved=await commitSession(key,({current:rec,history})=>{
+     phase='items';
      if(due){
       const identity={chatKey:key,assistantIndex:Math.max(...window.refs.filter(ref=>ref.role==='assistant').map(ref=>ref.messageIndex)),outputFingerprint:deps.fingerprint([continuityText,window.refs]),refs:window.refs,sourceRevision:deps.sourceRevisionKey(rec,deps.selectedWorld(rec))};
       const review=modelFailure?{status:'model_unavailable'}:assessRepetition(response.result,repetition,identity);
+      attempt.repetitionStatus=review.status;
       if(['ready','balanced','insufficient_history'].includes(review.status))rec.repetitionGuard=review.guard;
       const invalidSections=modelFailure?0:RESPONSE_FIELDS.filter(field=>response.result?.[field]!==undefined&&!Array.isArray(response.result[field])).length;
       const actors=[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[]),deps.characterStore.persona].filter(Boolean).flatMap(actor=>[actor.name,...(actor.aliases||[])]);
@@ -97,6 +113,7 @@ export function createAuxiliaryRuntime(deps){
        ?codeContinuityCandidates(window,{identity,chat:deps.getContext().chat,state,actors:options.actors,fingerprint:deps.fingerprint})
        :validateReasonerResult(response.result,options);
       counts.invalidCount+=invalidSections;
+      if(invalidSections)(counts.rejections??=[]).push(...RESPONSE_FIELDS.flatMap((field,index)=>response.result[field]!==undefined&&!Array.isArray(response.result[field])?[{type:'section',index,reason:'invalidShapeCount',field}]:[]));
       if(invalidSections)counts.invalidShapeCount=(counts.invalidShapeCount||0)+invalidSections;
       if(modelFailure){counts.candidateCount=candidates.length;counts.referenceCount=candidates.length;}
       incomplete=Boolean(modelFailure)||counts.invalidCount>0;
@@ -105,27 +122,47 @@ export function createAuxiliaryRuntime(deps){
       const applied=commitAnalyzedContinuity(rec,history,receipt.candidates);
       counts.reusedCount=receipt.reusedCount;
       counts.acceptedCount=applied.accepted.length;
-      rec.lastContinuityTrace={...counts,status:modelFailure?'fallback':counts.invalidCount?'partial':applied.accepted.length||counts.reusedCount?'verified':'empty',trigger:'periodic',mode:modelFailure?'code':'model',...(modelFailure?{errorCode:modelFailure}:{}),repetitionStatus:review.status,groupCount:window.groupCount,partial:window.partial,retryPending:incomplete,verdicts:applied.accepted.map(({type,label,verdict})=>({type,label,verdict,reason:modelFailure?'코드 대체 · 관련 원문 맥락 보존':'연결모델 분석 · 답변 번호 연결'})),acceptedCount:applied.accepted.length};
+      if(!failure&&counts.invalidCount)failure=analysisFailure({code:'CONTINUITY_PARTIAL_RESULT'},'items',attempt);
+      rec.lastContinuityTrace={...counts,status:modelFailure?'fallback':counts.invalidCount?'partial':applied.accepted.length||counts.reusedCount?'verified':'empty',trigger:'periodic',mode:modelFailure?'code':'model',...(failure?{errorCode:failure.code,failure}:{}),repetitionStatus:review.status,groupCount:window.groupCount,partial:window.partial,retryPending:incomplete,verdicts:applied.accepted.map(({type,label,verdict})=>({type,label,verdict,reason:modelFailure?'코드 대체 · 관련 원문 맥락 보존':'연결모델 분석 · 답변 번호 연결'})),acceptedCount:applied.accepted.length};
       rec.lastReasonerSource=identity;rec.lastJudgment=null;
       rec.auxiliaryStateV1={sourceKey:analysisKey,retryAfter:incomplete?Date.now()+30000:0,...(incomplete?{pending:pendingAnalysisState(progress,receipt.receipts)}:{})};
      }
-     else rec.auxiliaryStateV1={...rec.auxiliaryStateV1,sourceKey:analysisKey};return {chat:rec,history};
+     else rec.auxiliaryStateV1={...rec.auxiliaryStateV1,sourceKey:analysisKey};
+     phase='storage';
+     Object.assign(attempt,counts,{phase:'storage',module:'src/storage/session-transaction.js',at:new Date().toISOString(),durationMs:Date.now()-started,status:modelFailure?'fallback':counts.invalidCount?'partial':'succeeded',retryAfter:rec.auxiliaryStateV1.retryAfter||0});
+     recordAnalysisDiagnostic(rec,{...attempt,persisted:true},failure);
+     reportAnalysis('analysis_phase',{...safeAnalysisInfo(attempt),phase,status:'started'});
+     return {chat:rec,history};
     },()=>sourceValid()&&foregroundIdle());
+    reportAnalysis('analysis_phase',{phase:'storage',module:'src/storage/session-transaction.js',status:saved?'succeeded':'deferred',durationMs:Date.now()-storageStarted});
+    phase='cleanup';
     if(saved&&due){if(!incomplete)advanceContinuityWindow(progress,window);if(foregroundIdle())await deps.clearInjection?.({chatKey:key});}
     analysisFinished=true;
-    reportAnalysis('analysis_result',{...counts,codeFallback:Boolean(modelFailure),status:saved?modelFailure||counts.invalidCount?'degraded':'succeeded':'deferred',...(modelFailure||counts.invalidCount?{reasonCode:modelFailure||'CONTINUITY_PARTIAL_RESULT'}:{})});
+    reportAnalysis('analysis_result',{...safeAnalysisInfo(attempt),...failure,...counts,codeFallback:Boolean(modelFailure),status:saved?modelFailure||counts.invalidCount?'degraded':'succeeded':'deferred',...(failure?{reasonCode:failure.code}:{})});
     // The optional vault repair cannot hold up an already completed continuity save.
+    phase='vault';
     if(vault&&!modelFailure&&sourceValid())await completeVaultAudit({bridge,vault,result:response.result,sourceText,request:(system,input,options)=>request(deps.connectionRequestService,profile,system,input,options),signal:job.signal,valid:sourceValid,idle,report:reportAnalysis});
     return {status:saved?modelFailure?'fallback':'complete':'cancelled'};
    }catch(error){
     if(!valid()||job.signal.aborted)return {status:'cancelled'};
-    const reasonCode=analysisFailureCode(error);vault&&bridge?.failAnalysis?.(vault.token,reasonCode);
+    const originalFailure=failure;
+    failure=analysisFailure(error,phase,attempt);
+    const reasonCode=failure.code;vault&&bridge?.failAnalysis?.(vault.token,reasonCode);
     analysisFinished=true;
-    reportAnalysis('analysis_failed',{status:'failed',reasonCode});
-    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={...rec.auxiliaryStateV1,retryAfter:Date.now()+30000,...(enabled?{pending:pendingAnalysisState(progress,rec.auxiliaryStateV1?.pending?.receipts)}:{})};rec.lastContinuityTrace={status:'error',retryPending:enabled,error:'보조 분석에 실패했습니다. 기존 판독과 자료는 유지합니다.'};return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch{reportAnalysis('analysis_failed',{status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});}
+    reportAnalysis('analysis_failed',{...failure,status:'failed',reasonCode});
+    const remember=(rec,persisted)=>{
+     rec.lastContinuityTrace={status:'error',trigger:'periodic',retryPending:enabled,errorCode:failure.code,failure,...(originalFailure?{modelFailure:originalFailure}:{})};
+     recordAnalysisDiagnostic(rec,{...attempt,at:new Date().toISOString(),durationMs:Date.now()-started,status:'failed',persisted},failure);
+    };
+    try{await idle(job.signal);await commitSession(key,({current:rec,history})=>{rec.auxiliaryStateV1={...rec.auxiliaryStateV1,retryAfter:Date.now()+30000,...(enabled?{pending:pendingAnalysisState(progress,rec.auxiliaryStateV1?.pending?.receipts)}:{})};remember(rec,true);return {chat:rec,history};},()=>valid()&&foregroundIdle());}catch(storageError){
+     reportAnalysis('analysis_failed',{...analysisFailure(storageError,'storage'),status:'failed',reasonCode:'AUXILIARY_STORAGE_FAILED'});
+     // Preserve the reason on screen even when the diagnostic write also fails.
+     // Only diagnostic fields change; no unsaved continuity is presented as saved.
+     if(valid()){const rec=deps.chatRecords.get(key);if(rec){remember(rec,false);rec.lastContinuityTrace.diagnosticWriteFailure=analysisFailure(storageError,'storage');}}
+    }
     return {status:'failed',reasonCode};
-   }finally{
-    if(analysisStarted&&!analysisFinished&&deps.stateChatKey()===key)reportAnalysis('analysis_cancelled',{status:'cancelled'});
+    }finally{
+    if(analysisStarted&&!analysisFinished&&deps.stateChatKey()===key)reportAnalysis('analysis_cancelled',{...safeAnalysisInfo(attempt),phase,status:'cancelled',durationMs:Date.now()-started,reasonCode:job.signal.aborted?'ANALYSIS_CANCELLED':'ANALYSIS_SOURCE_CHANGED'});
     vault&&bridge?.abandonAnalysis?.(vault.token);
    }
   });

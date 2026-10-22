@@ -3,7 +3,7 @@ export const EXECUTION_REPORT_VERSION = 4;
 export function executionReport({hub,failureStop=null,settings={},version='0.2.27'}) {
     const snapshot=hub?.snapshot() || {state:{},events:[]};
     const events=snapshot.events.map(event=>safeDetail(event));
-    return {reportVersion:EXECUTION_REPORT_VERSION,version,capabilities:['bounded-network','embedding-retry','whole-extension-log','retained-failure','capture-field-coverage','chunk-storage-v2','atomic-cas','storyline-storage','stream-backup'],
+    return {reportVersion:EXECUTION_REPORT_VERSION,version,capabilities:['bounded-network','embedding-retry','whole-extension-log','retained-failure','capture-field-coverage','chunk-storage-v2','atomic-cas','storyline-storage','stream-backup','continuity-failure-stages'],
         connections:{jevProvider:settings.jevConnection==='nanogpt'?'nanogpt':'typesafe',
             retrievalProvider:['transformers','palm','vertexai','nanogpt'].includes(settings.retrievalProvider)?settings.retrievalProvider:'transformers'},
         lastRunFailure:failureStop ? safeDetail(failureStop) : null,state:safeDetail(snapshot.state),last:snapshot.last ? safeDetail(snapshot.last) : null,

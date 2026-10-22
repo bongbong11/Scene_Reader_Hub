@@ -40,6 +40,10 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
     await page.evaluate(()=>statusFixture.emit({stage:'analysis_result',status:'degraded',reasonCode:'CONTINUITY_PARTIAL_RESULT',continuityIncluded:true}));
     assert.match(await continuity.textContent(),/정상 항목은 반영/);
     assert.doesNotMatch(await continuity.textContent(),/연결모델 오류/,'an item shape problem is not a failed model call');
+    for(const [phase,label]of [['request','모델 요청 실패'],['response','모델 응답 해석 실패'],['items','연속성 항목 처리 실패'],['storage','연속성 저장 실패']]){
+        await page.evaluate(phase=>statusFixture.emit({stage:'analysis_failed',status:'failed',phase,reasonCode:'ANALYSIS_FAILED',continuityIncluded:true}),phase);
+        assert.ok((await continuity.textContent()).includes(label));
+    }
     assert.equal(await page.locator('#sr-current-status').innerText(),'','status trigger is an icon, not a text button');
     await page.evaluate(()=>{
         statusFixture.emit({code:'RUN_STARTED'});

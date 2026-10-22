@@ -1,6 +1,7 @@
 import {latestStateEventForChat} from '../character/state-contract.js';
 import {continuityValidationCounts} from '../continuity/engine.js';
 import {safeOpportunityPlan, safeOpportunityVerification} from './opportunity-events.js';
+import {analysisDiagnosticReport,safeAnalysisInfo} from '../continuity/failure.js';
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const symbol = value => typeof value === 'string' && /^[a-z0-9_]{1,80}$/.test(value) ? value : null;
 // Copy diagnostic structure, never names, file contents, explanations or model prose.
@@ -23,6 +24,10 @@ export function wholeDiagnosticReport({execution,judgment,record,chat,fingerprin
         eventCast:(record?.pendingPlan?.inputKey===judgment?.inputKey?record?.pendingPlan?.cast||judgment?.cast||[]:judgment?.cast||[]).slice(0,4).map((actor,index)=>({index,kind:symbol(actor.kind),action:symbol(actor.action),reason:symbol(actor.reason),delivery:symbol(actor.delivery),verification:symbol(actor.verification),recordCount:judgment?.castRecordCounts?.find(item=>item.id===actor.actorId)?.injected||0})),
         injection:{sceneChars:judgment?.payload?.length || 0,worldChars:judgment?.worldPayload?.length || 0,delivery:'see_injection_consume_events'},
         auxiliary:{...continuityValidationCounts(record?.lastContinuityTrace),mode:symbol(record?.lastContinuityTrace?.mode),referenceCount:number(record?.lastContinuityTrace?.referenceCount),candidateCount:number(record?.lastContinuityTrace?.candidateCount),invalidCount:number(record?.lastContinuityTrace?.invalidCount),status:symbol(record?.lastContinuityTrace?.status),groupCount:number(record?.lastContinuityTrace?.groupCount),acceptedCount:number(record?.lastContinuityTrace?.acceptedCount),reusedCount:number(record?.lastContinuityTrace?.reusedCount),pendingGroupCount:record?.auxiliaryStateV1?.pending?.groups?.length||0,partial:Boolean(record?.lastContinuityTrace?.partial),pendingCount:record?.pendingContinuityCandidates?.length||0,retryPending:Boolean(record?.auxiliaryStateV1?.pending?.groups?.length)||(record?.auxiliaryStateV1?.retryAfter||0)>Date.now()},
+        continuityDiagnostics:analysisDiagnosticReport(record),
+        continuityFailure:record?.lastContinuityTrace?.failure?safeAnalysisInfo(record.lastContinuityTrace.failure):record?.lastContinuityTrace?.errorCode?safeAnalysisInfo({code:record.lastContinuityTrace.errorCode}):null,
+        continuityPriorFailure:record?.lastContinuityTrace?.modelFailure?safeAnalysisInfo(record.lastContinuityTrace.modelFailure):null,
+        continuityDiagnosticWriteFailure:record?.lastContinuityTrace?.diagnosticWriteFailure?safeAnalysisInfo(record.lastContinuityTrace.diagnosticWriteFailure):null,
         visibility:{status:symbol(record?.visibilityStateV1?.status)},
         characterStateCapture:capture?{status:symbol(capture.status),source:({'profile-output':'profile_output','main-output':'main_output'})[capture.source] || symbol(capture.source),skipReason:symbol(capture.skipReason),outputIndex:number(capture.outputIndex),count:number(capture.count),participantCount:capture.participantIds?.length || 0,
             receivedCount:capture.diagnostics?.received || 0,acceptedCount:capture.diagnostics?.accepted || 0,

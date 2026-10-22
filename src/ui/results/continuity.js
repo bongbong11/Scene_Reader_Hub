@@ -1,6 +1,7 @@
 import {continuityView} from "../../continuity/state-adapter.js";
 import {normalizeContinuity,continuityValidationCounts,CONTINUITY_VALIDATION_LABELS} from "../../continuity/engine.js";
 import {confirmedContinuity} from '../../continuity/selection.js';
+import {analysisFailureTitle,analysisFailureReason} from '../../continuity/failure.js';
 
 export function createContinuityView(deps) {
 function renderReasonerProfiles() {
@@ -25,12 +26,18 @@ function renderContinuity() {
     const trace = rec?.lastContinuityTrace || {};
     const stored = normalizeContinuity(rec ? continuityView(rec) : null);
     const state=deps.stateChatKey?.()?confirmedContinuity(stored,{record:rec,chatRef:deps.stateChatKey(),chat:deps.getContext().chat||[],fingerprint:deps.stableFingerprint,inherited:Boolean(rec?.sharedReference||rec?.legacyCarryReferenceV1)}):stored;
-    const status = { saved: '수집 완료 · 저장된 내용 반영', needs_review: '수집 내용 확인 필요', partial: '일부 항목 처리 필요 · 정상 항목은 반영', fallback: '연결모델 오류 · 코드 대체 실행', analyzing: '보조 모델 분석 중', pending_jev: '이전 분석 자료 반영 대기', empty: '분석 완료 · 변경 없음', verified: '분석 완료 · 기록 반영', error: '보조 모델 실패 · 기본 판독은 계속 실행' }[trace.status] || '새 변화 대기';
+    const failure=trace.failure||(trace.errorCode?{code:trace.errorCode}:null);
+    const status = failure&&['fallback','error'].includes(trace.status)?analysisFailureTitle(failure)+(trace.status==='fallback'?' · 코드 대체 실행':''):
+        { saved: '수집 완료 · 저장된 내용 반영', needs_review: '수집 내용 확인 필요', partial: '일부 항목 처리 필요 · 정상 항목은 반영', fallback: '이전 실패 · 원인 기록 없음 · 코드 대체 실행', analyzing: '보조 모델 분석 중', pending_jev: '이전 분석 자료 반영 대기', empty: '분석 완료 · 변경 없음', verified: '분석 완료 · 기록 반영', error: '이전 실패 · 원인 기록 없음' }[trace.status] || '새 변화 대기';
     const profile = reasonerProfiles.find((item) => item.id === settings.reasonerProfileId);
     const profileStatus = profile?.name || (settings.reasonerProfileId ? '선택한 프로필을 찾지 못함' : '미선택');
     const rows = [`<div class="sr-decision-row"><span>상태</span><strong>${deps.escapeHtml(status)}</strong></div>`,
         `<div class="sr-decision-row"><span>선택한 연결 프로필</span><strong>${deps.escapeHtml(profileStatus)}</strong></div>`,
         `<div class="sr-decision-row"><span>호출 근거</span><strong>${deps.escapeHtml(trace.trigger==='periodic'?'완성된 답변 3개마다 확인':trace.trigger?'저장된 이전 분석':'아직 분석 전')}</strong></div>`];
+    if(failure)rows.push(`<p class="sr-help">${deps.escapeHtml(analysisFailureReason(failure))} (${deps.escapeHtml(failure.code)})</p>`);
+    else if(['fallback','error'].includes(trace.status))rows.push('<p class="sr-help">이전 버전에 실패 원인이 남아 있지 않습니다. 다음 분석부터 실패 단계와 이유를 기록합니다.</p>');
+    if(rec?.continuityDiagnosticsV1?.attempt?.persisted===false)rows.push('<p class="sr-help">오류 기록도 저장하지 못했습니다. 새로고침 전에 전체 로그를 복사해 주세요.</p>');
+    if(trace.modelFailure)rows.push(`<p class="sr-help">저장 전 발생한 오류: ${deps.escapeHtml(analysisFailureTitle(trace.modelFailure))} · ${deps.escapeHtml(analysisFailureReason(trace.modelFailure))}</p>`);
     if(trace.status==='fallback')rows.push(`<p class="sr-help">관련 대화 ${Number(trace.referenceCount)||0}개를 임시 맥락으로 보존했습니다. 확정된 상태 변경과 구분해 전달하며 다음 분석에서 다시 확인합니다.</p>`);
     if(trace.invalidCount)rows.push(`<p class="sr-help">이번 판독에서 ${Number(trace.acceptedCount)||0}개를 새로 저장했습니다. 확인하지 못한 항목은 아래 사유로 구분합니다.</p>`);
     if(trace.reusedCount)rows.push(`<p class="sr-help">이미 저장한 ${Number(trace.reusedCount)}개는 중복 저장하지 않았습니다.</p>`);

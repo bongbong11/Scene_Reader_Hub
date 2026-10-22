@@ -65,39 +65,39 @@ export function validateReasonerResult(raw,{continuity={},sourceIdentity={},stat
     };
     const actor=value=>{const name=text(value,80);return (actors||[]).find(item=>compact(item)===compact(name))||name;};
     const candidates=[];let invalidCount=0;
-    const reject=key=>{invalidCount++;if(diagnostics)diagnostics[key]=(diagnostics[key]||0)+1;};
     function add(type,value,index) {
+        const reject=(key,field)=>{invalidCount++;if(diagnostics){diagnostics[key]=(diagnostics[key]||0)+1;(diagnostics.rejections??=[]).push({type,index,reason:key,...(field?{field}:{})});}};
         if(!value||typeof value!=='object'||Array.isArray(value))return reject('invalidShapeCount');
         const sourceType=token(value.source_type);
-        if(!SOURCE_TYPES.has(sourceType))return reject('invalidEvidenceTypeCount');
+        if(!SOURCE_TYPES.has(sourceType))return reject('invalidEvidenceTypeCount','source_type');
         const identity=sourceIdentityFor(value,sourceIdentity,evidenceSources);
-        if(!identity)return reject('invalidEvidenceCount');
+        if(!identity)return reject('invalidEvidenceCount','source_indices');
         const base={id:`${type}:${index}:${sourceIdentity.outputFingerprint}`,type,evidence:text(value.evidence,260),sourceType,sourceIdentity:identity,label:'',data:{}};
         if(type==='new_item') {
             const kind=token(value.kind),lifecycle=token(value.lifecycle)||'active',label=text(value.label,140);
-            if(!KINDS.has(kind)||!label)return reject('invalidShapeCount');
-            if(!LIFECYCLES.has(lifecycle))return reject('invalidLifecycleCount');
+            if(!KINDS.has(kind)||!label)return reject('invalidShapeCount',!KINDS.has(kind)?'kind':'label');
+            if(!LIFECYCLES.has(lifecycle))return reject('invalidLifecycleCount','lifecycle');
             base.label=label;
             base.data={kind,label,lifecycle,owners:strings(value.owners).map(actor).slice(0,4)};
         } else if(type==='affected') {
             const id=stateId(value.state_id),relation=token(value.relation),lifecycle=token(value.lifecycle),pressure=token(value.pressure);
-            if(!id)return reject('invalidStateCount');
-            if(!['changed','pressured'].includes(relation))return reject('invalidShapeCount');
-            if(lifecycle&&!LIFECYCLES.has(lifecycle)||pressure&&!PRESSURES.has(pressure))return reject('invalidLifecycleCount');
+            if(!id)return reject('invalidStateCount','state_id');
+            if(!['changed','pressured'].includes(relation))return reject('invalidShapeCount','relation');
+            if(lifecycle&&!LIFECYCLES.has(lifecycle)||pressure&&!PRESSURES.has(pressure))return reject('invalidLifecycleCount',lifecycle&&!LIFECYCLES.has(lifecycle)?'lifecycle':'pressure');
             base.label=`${id} · ${relation}`;
             base.data={stateId:id,relation,lifecycle:lifecycle||null,pressure:pressure||null,reason:text(value.reason),owners:strings(value.owners).map(actor).slice(0,4)};
         } else if(type==='knowledge') {
             const character=actor(value.character),source=token(value.source),summary=text(value.summary,240),factId=text(value.fact_id,100);
-            if(!character)return reject('invalidActorCount');
-            if(!SOURCES.has(source)||!summary&&!factId)return reject('invalidShapeCount');
+            if(!character)return reject('invalidActorCount','character');
+            if(!SOURCES.has(source)||!summary&&!factId)return reject('invalidShapeCount',!SOURCES.has(source)?'source':'summary');
             const existing=(continuity.knowledge||[]).find(item=>compact(item.character)===compact(character)&&compact(item.summary)===compact(summary));
             base.label=`${character} · ${factId||summary}`;
             base.data={factId:factId||existing?.factId||`fact:${stableFingerprint([character,summary])}`,character,source,summary:summary||factId,
                 relatedStateIds:strings(value.related_state_ids,200).map(stateId).filter(Boolean)};
         } else {
             const id=stateId(value.related_state_id),action=text(value.action,180);
-            if(!action)return reject('invalidShapeCount');
-            if(!id)return reject('invalidStateCount');
+            if(!action)return reject('invalidShapeCount','action');
+            if(!id)return reject('invalidStateCount','related_state_id');
             base.label=action;
             base.data={relatedStateId:id,action,reason:text(value.reason),owners:strings(value.owners).map(actor).slice(0,4)};
         }

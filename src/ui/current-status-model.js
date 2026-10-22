@@ -1,4 +1,5 @@
 // A read-only projection of diagnostic events. Never starts requests or changes Hub state.
+import {analysisFailureTitle} from '../continuity/failure.js';
 const ROWS = {
     embedding:'임베딩 생성·확인', search:'관련 기록 검색', scene:'Jev 장면 확인',
     decision:'Jev 인물·전개 판정', continuity:'연속성 추론', storage:'저장소',
@@ -26,6 +27,7 @@ function advice(id,event) {
 function continuityError(event) {
     const code=event.reasonCode || errorCode(event);
     if(code==='CONTINUITY_PARTIAL_RESULT')return '일부 항목 처리 필요 · 정상 항목은 반영';
+    if(event.phase)return analysisFailureTitle(event);
     if (/STORAGE|SAVE/.test(code)) return '저장 오류';
     if (/INVALID_RESPONSE|INVALID_JSON|RESPONSE_FORMAT/.test(code)) return '응답 확인 오류';
     if (/^PROFILE_/.test(code)) return '연결모델 오류';
