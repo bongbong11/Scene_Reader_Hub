@@ -12,6 +12,26 @@ const promise={kind:'commitment',label:'Bring the key at noon',lifecycle:'active
 const second={...promise,label:'Call the porter',evidence:'I will call the porter.'};
 const response=items=>({result:{...emptyResponse().result,new_items:items}});
 const options={sourceText:promise.evidence,continuity:{items:[]},sourceIdentity:{outputFingerprint:'test'},actors:['Actor'],stateRefs:[]};
+// Quiet, ordinary answers still qualify: no event-importance or Jev gate.
+{
+ const normal=auxiliaryFixture();
+ for(let n=1;n<=2;n++){
+  await normal.turn('He waits.');
+  const event=normal.events.at(-1);
+  assert.equal(event.code,'auxiliary_usage');assert.equal(event.reasonCode,'interval_pending');
+  assert.equal(event.turnCount,n);assert.equal(event.requiredTurns,3);assert.equal(normal.requests.length,0);
+ }
+ await normal.turn('He waits.');assert.equal(normal.requests.length,1,'third ordinary RP output triggers the model without a separate eligibility judgment');
+ assert.equal(normal.events.at(-1).code,'analysis_result');assert.equal(normal.events.at(-1).status,'succeeded');
+ await normal.analysis.queue(5);assert.equal(normal.requests.length,1);assert.equal(normal.events.at(-1).reasonCode,'already_analyzed');
+ const disabled=auxiliaryFixture({settings:{continuityEnabled:false}});await disabled.turn();
+ assert.equal(disabled.requests.length,0);assert.equal(disabled.events.at(-1).reasonCode,'analysis_disabled');
+ const unconfigured=auxiliaryFixture({settings:{reasonerProfileId:''}});
+ await unconfigured.turn();await unconfigured.turn();await unconfigured.turn();
+ assert.equal(unconfigured.events.at(-1).reasonCode,'profile_not_configured');assert.equal(unconfigured.requests.length,0);
+ const ooc=auxiliaryFixture({chat:[{is_system:true,mes:'OOC note.'}]});await ooc.analysis.queue(0);
+ assert.equal(ooc.events.at(-1).reasonCode,'no_rp_output');
+}
 const counts={};
 assert.equal(validateReasonerResult({new_items:[promise,promise,promise]}, {...options,diagnostics:counts}).length,2);
 assert.equal(counts.candidateCount,3);assert.equal(counts.limitOmittedCount,1);assert.equal(counts.invalidCount,0,'selection cap is not a validation error');
@@ -51,7 +71,7 @@ assert.match(display.innerHTML,/원문 근거 불일치 1건/);assert.match(disp
 await f.analysis.queue(5);assert.equal(calls,1,'no immediate or duplicate output retry');
 rec.auxiliaryStateV1.retryAfter=0;
 f.deps.requestWithConnectionProfile=async()=>{calls++;throw new Error('Synthetic network failure');};
-await f.turn('He waits by the door.');await f.turn('He listens.');assert.equal(calls,1,'partial results keep the ordinary three-output cadence');await f.turn('He waits a little longer.');rec=f.records.get('room-A');assert.equal(rec.continuity.items.length,1);assert.equal(rec.auxiliaryStateV1.pending.receipts.length,1);
+await f.turn('He waits by the door.');await f.turn('He listens.');assert.equal(calls,1,'partial results keep the ordinary three-output cadence');assert.equal(f.events.at(-1).reasonCode,'retry_interval_pending');assert.equal(f.events.at(-1).turnCount,2);await f.turn('He waits a little longer.');rec=f.records.get('room-A');assert.equal(rec.continuity.items.length,1);assert.equal(rec.auxiliaryStateV1.pending.receipts.length,1);
 rec.auxiliaryStateV1.retryAfter=0;
 f.analysis.cancel('test_restart');const restarted=createAuxiliaryRuntime(f.deps);
 f.deps.requestWithConnectionProfile=async(...args)=>{calls++;f.requests.push(args);return response([second,promise]);};

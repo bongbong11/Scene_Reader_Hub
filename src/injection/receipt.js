@@ -82,12 +82,12 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
         const values=[receipt.scene,receipt.world,receipt.character].filter(value=>value!=='not_expected');
         const confirmed=values.every(value=>value==='confirmed');
         const message=(expected.judgmentWarning?'판독 일부 확인 필요 · ':'')+(confirmed?(phase==='request'?'전송 요청에 주입문 포함 확인':'주입문 조립 확인 · 전송 대기')
-            :'전송문에서 주입문 전체를 확인하지 못했습니다. 실행 기록과 프리셋 기준 항목을 확인해 주세요.');
+            :phase==='request'?'전송문에서 주입문 전체를 확인하지 못했습니다. 실행 기록과 프리셋 기준 항목을 확인해 주세요.':'주입문 조립 중 · 실제 전송 요청에서 포함 여부를 확인합니다.');
         const routingNote=expected.characterRoute==='missing'?' · 인물 매크로 없음: 기존 위치 사용'
             :expected.characterRoute==='legacy'?' · 이전 판독: 기존 위치 사용'
             :expected.characterRoute==='macro'?' · 인물 매크로 '+(RECEIPTS_CHARACTER[receipt.character]||'확인 필요'):'';
         updateStatus(message+routingNote);
-        updateActivity(message,confirmed&&!expected.judgmentWarning?{done:true}:{error:true});
+        updateActivity(message,confirmed&&!expected.judgmentWarning?{done:true}:phase==='request'?{error:true}:{});
         return receipt;
     }
     function observe(data,dryRun=false) {

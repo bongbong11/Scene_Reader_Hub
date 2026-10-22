@@ -52,6 +52,21 @@ curl -fL "https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/dow
 curl.exe -fL "https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/update-scene-reader-plugin.cjs" -o "%TEMP%\scene-reader-update.cjs" && node "%TEMP%\scene-reader-update.cjs"
 ```
 
+**맥북 · macOS 터미널**
+
+1. 실행 중인 SillyTavern을 종료합니다. 터미널에서 실행했다면 해당 창에서 **Control + C**를 누르세요.
+2. **Command + Space**를 누르고 `터미널`을 검색해 실행합니다.
+3. `cd`를 입력하고 **공백을 한 칸** 넣은 뒤, Finder의 **SillyTavern 폴더**를 터미널로 끌어다 놓고 Enter를 누릅니다. `server.js`와 `config.yaml`이 있는 폴더이며, 그 안의 `plugins` 폴더로 들어가는 것이 아닙니다.
+4. 아래 명령 한 줄을 붙여넣고 Enter를 누릅니다.
+
+```bash
+curl -fL "https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/update-scene-reader-plugin.cjs" -o "${TMPDIR:-/tmp}/scene-reader-update.cjs" && node "${TMPDIR:-/tmp}/scene-reader-update.cjs"
+```
+
+`Installed Scene Reader plugin ...`이 표시되면 설치가 완료된 것입니다. 처음 설치했다면 같은 폴더의 `config.yaml`에서 `enableServerPlugins: true`로 설정한 뒤, 평소 사용하던 방법으로 SillyTavern을 다시 실행하세요. 브라우저 새로고침만으로는 플러그인이 적용되지 않습니다.
+
+`node: command not found`가 나오면 SillyTavern을 실행할 때 사용하는 Node.js 환경의 터미널에서 실행해야 합니다.
+
 파일을 모두 내려받아 확인한 뒤 해당 플러그인만 교체합니다. 이전 플러그인은 `SillyTavern/backups/scene-reader-plugin`에 보관하며, 키·저장 자료·다른 플러그인은 변경하지 않습니다. 다른 폴더에서 실행해야 한다면 마지막 명령 뒤에 SillyTavern 폴더 경로를 따옴표로 감싸 추가하세요. 처음 설치할 때는 아래의 `enableServerPlugins` 설정도 필요합니다.
 
 ZIP으로 직접 설치하려면:
@@ -376,6 +391,10 @@ NPC의 **성적 충동·자제력 추가 판독**은 인물별로 켭니다. 일
 창 오른쪽 아래 손잡이를 끌어 크기를 바꿉니다. 모바일에서도 사용할 수 있으며, 두 번 누르면 기본 크기로 돌아갑니다. 크기는 현재 브라우저에 저장됩니다.
 
 상단 로그 복사 옆 **원형 상태 버튼**을 누르면 검색·판독·저장·주입 상태를 볼 수 있습니다. 빨강은 확인할 문제, 초록은 필요한 단계 확인 완료, 회색은 진행·대기·확인 전입니다. 오류가 나면 끼끼 표정도 바뀌고 복구를 확인하면 돌아옵니다. 끼끼는 창을 여는 버튼이며 상세 상태는 원형 버튼에서 확인하세요.
+
+**연결모델 요청·연속성 분석·감정 수집**은 각각 표시됩니다. 연속성 분석을 기다리는 동안에는 `RP 답변 2/3개 수집`처럼 현재 수집량을 보여 줍니다. 설정 꺼짐, 이미 분석한 답변, 실패 후 재시도 대기도 구분합니다. 요청 기록이 없다는 이유만으로 분석할 대상이 없다고 판단하지 않습니다. 지난 보조 분석 실패는 새 판독의 오류와 구분해 남기며, 해당 분석이 실제로 성공하면 해제합니다.
+
+롤플용 연결 프로필과 확장용 연결 프로필은 별개입니다. 다른 롤플 프로필을 수정하거나 삭제해도 확장 분석을 취소하지 않습니다. **인물 분석을 매크로로 전달**을 켰다면 실제 요청의 매크로 위치를 사용하고, 매크로가 없으면 기존 통합 주입으로 전달합니다. 지정한 프리셋 주입 위치를 찾지 못하면 확인 안내가 표시됩니다.
 
 **전체 진단 로그 복사**는 현재 탭과 관계없이 최근 실행과 마지막 실패를 복사합니다. 대화 원문·키·주입문 전문은 포함하지 않습니다. 새로고침하면 실행 기록이 사라질 수 있으므로 문제 직후 복사하세요. 자세한 실행 흐름은 개발자 모드에서 볼 수 있습니다.
 

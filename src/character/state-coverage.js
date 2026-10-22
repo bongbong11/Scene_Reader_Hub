@@ -21,7 +21,7 @@ export function mergeRecoveredStates(preserved,received) {
     return merged;
 }
 export function captureDiagnostic(capture) {
-    return {status:capture.status,count:capture.count || 0,participantCount:capture.participantIds?.length || 0,
+    return {status:capture.status,collectorMode:capture.source==='profile-output'?'profile-output':'main-output',count:capture.count || 0,participantCount:capture.participantIds?.length || 0,
         receivedCount:capture.diagnostics?.received || 0,acceptedCount:capture.diagnostics?.accepted || 0,
         partialCount:capture.diagnostics?.partial || 0,rejectedCount:capture.diagnostics?.rejected || 0,
         skipReason:capture.skipReason || '',errorKind:['timeout','request','format','save_failed','unavailable','too_long'].includes(capture.status)?capture.status:''};

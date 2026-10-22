@@ -62,9 +62,9 @@ const profileModel=createCurrentStatusModel({getProfileUsage:()=>profileUsage});
 assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'needs_setup');
 assert.equal(profileModel.snapshot().tone,'neutral','missing optional profile is setup, not a failed request');
 profileUsage={enabled:true,configured:true};
-assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'not_needed');
+assert.equal(profileModel.snapshot().rows.find(item=>item.id==='profile').state,'idle','absence of request events is not proof of no eligible targets');
 profileModel.accept({stage:'auxiliary_usage',status:'not_needed',reasonCode:'no_continuity_change'});
-assert.match(profileModel.snapshot().rows.find(item=>item.id==='profile').message,/조건/);
+assert.match(profileModel.snapshot().rows.find(item=>item.id==='continuity').message,/조건/);
 for (const [status, expected] of [['succeeded','success'],['cancelled','cancelled'],['failed','failed']]) {
     profileModel.reset();
     profileModel.accept({stage:'profile_request',status:'started'});
@@ -74,7 +74,38 @@ for (const [status, expected] of [['succeeded','success'],['cancelled','cancelle
 }
 console.log('Current status: embedding/search separation, retained failures, request receipt, cancellation, repair, privacy and reset passed.');
 
-for(const code of ['ANALYSIS_CAPACITY','ANALYSIS_INPUT_CAPACITY','ANALYSIS_BUSY_TIMEOUT','PROFILE_TIMEOUT']){const analysisStatus=createCurrentStatusModel();analysisStatus.accept({stage:'analysis_failed',status:'failed',reasonCode:code});const text=analysisStatus.snapshot().rows.find(r=>r.id==='profile').message;assert.match(text,code.includes('CAPACITY')?/한도/:code==='ANALYSIS_BUSY_TIMEOUT'?/대기를 종료/:/응답 시간이 초과/);}
+for(const code of ['ANALYSIS_CAPACITY','ANALYSIS_INPUT_CAPACITY','ANALYSIS_BUSY_TIMEOUT','PROFILE_TIMEOUT']){const analysisStatus=createCurrentStatusModel();analysisStatus.accept({stage:'analysis_failed',status:'failed',reasonCode:code});const text=analysisStatus.snapshot().rows.find(r=>r.id==='continuity').message;assert.match(text,code.includes('CAPACITY')?/한도/:code==='ANALYSIS_BUSY_TIMEOUT'?/대기를 종료/:/응답 시간이 초과/);}
+
+{
+    const view=createCurrentStatusModel({getProfileUsage:()=>({enabled:true,configured:true})});
+    const get=id=>view.snapshot().rows.find(row=>row.id===id);
+    view.accept({code:'RUN_STARTED'});
+    view.accept({stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3});
+    assert.equal(get('continuity').state,'waiting');assert.match(get('continuity').message,/2\/3/);
+    view.accept({stage:'character_state_capture',status:'collecting',participantCount:2});
+    assert.equal(get('emotion').state,'running');assert.equal(get('continuity').state,'waiting');
+    view.accept({stage:'profile_request',status:'failed',errorKind:'PROFILE_NETWORK_ERROR'});
+    view.accept({stage:'character_state_capture',status:'request'});
+    assert.equal(get('emotion').state,'failed');assert.equal(view.snapshot().tone,'error');
+    view.accept({code:'RUN_STARTED'});
+    assert.equal(view.snapshot().tone,'neutral','historical optional failure does not mark a new main judgment as failed');
+    assert.equal(get('previous-profile').state,'previous_failure');
+    view.accept({code:'PROMPT_REGISTERED',payloadChars:1});view.accept({code:'RUN_PREPARED'});
+    view.accept({code:'PROMPT_OBSERVED',phase:'assembly',scene:'confirmed',character:'unconfirmed'});
+    assert.equal(get('delivery').state,'idle','assembly is not the final macro check');
+    view.accept({code:'PROMPT_OBSERVED',phase:'request',scene:'confirmed',character:'unconfirmed'});
+    assert.equal(get('delivery').state,'failed','scene inclusion cannot hide a missing character block');
+    view.accept({code:'PROMPT_OBSERVED',phase:'request',scene:'confirmed',character:'confirmed'});
+    assert.equal(view.snapshot().tone,'success');assert.ok(get('previous-profile'),'main success does not claim recovery of an uncalled model');
+    view.accept({stage:'profile_request',status:'succeeded',testing:true});assert.ok(get('previous-profile'),'connection test is not analysis recovery');
+    view.accept({stage:'profile_request',status:'succeeded'});assert.equal(get('previous-profile'),undefined);
+    assert.ok(get('previous-emotion'),'transport success alone is not valid emotion data');
+    view.accept({stage:'character_state_capture',status:'collected',count:2});assert.equal(get('previous-emotion'),undefined);
+    view.accept({stage:'character_state_capture',status:'skipped',skipReason:'no_capture_targets'});
+    assert.match(get('emotion').message,/명단이 비었습니다/);
+    view.accept({stage:'character_state_capture',status:'missing',collectorMode:'main-output'});
+    assert.equal(get('emotion').state,'failed');assert.match(get('emotion').message,/주 답변에서 수집/);
+}
 {
     const view=createCurrentStatusModel();
     view.accept({stage:'retrieval_request',phase:'shared_search',code:'SHARED_VECTOR_UNAVAILABLE',status:'fallback'});

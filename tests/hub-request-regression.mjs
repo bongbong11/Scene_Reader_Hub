@@ -141,6 +141,12 @@ await scenario('request observer filters auxiliary quiet dry-run and resolves na
  const o=createPromptObserver({getExpected:()=>expected,getNames:()=>({userName:'User',characterName:'Hunter'}),getCycleId:()=> 'audit',report:()=>{},updateActivity:(text,options)=>logs.push({text,...options}),updateStatus:()=>{}});
  const messages=[{role:'system',content:'Hello User, from Hunter.\nWORLD'}];assert.equal(o.observe({prompt:messages}).phase,'assembly');assert.equal(o.observeRequest({messages:[{content:'Auxiliary'}]}),null);
  messages[0].content='WORLD';assert.equal(o.observeRequest({messages}).scene,'unconfirmed');assert.equal(logs.at(-1).error,true);
+ o.start('normal');o.inspectPrepared({messages});assert.notEqual(logs.at(-1).error,true,'incomplete assembly is not a final-send failure');
+ expected={payload:'SCENE',deliveryPayload:'SCENE',characterPayload:'CHARACTER'};
+ o.verifyRequest({messages:[{content:'SCENE'}]});assert.equal(logs.at(-1).error,true,'missing split character text must warn on the actual request');
+ o.verifyRequest({messages:[{content:'SCENE\nCHARACTER'}]});assert.equal(logs.at(-1).done,true);
+ expected={payload:'SCENE',scenePreset:true,slotResults:[{kind:'scene',status:'missing'}]};
+ o.verifyRequest({messages:[{content:'SCENE'}]});assert.equal(logs.at(-1).error,true,'missing configured preset position must warn even if the text exists elsewhere');
  o.start('quiet');assert.equal(o.observe({prompt:'quiet'}),null);o.start('normal',{},true);assert.equal(o.observe({prompt:'dry'}),null);o.start('normal');assert.equal(o.observe({prompt:messages},true),null);expected=null;assert.equal(o.observe({prompt:messages}),null);
  assert.equal(observePromptReceipt({messages:[{content:[{type:'text',text:'Guide'},{type:'image_url'}]}]},{payload:'Guide'}).scene,'confirmed');assert.equal(observePromptReceipt({prompt:'changed'},{payload:'{{setvar::x::1}}'}).scene,'unverifiable');
 });

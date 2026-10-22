@@ -18,6 +18,13 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
     assert.equal(await page.locator('#sr-current-status').getAttribute('data-tone'),'neutral');
     await page.locator('#sr-current-status').click();
     assert.equal(await page.locator('#sr-current-status-panel').isVisible(),true);
+    await page.evaluate(()=>{
+        statusFixture.emit({stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3});
+        statusFixture.emit({stage:'character_state_capture',status:'collected',collectorMode:'profile-output',count:2});
+    });
+    assert.match(await page.locator('#sr-current-status-panel').textContent(),/RP 답변 2\/3개 수집/);
+    assert.match(await page.locator('#sr-current-status-panel').textContent(),/확장 연결모델로 수집/);
+    assert.doesNotMatch(await page.locator('#sr-current-status-panel').textContent(),/이번 실행 대상 없음/);
     assert.equal(await page.locator('#sr-current-status').innerText(),'','status trigger is an icon, not a text button');
     await page.evaluate(()=>{
         statusFixture.emit({code:'RUN_STARTED'});

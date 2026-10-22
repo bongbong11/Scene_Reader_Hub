@@ -5,6 +5,46 @@ import {createHub} from '../src/hub/orchestrator.js';
 import {createJobScope,StaleRunError} from '../src/lifecycle/jobs.js';
 import {auxiliaryFixture} from './fixtures/auxiliary-runtime.mjs';
 import {createGenerationLifecycle} from '../src/lifecycle/generation.js';
+import {createStartup} from '../src/lifecycle/startup.js';
+import {requestWithConnectionProfile} from '../src/adapters/connection-profile.js';
+
+// The RP selection may change while the extension request is in flight.
+{
+    let rpProfile='glm',release;
+    const called=[],service={getProfile:id=>({id,model:id==='extension-profile'?'analysis-model':rpProfile}),validateProfile(){},
+        sendRequest:(id,_messages,_tokens,options)=>{called.push({id,options});return new Promise(resolve=>{release=resolve;});}};
+    const pending=requestWithConnectionProfile(service,'extension-profile','Synthetic analysis.',{});
+    await Promise.resolve();rpProfile='deepseek';
+    assert.equal(called[0].id,'extension-profile');assert.equal(called[0].options.includePreset,false);
+    assert.equal(called[0].options.signal.aborted,false);
+    release({content:'{"ok":true}'});
+    const result=await pending;assert.equal(result.profile.model,'analysis-model');assert.equal(result.result.ok,true);
+}
+
+// Editing the separate RP profile must not cancel the extension's jobs.
+{
+    const handlers=new Map(),calls=[];
+    const record={pendingContinuityCandidates:['keep'],lastReasonerSource:'keep',lastJudgment:{payload:'keep'}};
+    const noop=()=>{};
+    const deps={DEFAULTS:{reasonerProfileId:'extension-profile'},extension_settings:{},MODULE:'test',
+        saveSettingsDebounced:noop,hydrateServerState:async()=>true,stateChatKey:()=> 'room',getContext:()=>({}),
+        createExtensionSettings:noop,createDialog:noop,createWandEntry:noop,ensureQuickEntry:noop,loadStateHistory:async()=>{},
+        event_types:{CONNECTION_PROFILE_UPDATED:'updated',CONNECTION_PROFILE_DELETED:'deleted'},
+        eventSource:{on:(type,fn)=>{if(type)handlers.set(type,fn);}},runEventTask:fn=>fn(),
+        loadReasonerProfiles:async()=>{calls.push('reload');},invalidateReasonerJobs:()=>calls.push('cancel'),
+        record:()=>record,persistChat:async()=>{calls.push('save');},clearInjection:async()=>{calls.push('clear');},renderAll:()=>calls.push('render')};
+    await createStartup(deps).init();calls.length=0;
+    for(const type of ['updated','deleted']){
+        await handlers.get(type)({id:'rp-profile'});
+        assert.deepEqual(calls.splice(0),['reload']);
+        assert.deepEqual(record.pendingContinuityCandidates,['keep']);
+        assert.equal(record.lastJudgment.payload,'keep');
+        await handlers.get(type)({id:'extension-profile'});
+        assert.deepEqual(calls.splice(0),['cancel','reload','save','clear','render']);
+        assert.equal(record.lastJudgment,null);
+        record.pendingContinuityCandidates=['keep'];record.lastJudgment={payload:'keep'};
+    }
+}
 
 // Stop while generation is waiting for the previous emotion request, before Jev starts.
 for(const waitAt of ['reconcileInjection','waitForOutputChanges']) for(const fallback of [false,true]) {

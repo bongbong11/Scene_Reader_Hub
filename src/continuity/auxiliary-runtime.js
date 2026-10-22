@@ -31,7 +31,7 @@ export function createAuxiliaryRuntime(deps){
   if(stopped||!deps.settings.enabled)return Promise.resolve({status:'cancelled'});
   const key=deps.stateChatKey(),profile=deps.settings.reasonerProfileId,enabled=Boolean(deps.settings.continuityEnabled);
   const chat=deps.getContext().chat||[],record=deps.record();
-  if(chat[index]?.is_user||!sourceRp(chat[index])||record?.nonRpOutputIndices?.includes(index))return Promise.resolve({status:'no_source'});
+  if(chat[index]?.is_user||!sourceRp(chat[index])||record?.nonRpOutputIndices?.includes(index)){report('auxiliary_usage',{status:'not_needed',reasonCode:'no_rp_output'});return Promise.resolve({status:'no_source'});}
   let user=index-1;while(user>=0&&!chat[user]?.is_user)user--;
   const refs=[...(user>=0&&sourceRp(chat[user])?[messageRef(key,chat,user,deps.fingerprint)]:[]),messageRef(key,chat,index,deps.fingerprint)];
   const stamp=visibilityKey(chat),sourceKey=deps.fingerprint(refs),group=index;
@@ -50,14 +50,17 @@ export function createAuxiliaryRuntime(deps){
     const freshGroups=[...progress.groups].filter(([group,entry])=>attempted.get(group)!==entry.key).length;
     const due=enabled&&Boolean(window?.text)&&(attempted.size?freshGroups>=3:progress.groups.size>=3||[...progress.groups.values()].some(entry=>entry.offset>0));
     const analysisKey=deps.fingerprint([sourceKey,due?window.consumed:[]]);
-    if(current.auxiliaryStateV1?.sourceKey===analysisKey)return {status:'already_analyzed'};
+    if(current.auxiliaryStateV1?.sourceKey===analysisKey){report('auxiliary_usage',{status:'not_needed',reasonCode:'already_analyzed'});return {status:'already_analyzed'};}
     const source=`USER:\n${user>=0?sourceRp(nowChat[user]):''}\nCHARACTER:\n${sourceRp(nowChat[index])}`,sourceText=source.slice(-9000);
     bridge=vaultAnalysisBridge(deps.window);
     try{vault=bridge?.beginAnalysis({outputIndex:index,sourceText,sourceTruncated:source.length>sourceText.length,outputText:String(nowChat[index].mes||''),actorDefinitions:[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[])].map(({name,aliases})=>({name,aliases:aliases||[]}))});}
     catch{report('analysis_vault',{status:'degraded',reasonCode:'VAULT_INPUT_UNAVAILABLE'});}
-    if(!due&&!vault)return {status:'waiting'};
+    if(!due&&!vault){
+     const alreadyProcessed=!progress.groups.size&&progress.processed.get(group)===sourceKey;
+     report('auxiliary_usage',{status:enabled&&!alreadyProcessed?'waiting':'not_needed',reasonCode:!enabled?'analysis_disabled':alreadyProcessed?'already_analyzed':!window?.text?'source_unavailable':attempted.size?'retry_interval_pending':'interval_pending',turnCount:attempted.size?freshGroups:progress.groups.size,requiredTurns:3});return {status:'waiting'};
+    }
     if(!profile||!deps.connectionRequestService){vault&&bridge.failAnalysis?.(vault.token,'PROFILE_UNAVAILABLE');report('auxiliary_usage',{status:'needs_setup',reasonCode:'profile_not_configured'});return {status:'needs_setup'};}
-    if(current.auxiliaryStateV1?.retryAfter>Date.now())return {status:'waiting'};
+    if(current.auxiliaryStateV1?.retryAfter>Date.now()){report('auxiliary_usage',{status:'waiting',reasonCode:'retry_backoff',retrySeconds:Math.ceil((current.auxiliaryStateV1.retryAfter-Date.now())/1000)});return {status:'waiting'};}
     const repetition=due?repetitionWindow(nowChat,index,deps.settings,current.nonRpOutputIndices||[],deps.fingerprint):null;
     const repeatedRefs=repetition?.refs||[];
     const sourceValid=()=>valid()&&(!due||validateSourceRefs(window.refs,{chatRef:key,chat:deps.getContext().chat||[],fingerprint:deps.fingerprint}))&&(!repetition||deps.fingerprint(repetitionWindow(deps.getContext().chat,index,deps.settings,deps.record()?.nonRpOutputIndices||[],deps.fingerprint).refs)===deps.fingerprint(repeatedRefs));

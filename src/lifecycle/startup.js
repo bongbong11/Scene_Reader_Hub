@@ -38,9 +38,10 @@ async function init() {
     if (deps.event_types.CONNECTION_PROFILE_CREATED) deps.eventSource.on(deps.event_types.CONNECTION_PROFILE_CREATED, () => { void deps.loadReasonerProfiles(); });
     for (const type of [deps.event_types.CONNECTION_PROFILE_UPDATED, deps.event_types.CONNECTION_PROFILE_DELETED].filter(Boolean)) {
         deps.eventSource.on(type, (...profiles) => deps.runEventTask(async () => {
-            deps.invalidateReasonerJobs();
+            const affectsReasoner=profiles.some((profile) => profile?.id === deps.settings.reasonerProfileId);
+            if(affectsReasoner)deps.invalidateReasonerJobs();
             await deps.loadReasonerProfiles();
-            if (!profiles.some((profile) => profile?.id === deps.settings.reasonerProfileId)) return;
+            if (!affectsReasoner) return;
             const rec = deps.record(true);
             rec.pendingContinuityCandidates = [];
             rec.lastReasonerSource = null;

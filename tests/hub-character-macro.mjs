@@ -172,12 +172,22 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
         manager.preparePrompt(prompts[0]);
         const messages=[{role:'system',content:`PREFIX\n${macro?location:''}\nSUFFIX`},{role:'system',content:'ANCHOR'},
             ...(!preset?[{role:'system',content:full}]:[]),{role:'system',content:'Synthetic world reference.'},{role:'user',content:'Continue.'}];
-        const body={type,messages};
+        const body={type,messages,model:ctx.extensionSettings?.connectionManager?.selectedProfile};
         runtime.observeAssembly({prompt:messages});assert.equal(runtime.observeRequest(body),true);
         return {body,location};
     }
     async function sendOpenAIRequest(body){return win.fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});}
     async function sendGenerationRequest(body){return sendOpenAIRequest(body);}
+    for(const model of ['synthetic-glm','synthetic-deepseek','synthetic-glm'])for(const macro of [true,false])for(const selected of [true,false]) {
+        ctx.extensionSettings={connectionManager:{selectedProfile:model}};enabled=selected;
+        const {body}=prepare('normal',false,macro);await sendGenerationRequest(body);
+        const output=flatten(sent.at(-1));assert.equal(sent.at(-1).model,model);
+        assert.equal(count(output,characterBlock),1,'profile changes must neither drop nor duplicate character content');
+        assert.equal(output.includes(wrapped),selected&&macro);
+        assert.equal(output.includes(full),!selected||!macro,'absent macro returns the whole block to ordinary injection');
+        assert.doesNotMatch(output,/SR_CHARACTER_SLOT_/);
+    }
+    enabled=true;
     for(const type of ['normal','regenerate','swipe','continue'])for(const preset of [false,true]) {
         const {body,location}=prepare(type,preset);
         assert.equal(runtime.preview.read(),null,'assembly is not a transmission receipt');
