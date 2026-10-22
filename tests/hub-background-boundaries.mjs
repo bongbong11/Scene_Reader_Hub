@@ -42,7 +42,7 @@ for(const failed of [false,true]){
  hostBusy=true;finish();await tick();assert.equal(a.stored.length,0);assert.equal(clears,0);
  a.records.get('room-A').lastJudgment={inputKey:'newer-foreground'};
  hostBusy=false;await within(task);assert.ok(a.stored.length);
- if(failed)assert.equal(a.records.get('room-A').lastJudgment.inputKey,'newer-foreground');
+ if(failed){assert.equal(a.records.get('room-A').lastContinuityTrace.status,'fallback');assert.ok(a.records.get('room-A').continuity.references.length);assert.equal(clears,1,'new fallback context invalidates injection only after foreground activity ends');}
 }
 
 // Paged maintenance uses bounded pages and ignores mutable search-cache records.

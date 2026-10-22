@@ -15,9 +15,9 @@ export function selectAnalysisContinuity(state, transcript, options) {
 export function continuityAnalysisContext(state) {
     const project=(list,fields)=>(list||[]).map(item=>Object.fromEntries(fields.filter(field=>item[field]!==undefined).map(field=>[field,item[field]])));
     return {
-        items:project(state.items,['id','kind','label','owners','lifecycle','pressure','reason']),
-        knowledge:project(state.knowledge,['factId','character','source','sourceType','summary']),
-        dependencies:project(state.dependencies,['stateId','pressure','reason']),
+        items:project(state.items,['id','kind','label','owners','lifecycle','pressure','reason','time','summary','impact','sourceType']),
+        knowledge:project(state.knowledge,['factId','character','source','sourceType','summary','relatedStateIds']),
+        dependencies:project(state.dependencies,['stateId','pressure','reason','time','summary','impact','sourceType']),
         followups:project(state.followups,['id','relatedStateId','action','reason']),
     };
 }

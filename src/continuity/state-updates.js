@@ -1,6 +1,6 @@
 import {eligibleSource} from './source-eligibility.js';
 
-const fields=['lifecycle','pressure','reason'];
+const fields=['lifecycle','pressure','reason','time','summary','impact'];
 const stateOf=item=>Object.fromEntries(fields.map(field=>[field,item[field]??(field==='pressure'?'none':'')]));
 
 // Keep the original commitment separate from later state changes. Hiding or
@@ -9,7 +9,9 @@ export function applyItemUpdate(item, candidate, now) {
     item.baseState ||= stateOf(item);
     item.stateUpdates ||= [];
     if(item.stateUpdates.some(update=>update.id===candidate.id))return;
-    const patch={pressure:candidate.data.pressure,reason:candidate.data.reason};
+    const patch={reason:candidate.data.reason};
+    if(candidate.data.pressure!==null&&candidate.data.pressure!==undefined)patch.pressure=candidate.data.pressure;
+    for(const field of ['time','summary','impact'])if(candidate.data[field]!==undefined)patch[field]=candidate.data[field];
     if(candidate.data.relation==='changed'&&candidate.data.lifecycle)patch.lifecycle=candidate.data.lifecycle;
     item.stateUpdates.push({id:candidate.id,...patch,sourceRefs:candidate.sourceIdentity?.refs||[candidate.sourceIdentity],updatedAt:now});
     Object.assign(item,patch,{updatedAt:now});

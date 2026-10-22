@@ -29,7 +29,7 @@ export function dialogTemplate({optionsHtml, escapeHtml, WORLD_DIRECTIONS, RELAT
                     <details class="sr-details"><summary><span>장면·관계 판독</span><small id="sr-caption-scene">판독 대기</small></summary><div id="sr-scene-relation"></div></details>
                     <details class="sr-details"><summary><span>사건·NPC 진행</span><small id="sr-caption-event">판독 대기</small></summary><div id="sr-event-npc"></div></details>
                     <details id="sr-advanced-results" class="sr-details"><summary><span>고급 전개 판정</span><small id="sr-caption-advanced">사용 안 함</small></summary><div id="sr-advanced-judgment"></div></details>
-                    <details class="sr-details"><summary><span>연속성 추론</span><small>후보·검증·저장</small></summary><div id="sr-continuity-results"></div></details>
+                    <details class="sr-details"><summary><span>연속성 추론</span><small>변화 수집·기록</small></summary><div id="sr-continuity-results"></div></details>
                     <details class="sr-details"><summary><span>갈등·실행 점검</span><small id="sr-caption-quality">판독 대기</small></summary><div id="sr-conflict-quality"></div></details>
                     <details class="sr-details"><summary><span>저장 상태·실제 주입문</span><small>채팅방별 기록</small></summary><p class="sr-criteria-note sr-explanation">의미 있는 관계 변화와 완료·보관된 사건을 저장합니다. 아래에서 이번 응답의 주입문을 확인할 수 있습니다.</p><div id="sr-stored-state"></div><div class="sr-section-divider">실제 주입문</div><pre id="sr-prompt-preview" class="sr-preview"></pre></details>
                 </div>

@@ -6,13 +6,19 @@ export function continuitySourceWindow(groups,{chatRef,chat,fingerprint,maxChars
     const parts=[],refs=[],consumed=[],sources=[];let remaining=maxChars;
     for(const [group,entry] of groups) {
         if(!validateSourceRefs(entry.refs,{chatRef,chat,fingerprint}))continue;
-        const text=entry.refs.map(ref=>`[${ref.messageIndex}] ${ref.role.toUpperCase()}:\n${sourceRp(chat[ref.messageIndex])}`).join('\n');
+        let cursor=0;
+        const segments=entry.refs.map(ref=>{
+            const text=`[${ref.messageIndex}] ${ref.role.toUpperCase()}:\n${sourceRp(chat[ref.messageIndex])}`;
+            const segment={ref,text,start:cursor,end:cursor+text.length};cursor+=text.length+1;return segment;
+        });
+        const text=segments.map(segment=>segment.text).join('\n');
         const offset=entry.offset||0;
         if(text.length<=offset)continue;
         const separator=parts.length?1:0;
         if(remaining<=separator)break;
         const piece=text.slice(offset,offset+remaining-separator);
-        parts.push(piece);refs.push(...entry.refs);sources.push({text:piece,refs:entry.refs});
+        const messageIndices=segments.filter(segment=>segment.start<offset+piece.length&&segment.end>offset).map(segment=>segment.ref.messageIndex);
+        parts.push(piece);refs.push(...entry.refs);sources.push({text:piece,refs:entry.refs,messageIndices});
         consumed.push({group,key:entry.key,offset:offset+piece.length,complete:offset+piece.length>=text.length});
         remaining-=piece.length+separator;
         if(!consumed.at(-1).complete)break;

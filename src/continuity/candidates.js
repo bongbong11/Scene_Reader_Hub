@@ -3,7 +3,7 @@ import {sourceRp,validateSourceRefs} from './source-refs.js';
 
 export function candidateDecisions(candidates) {
     return Object.fromEntries(candidates.map((candidate,index)=>[`continuity_candidate_${index}`,
-        candidate.type==='knowledge'?'supported':candidate.type==='new_item'?'accept_changed':candidate.type==='affected'?(candidate.data?.relation==='pressured'?'accept_pressured':'accept_changed'):candidate.type==='followup'?'followup_only':'reject']));
+        ['knowledge','reference'].includes(candidate.type)?'supported':candidate.type==='new_item'?'accept_changed':candidate.type==='affected'?(candidate.data?.relation==='pressured'?'accept_pressured':'accept_changed'):candidate.type==='followup'?'followup_only':'reject']));
 }
 
 export function activePendingCandidates(candidates, { chatKey, chat, sourceRevision }) {

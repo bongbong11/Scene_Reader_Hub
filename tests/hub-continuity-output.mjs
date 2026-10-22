@@ -10,7 +10,7 @@ import {candidateDecisions} from '../src/continuity/candidates.js';
 import {commitAnalyzedContinuity} from '../src/continuity/commit-analysis.js';
 import {createContinuityView} from '../src/ui/results/continuity.js';
 
-const promise={kind:'commitment',label:'Aster will bring the spare key at noon',lifecycle:'active',owners:['Aster'],source_type:'promise',evidence:'I will bring the spare key at noon.'};
+const promise={kind:'commitment',label:'Aster will bring the spare key at noon',lifecycle:'active',owners:['Aster'],time:'noon',impact:'The delivery remains pending.',source_type:'promise',evidence:'I will bring the spare key at noon.'};
 // Actual output event -> auxiliary request adapter -> saved state -> Hub injection.
 const hub=makeHub({analysis:true}),requests=[],jev=[];
 hub.ctx.name2='Aster';
@@ -40,6 +40,8 @@ hub.ctx.chat.push({is_user:true,mes:'She waits near the door.'});
 await hub.run('runJudge({force:true})');
 assert.match(hub.run('record().lastJudgment.payload'),/bring the spare key at noon/,'pronoun-only scene still retrieves the primary character commitment');
 assert.match(hub.run('activeInjectionPayload'),/bring the spare key/);
+assert.match(hub.run('activeInjectionPayload'),/time=noon/);
+assert.match(hub.run('activeInjectionPayload'),/delivery remains pending/);
 assert.ok(jev.every(body=>!body.questions.continuity_trigger));
 assert.ok(jev.every(body=>!String(body.state.scope).includes('Only advanced progression')),'old event restriction must not contradict valid event offers');
 

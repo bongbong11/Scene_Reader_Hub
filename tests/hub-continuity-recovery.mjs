@@ -41,9 +41,9 @@ let diagnostic;
 analysisDiagnostic((_code,detail)=>{diagnostic=safeDetail(detail);},'analysis_result',{invalidEvidenceTypeCount:1,continuityIncluded:false,sourceText:'private',evidence:'private'});
 assert.equal(diagnostic.continuityIncluded,false);assert.equal(diagnostic.invalidEvidenceTypeCount,1);assert.ok(!JSON.stringify(diagnostic).includes('private'));
 for(const [value,reason] of [
- [{...promise,evidence:'An invented statement.'},'invalidEvidenceCount'],
+ [{...promise,source_indices:[999]},'invalidEvidenceCount'],
  [{...promise,source_type:'invented'},'invalidEvidenceTypeCount'],
- [{...promise,lifecycle:'completed'},'invalidLifecycleCount'],
+ [{...promise,lifecycle:'unknown'},'invalidLifecycleCount'],
  [{...promise,kind:'unknown'},'invalidShapeCount'],
 ]) {
  const diagnostics={};assert.equal(validateReasonerResult({new_items:[value]},{...options,diagnostics}).length,0);
@@ -51,7 +51,7 @@ for(const [value,reason] of [
 }
 for(const [field,value,reason] of [
  ['affected',{state_id:'missing',relation:'changed'},'invalidStateCount'],
- ['knowledge_updates',{fact_id:'key',character:'Unknown',source:'told'},'invalidActorCount'],
+ ['knowledge_updates',{fact_id:'key',character:'',source:'told'},'invalidActorCount'],
 ]) {
  const diagnostics={};validateReasonerResult({[field]:[{...value,evidence:promise.evidence,source_type:'world_fact'}]},{...options,diagnostics});assert.equal(diagnostics[reason],1);
 }
@@ -59,7 +59,7 @@ for(const [field,value,reason] of [
 // Partial success survives a failed request and a runtime restart. The next
 // ordinary call includes the unfinished source and skips an exact saved entry.
 const f=auxiliaryFixture();let calls=0;
-f.deps.requestWithConnectionProfile=async(...args)=>{f.requests.push(args);calls++;return response([promise,{...second,evidence:'Fabricated quote.'}]);};
+f.deps.requestWithConnectionProfile=async(...args)=>{f.requests.push(args);calls++;return response([promise,{...second,source_indices:[999]}]);};
 await f.turn(promise.evidence);await f.turn(second.evidence);await f.turn('He closes the door.');
 let rec=f.records.get('room-A');
 assert.equal(calls,1);assert.equal(rec.continuity.items.length,1);assert.equal(rec.lastContinuityTrace.invalidEvidenceCount,1);
@@ -69,11 +69,13 @@ assert.equal(wholeDiagnosticReport({record:rec}).auxiliary.invalidEvidenceCount,
 assert.equal(wholeDiagnosticReport({record:rec}).auxiliary.retryPending,true);
 const display={innerHTML:''};
 createContinuityView({document:{getElementById:()=>display},readState:()=>({settings:{continuityEnabled:true},reasonerProfiles:[]}),record:()=>rec,escapeHtml:String,continuityLabel:String}).renderContinuity();
-assert.match(display.innerHTML,/원문 근거 불일치 1건/);assert.match(display.innerHTML,/다음 판독에 다시 포함/);
+assert.match(display.innerHTML,/근거 답변 번호 1건/);assert.match(display.innerHTML,/다음 판독에 다시 포함/);
 await f.analysis.queue(5);assert.equal(calls,1,'no immediate or duplicate output retry');
 rec.auxiliaryStateV1.retryAfter=0;
 f.deps.requestWithConnectionProfile=async()=>{calls++;throw new Error('Synthetic network failure');};
-await f.turn('He waits by the door.');await f.turn('He listens.');assert.equal(calls,1,'partial results keep the ordinary three-output cadence');assert.equal(f.events.at(-1).reasonCode,'retry_interval_pending');assert.equal(f.events.at(-1).turnCount,2);await f.turn('He waits a little longer.');rec=f.records.get('room-A');assert.equal(rec.continuity.items.length,1);assert.equal(rec.auxiliaryStateV1.pending.receipts.length,1);
+await f.turn('He waits by the door.');await f.turn('He listens.');assert.equal(calls,1,'partial results keep the ordinary three-output cadence');assert.equal(f.events.at(-1).reasonCode,'retry_interval_pending');assert.equal(f.events.at(-1).turnCount,2);await f.turn('He waits a little longer.');rec=f.records.get('room-A');assert.equal(rec.continuity.items.length,1);assert.ok(rec.auxiliaryStateV1.pending.receipts.length>=1);
+assert.equal(rec.lastContinuityTrace.status,'fallback');
+assert.ok(rec.continuity.references.length>0);
 rec.auxiliaryStateV1.retryAfter=0;
 f.analysis.cancel('test_restart');const restarted=createAuxiliaryRuntime(f.deps);
 f.deps.requestWithConnectionProfile=async(...args)=>{calls++;f.requests.push(args);return response([second,promise]);};
@@ -118,7 +120,7 @@ for(const items of [[],[promise,promise,promise]]) {
 }
 // Restoring pending references cannot resurrect edited/deleted/hidden RP.
 for(const operation of ['edit','hide','delete']) {
- const r=auxiliaryFixture();r.deps.requestWithConnectionProfile=async()=>response([{...promise,evidence:'Wrong quote.'}]);
+ const r=auxiliaryFixture();r.deps.requestWithConnectionProfile=async()=>response([{...promise,source_indices:[999]}]);
  await r.turn(promise.evidence);await r.turn();await r.turn();r.records.get('room-A').auxiliaryStateV1.retryAfter=0;
  if(operation==='edit')r.context.chat[1].mes='He makes no promise.';
  if(operation==='hide')r.context.chat[1].is_hidden=true;

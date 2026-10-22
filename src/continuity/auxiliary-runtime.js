@@ -3,7 +3,8 @@ import {createAnalysisScheduler} from './analysis-scheduler.js';
 import {analysisRequestBudget} from './request-budget.js';
 import {sourceRp,messageRef,validateSourceRefs} from './source-refs.js';
 import {REPETITION_SYSTEM,repetitionWindow,assessRepetition} from './repetition.js';
-import {REASONER_SYSTEM,validateReasonerResult} from './engine.js';
+import {REASONER_SYSTEM,validateReasonerResult,RESPONSE_FIELDS} from './response.js';
+import {codeContinuityCandidates,clearCoveredFallback} from './fallback.js';
 import {continuityView} from './state-adapter.js';
 import {continuityActors} from './actors.js';
 import {selectAnalysisContinuity} from './analysis-context.js';
@@ -68,36 +69,43 @@ export function createAuxiliaryRuntime(deps){
     const sourceValid=()=>valid()&&(!due||validateSourceRefs(window.refs,{chatRef:key,chat:deps.getContext().chat||[],fingerprint:deps.fingerprint}))&&(!repetition||deps.fingerprint(repetitionWindow(deps.getContext().chat,index,deps.settings,deps.record()?.nonRpOutputIndices||[],deps.fingerprint).refs)===deps.fingerprint(repeatedRefs));
     const continuityText=due?window.text:sourceText;
     const state=selectAnalysisContinuity(confirmedContinuity(continuityView(current),{record:current,chatRef:key,chat:nowChat,fingerprint:deps.fingerprint,inherited:Boolean(current.sharedReference||current.legacyCarryReferenceV1)}),continuityText,{opportunity:current.sceneOpportunity,actorIds:continuityActors(deps.characterStore,deps.getContext(),continuityText,current.sceneIntimacy?.participantIds||[]),limits:{items:12,knowledge:8,dependencies:4,followups:2}});
-    const input={source_rp:continuityText,...(due?{active_continuity:state,actor_names:continuityActors(deps.characterStore,deps.getContext(),continuityText),existing_state_refs:{event:current.eventProfile?{id:'event:current',title:current.eventProfile.title}:null,relationship:{id:'relationship:current',...current.relationshipState}},...(repetition.turns.length>=2?{repetition_context:{turns:repetition.turns}}:{})}:{}),...(vault?{vault_audit:vault.input}:{})};
+    const input={source_rp:continuityText,...(due?{source_indices:[...new Set(window.sources.flatMap(source=>source.messageIndices))]}:{}),...(due?{active_continuity:state,actor_names:continuityActors(deps.characterStore,deps.getContext(),continuityText),existing_state_refs:{event:current.eventProfile?{id:'event:current',title:current.eventProfile.title}:null,relationship:{id:'relationship:current',...current.relationshipState}},...(repetition.turns.length>=2?{repetition_context:{turns:repetition.turns}}:{})}:{}),...(vault?{vault_audit:vault.input}:{})};
     const system=[due?REASONER_SYSTEM:'',repetition?.turns.length>=2?REPETITION_SYSTEM:'',vault?.system||'',vault&&due?'Return the continuity arrays, topic_fixation and vault_results in one JSON object. Sections are independent. Do not duplicate vault knowledge into knowledge_updates. Vault card contents are not RP evidence.':''].filter(Boolean).join('\n');
     const request=analysisRequestBudget(deps.requestWithConnectionProfile,{maxRequests:2,totalMs:180000});
     analysisStarted=true;
     reportAnalysis('analysis_started',{status:'running',turnCount:due?window.groupCount:1,inputChars:JSON.stringify(input).length});
-    const response=await request(deps.connectionRequestService,profile,system,input,{signal:job.signal,maxTokens:Math.min(4800,(due?2400:800)+(vault?.count||0)*160),timeoutMs:120000});
+    let response,modelFailure='';
+    try {
+     response=await request(deps.connectionRequestService,profile,system,input,{signal:job.signal,maxTokens:Math.min(4800,(due?2400:800)+(vault?.count||0)*160),timeoutMs:120000});
+     if(due&&!RESPONSE_FIELDS.some(field=>Array.isArray(response.result?.[field])))modelFailure='PROFILE_INVALID_RESPONSE';
+    } catch(error) {
+     if(!due||!sourceValid()||job.signal.aborted)throw error;
+     modelFailure=analysisFailureCode(error);
+    }
     await idle(job.signal);if(!sourceValid())return {status:'cancelled'};
-    if(vault)await completeVaultAudit({bridge,vault,result:response.result,sourceText,request:(system,input,options)=>request(deps.connectionRequestService,profile,system,input,options),signal:job.signal,valid:sourceValid,idle,report});
-    await idle(job.signal);if(!sourceValid())return {status:'cancelled'};
-    let malformed=false,incomplete=false,counts={candidateCount:0,invalidCount:0,acceptedCount:0};
+    if(modelFailure)vault&&bridge?.failAnalysis?.(vault.token,modelFailure);
+    let incomplete=false,counts={candidateCount:0,invalidCount:0,acceptedCount:0};
     const saved=await commitSession(key,({current:rec,history})=>{
      if(due){
       const identity={chatKey:key,assistantIndex:Math.max(...window.refs.filter(ref=>ref.role==='assistant').map(ref=>ref.messageIndex)),outputFingerprint:deps.fingerprint([continuityText,window.refs]),refs:window.refs,sourceRevision:deps.sourceRevisionKey(rec,deps.selectedWorld(rec))};
-      const review=assessRepetition(response.result,repetition,identity);
+      const review=modelFailure?{status:'model_unavailable'}:assessRepetition(response.result,repetition,identity);
       if(['ready','balanced','insufficient_history'].includes(review.status))rec.repetitionGuard=review.guard;
-      const fields=['new_items','affected','knowledge_updates','possible_followups'];
-      malformed=!fields.some(field=>Array.isArray(response.result?.[field]));
-      const invalidSections=fields.filter(field=>response.result?.[field]!==undefined&&!Array.isArray(response.result[field])).length;
-      counts.invalidCount=0;
+      const invalidSections=modelFailure?0:RESPONSE_FIELDS.filter(field=>response.result?.[field]!==undefined&&!Array.isArray(response.result[field])).length;
       const actors=[...(deps.characterStore.characters||[]),...(deps.characterStore.npcs||[]),deps.characterStore.persona].filter(Boolean).flatMap(actor=>[actor.name,...(actor.aliases||[])]);
-      const candidates=malformed?[]:validateReasonerResult(response.result,{sourceText:continuityText,continuity:continuityView(rec),sourceIdentity:identity,stateRefs:['relationship:current',...(rec.eventProfile?['event:current']:[])],actors:[...actors,deps.getContext().name1,deps.getContext().name2].filter(Boolean),evidenceSources:window.sources,diagnostics:counts});
-      counts.invalidCount+=invalidSections||(malformed?1:0);
-      if(invalidSections||malformed)counts.invalidShapeCount=(counts.invalidShapeCount||0)+(invalidSections||1);
-      malformed ||= !candidates.length&&counts.invalidCount>0;
-      incomplete=malformed||counts.invalidCount>0;
+      const options={sourceText:continuityText,continuity:continuityView(rec),sourceIdentity:identity,stateRefs:['relationship:current',...(rec.eventProfile?['event:current']:[])],actors:[...actors,deps.getContext().name1,deps.getContext().name2].filter(Boolean),evidenceSources:window.sources,diagnostics:counts};
+      const candidates=modelFailure
+       ?codeContinuityCandidates(window,{identity,chat:deps.getContext().chat,state,actors:options.actors,fingerprint:deps.fingerprint})
+       :validateReasonerResult(response.result,options);
+      counts.invalidCount+=invalidSections;
+      if(invalidSections)counts.invalidShapeCount=(counts.invalidShapeCount||0)+invalidSections;
+      if(modelFailure){counts.candidateCount=candidates.length;counts.referenceCount=candidates.length;}
+      incomplete=Boolean(modelFailure)||counts.invalidCount>0;
+      if(!incomplete)clearCoveredFallback(rec,history,window.refs);
       const receipt=pendingAnalysisReceipt(candidates,rec.auxiliaryStateV1?.pending,{chatRef:key,chat:deps.getContext().chat||[],fingerprint:deps.fingerprint});
       const applied=commitAnalyzedContinuity(rec,history,receipt.candidates);
       counts.reusedCount=receipt.reusedCount;
       counts.acceptedCount=applied.accepted.length;
-      rec.lastContinuityTrace={...counts,status:malformed?'error':counts.invalidCount?'partial':applied.accepted.length||counts.reusedCount?'verified':'empty',trigger:'periodic',repetitionStatus:review.status,groupCount:window.groupCount,partial:window.partial,retryPending:incomplete,verdicts:applied.accepted.map(({type,label,verdict})=>({type,label,verdict,reason:'연결모델 분석 · 형식과 가시 근거 확인'})),acceptedCount:applied.accepted.length};
+      rec.lastContinuityTrace={...counts,status:modelFailure?'fallback':counts.invalidCount?'partial':applied.accepted.length||counts.reusedCount?'verified':'empty',trigger:'periodic',mode:modelFailure?'code':'model',...(modelFailure?{errorCode:modelFailure}:{}),repetitionStatus:review.status,groupCount:window.groupCount,partial:window.partial,retryPending:incomplete,verdicts:applied.accepted.map(({type,label,verdict})=>({type,label,verdict,reason:modelFailure?'코드 대체 · 관련 원문 맥락 보존':'연결모델 분석 · 답변 번호 연결'})),acceptedCount:applied.accepted.length};
       rec.lastReasonerSource=identity;rec.lastJudgment=null;
       rec.auxiliaryStateV1={sourceKey:analysisKey,retryAfter:incomplete?Date.now()+30000:0,...(incomplete?{pending:pendingAnalysisState(progress,receipt.receipts)}:{})};
      }
@@ -105,8 +113,10 @@ export function createAuxiliaryRuntime(deps){
     },()=>sourceValid()&&foregroundIdle());
     if(saved&&due){if(!incomplete)advanceContinuityWindow(progress,window);if(foregroundIdle())await deps.clearInjection?.({chatKey:key});}
     analysisFinished=true;
-    reportAnalysis('analysis_result',{...counts,status:saved?malformed||counts.invalidCount?'degraded':'succeeded':'deferred',...(malformed||counts.invalidCount?{reasonCode:'CONTINUITY_INVALID_RESPONSE'}:{})});
-    return {status:saved?'complete':'cancelled'};
+    reportAnalysis('analysis_result',{...counts,codeFallback:Boolean(modelFailure),status:saved?modelFailure||counts.invalidCount?'degraded':'succeeded':'deferred',...(modelFailure||counts.invalidCount?{reasonCode:modelFailure||'CONTINUITY_PARTIAL_RESULT'}:{})});
+    // The optional vault repair cannot hold up an already completed continuity save.
+    if(vault&&!modelFailure&&sourceValid())await completeVaultAudit({bridge,vault,result:response.result,sourceText,request:(system,input,options)=>request(deps.connectionRequestService,profile,system,input,options),signal:job.signal,valid:sourceValid,idle,report:reportAnalysis});
+    return {status:saved?modelFailure?'fallback':'complete':'cancelled'};
    }catch(error){
     if(!valid()||job.signal.aborted)return {status:'cancelled'};
     const reasonCode=analysisFailureCode(error);vault&&bridge?.failAnalysis?.(vault.token,reasonCode);

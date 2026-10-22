@@ -25,6 +25,7 @@ function advice(id,event) {
 
 function continuityError(event) {
     const code=event.reasonCode || errorCode(event);
+    if(code==='CONTINUITY_PARTIAL_RESULT')return '일부 항목 처리 필요 · 정상 항목은 반영';
     if (/STORAGE|SAVE/.test(code)) return '저장 오류';
     if (/INVALID_RESPONSE|INVALID_JSON|RESPONSE_FORMAT/.test(code)) return '응답 확인 오류';
     if (/^PROFILE_/.test(code)) return '연결모델 오류';
@@ -96,7 +97,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
                 if(event.reasonCode==='ANALYSIS_CANCELLED') {
                     set('continuity',event,{state:'cancelled',sticky:false});return;
                 }
-                set('continuity',{...event,errorKind:event.reasonCode || event.errorKind},{state:'failed',sticky:false,message:continuityError(event)});return;
+                set('continuity',{...event,errorKind:event.reasonCode || event.errorKind},{state:'failed',sticky:false,message:continuityError(event)+(event.codeFallback?' · 코드 대체 실행':'')});return;
             }
             if(event.stage==='analysis_result') {
                 set('continuity',event,{state:event.status==='succeeded'?'success':'cancelled',sticky:false});return;

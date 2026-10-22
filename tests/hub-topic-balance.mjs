@@ -19,7 +19,7 @@ assert.equal(reviewed.status,'ready');
 assert.equal(assessRepetition({topic_fixation:null},window,identity).status,'balanced');
 assert.equal(assessRepetition({},window,identity).status,'not_returned');
 assert.equal(assessRepetition(fixture,{turns:[window.turns[1]],refs:[]},identity).status,'insufficient_history');
-for(const evidence of [[fixture.topic_fixation.evidence[0],fixture.topic_fixation.evidence[0]],[{output_index:0,quote:chat[0].mes},fixture.topic_fixation.evidence[1]],[{output_index:1,quote:'invented evidence'},fixture.topic_fixation.evidence[1]]]) {
+for(const evidence of [[fixture.topic_fixation.evidence[0],fixture.topic_fixation.evidence[0]],[{output_index:0,quote:chat[0].mes},fixture.topic_fixation.evidence[1]],[{output_index:99,quote:'outside supplied replies'},fixture.topic_fixation.evidence[1]]]) {
     assert.equal(assessRepetition({topic_fixation:{...fixture.topic_fixation,evidence}},window,identity).guard,null);
 }
 const options={chat,chatKey:'room-A',excluded:[],fingerprint:hash};

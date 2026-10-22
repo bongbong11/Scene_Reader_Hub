@@ -767,7 +767,7 @@ const reasonerCandidates = validateReasonerResult({
     possible_followups: [],
 }, { sourceText: continuitySource, continuity: emptyContinuity(), sourceIdentity: continuityIdentity });
 assert.equal(reasonerCandidates.length, 2);
-assert.equal(validateReasonerResult({ new_items: [{ kind: 'plan', label: 'Already called the family', lifecycle:'completed', source_type: 'intention', evidence: 'I will handle the meeting.' }] }, { sourceText: continuitySource, continuity: emptyContinuity(), sourceIdentity: continuityIdentity }).length, 0, 'an intention cannot become a completed continuity item');
+assert.equal(validateReasonerResult({ new_items: [{ kind: 'plan', label: 'Already called the family', lifecycle:'completed', source_type: 'intention', evidence: 'I will handle the meeting.' }] }, { sourceText: continuitySource, continuity: emptyContinuity(), sourceIdentity: continuityIdentity }).length, 1, 'the model owns lifecycle interpretation; code preserves its typed result');
 const committedContinuity = applyContinuityVerdicts(emptyContinuity(), reasonerCandidates, { continuity_candidate_0: 'accept_changed', continuity_candidate_1: 'supported' }, { opportunity: 2 });
 assert.equal(committedContinuity.continuity.items.length, 1);
 assert.equal(committedContinuity.continuity.knowledge[0].character, 'Wade');

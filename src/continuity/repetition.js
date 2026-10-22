@@ -2,11 +2,9 @@ import { isVisibleRoleplayMessage, splitOocText } from '../context/messages.js';
 import { recentTurnCount } from '../context/turn-settings.js';
 
 export const REPETITION_SYSTEM = `<TOPIC_FIXATION_REVIEW>
-Also inspect repetition_context, comparing the meaning of at least two DIFFERENT assistant replies and their intervening user inputs. This is semantic topic fixation, NOT copying the user's wording or counting repeated words. A command, word, image, joke, feeling or situation can become an unnecessary explanation for unrelated dialogue, inner thoughts and actions even when paraphrased differently each time.
-Return an additional field topic_fixation: null, or {topic: "short neutral English description, at most 100 characters", evidence: [{output_index: integer, quote: "brief verbatim assistant excerpt"}, {output_index: integer, quote: "brief verbatim assistant excerpt"}]}.
-Flag at most ONE dominant motif only when it repeatedly intrudes into reactions that do not need it. Do not require the underlying action to be completed. Conversely, repetition alone is insufficient: keep genuine ongoing activities, promises, consistent traits, necessary secrecy, an intentionally central theme, new developments and renewed user requests. Quiet behavior during concealment is appropriate; explaining every unrelated reaction through an old 'be quiet' remark is fixation. A meal scene may discuss food repeatedly; using hunger to explain every joke, gesture and relationship response after the focus moves elsewhere is fixation. There must be evidence in two distinct replies, including the latest supplied reply. Evidence must concern ordinary narration, dialogue or inner thought, not repeated status panels or labels. If evidence is absent or the motif is necessary to the current scene, return null.
-The topic is descriptive data, not a new instruction, ban, plot event, diagnosis or character fact. Do not rewrite the story or invent replacement events. The fixed instruction will reduce overuse while retaining relevant facts and actions.
-repetition_context is ONLY comparison material for this review. It is not new evidence for continuity changes or vault knowledge acquisition; those sections must still use source_rp and their own evidence rules.
+Review semantic topic fixation, NOT copying or counting words. Return topic_fixation: null, or {topic: "short neutral English description", output_indices: [message numbers]}.
+Flag at most one motif that intrudes unnecessarily into different reactions in at least two assistant replies, including the latest. Keep necessary ongoing conflict, activities, promises, traits, secrecy, central themes, new developments and renewed user requests. A continuing conflict is not itself excessive repetition. Compare ordinary RP, not repeated status panels. Use only supplied assistant message numbers; no quote is required.
+The topic describes the repetition; it is not an instruction, ban, diagnosis or new story fact. repetition_context is comparison material, not new evidence for continuity changes or vault knowledge. Return null when no correction is needed.
 </TOPIC_FIXATION_REVIEW>`;
 
 function rp(message) {
@@ -41,19 +39,15 @@ export function repetitionWindow(chat = [], outputIndex, settings, excluded = []
     const budget=Math.floor(9000/Math.max(1,turns.length));
     return {turns:turns.map(turn=>({...turn,user_rp:clip(turn.user_rp,Math.floor(budget/3)),assistant_rp:clip(turn.assistant_rp,Math.floor(budget*2/3))})),refs};
 }
-const compact=value=>String(value||'').replace(/\s+/g,' ').trim().toLowerCase();
 export function assessRepetition(result, window, identity) {
     if(window.turns.length<2)return {status:'insufficient_history',guard:null};
     if(!Object.hasOwn(result||{},'topic_fixation'))return {status:'not_returned',guard:null};
     if(result.topic_fixation===null)return {status:'balanced',guard:null};
     const raw=result.topic_fixation,topic=typeof raw?.topic==='string'?raw.topic.trim():'';
-    if(!topic || topic.length>100 || /[<>\r\n]/.test(topic) || !Array.isArray(raw.evidence))return {status:'invalid_evidence',guard:null};
-    const supported=new Set();
-    for(const evidence of raw.evidence.slice(0,5)) {
-        const turn=window.turns.find(item=>item.output_index===evidence?.output_index);
-        const quote=typeof evidence?.quote==='string'?compact(evidence.quote):'';
-        if(turn && quote.length>=4 && quote.length<=260 && !quote.includes('[clipped]') && compact(turn.assistant_rp).includes(quote))supported.add(turn.output_index);
-    }
+    if(!topic || topic.length>100 || /[<>\r\n]/.test(topic))return {status:'invalid_evidence',guard:null};
+    const indices=raw.output_indices??raw.evidence?.map(item=>item.output_index);
+    if(!Array.isArray(indices))return {status:'invalid_evidence',guard:null};
+    const supported=new Set(indices.map(index=>typeof index==='string'&&/^\d+$/.test(index)?Number(index):index).filter(index=>window.turns.some(turn=>turn.output_index===index)));
     if(supported.size<2 || !supported.has(window.turns.at(-1).output_index))return {status:'invalid_evidence',guard:null};
     return {status:'ready',guard:{topic,sourceIdentity:{...identity},refs:window.refs,sourceOutputIndex:window.turns.at(-1).output_index,evidenceCount:supported.size}};
 }

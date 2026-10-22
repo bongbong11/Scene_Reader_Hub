@@ -24,14 +24,21 @@ function stateFor(code, fields, roster, reject = () => null, completeMoods=false
     const targets = {};
     const seen = new Set();
     let ignoredDisabled = false;
+    const invalidFields=new Set();
     for (const field of fields) {
-        const match = /^([a-z_]+(?:[ -][a-z]+)*)\s*(?:[:=]\s*)?(\d{1,3}(?:\.0+)?)\s*%?\s*(?:@\s*([\p{L}\p{N} .'_-]{1,64}))?$/iu.exec(String(field).trim());
-        if (!match) return reject('field_format');
+        const match = /^([a-z_]+(?:[ -][a-z]+)*)\s*(?:[:=]\s*)?(\d{1,3}(?:\.\d+)?)\s*%?\s*(?:@\s*([\p{L}\p{N} .'_-]{1,64}))?$/iu.exec(String(field).trim());
+        if (!match) { if(!completeMoods)return reject('field_format');reject('field_format');continue; }
         const key = fieldName(match[1]);
-        if (!FIELD_NAMES.has(key)) return reject('unknown_field');
-        if (seen.has(key)) return reject('duplicate_field');
-        const number = Number(match[2]);
-        if (number > 100) return reject('out_of_range');
+        if (!FIELD_NAMES.has(key)) { if(!completeMoods)return reject('unknown_field');reject('unknown_field');continue; }
+        const rawNumber=Number(match[2]);
+        if(rawNumber>100||!completeMoods&&!Number.isInteger(rawNumber)) { if(!completeMoods)return reject(rawNumber>100?'out_of_range':'field_format');reject('out_of_range');continue; }
+        const number=Math.round(rawNumber);
+        if(invalidFields.has(key))continue;
+        if(seen.has(key)) {
+            if(!completeMoods)return reject('duplicate_field');
+            if(values[key]===number&&(targets[key]||'')===(match[3]?.trim()||''))continue;
+            delete values[key];delete targets[key];seen.delete(key);invalidFields.add(key);reject('duplicate_field');continue;
+        }
         if ((key === 'a' || key === 'c') && !person.trackArousal) { ignoredDisabled = true; continue; }
         if(completeMoods && person.requestedFields && !person.requestedFields.includes(key))continue;
         seen.add(key);

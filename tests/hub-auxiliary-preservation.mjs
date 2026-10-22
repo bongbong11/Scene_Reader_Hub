@@ -34,7 +34,7 @@ for(const operation of ['edit','hide','switch','stop']){
  assert.ok(!r.events.some(event=>event.code==='analysis_result'&&event.status==='succeeded'));
 }
 // Network and persistence failures retain the last good state and terminate.
-for(const kind of ['network','storage']){const r=auxiliaryFixture();r.records.get('room-A').relationshipState={trust:'keep'};if(kind==='network')r.deps.requestWithConnectionProfile=async()=>{throw new Error('failure');};else r.deps.storagePost=async()=>{throw new Error('failure');};await r.turn();await r.turn();assert.equal((await r.turn()).status,'failed');assert.equal(r.analysis.busy,false);assert.deepEqual(r.records.get('room-A').relationshipState,{trust:'keep'});}
+for(const kind of ['network','storage']){const r=auxiliaryFixture();r.records.get('room-A').relationshipState={trust:'keep'};if(kind==='network')r.deps.requestWithConnectionProfile=async()=>{throw new Error('failure');};else r.deps.storagePost=async()=>{throw new Error('failure');};await r.turn();await r.turn();assert.equal((await r.turn()).status,kind==='network'?'fallback':'failed');assert.equal(r.analysis.busy,false);assert.deepEqual(r.records.get('room-A').relationshipState,{trust:'keep'});}
 // Failed/stale writes cannot publish or erase the current ordinary state.
 for(const scenario of ['normal','invalid','save-failed','stale-after-save']){
  const run=async(factory)=>{const r=auxiliaryFixture();let valid=true;r.records.get('room-A').preferences={keep:true};const write=r.deps.storagePost;r.deps.storagePost=async(route,body)=>{if(scenario==='save-failed')throw new Error('fail');await write(route,body);if(scenario==='stale-after-save')valid=false;};

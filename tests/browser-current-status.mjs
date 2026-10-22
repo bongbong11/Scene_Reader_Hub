@@ -35,6 +35,11 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
     await page.evaluate(()=>statusFixture.emit({stage:'analysis_failed',reasonCode:'PROFILE_NETWORK_ERROR',continuityIncluded:true}));
     assert.match(await continuity.textContent(),/연결모델 오류/);
     assert.doesNotMatch(await continuity.textContent(),/PROFILE_NETWORK_ERROR|미확인/);
+    await page.evaluate(()=>statusFixture.emit({stage:'analysis_result',status:'degraded',reasonCode:'PROFILE_NETWORK_ERROR',codeFallback:true,continuityIncluded:true}));
+    assert.match(await continuity.textContent(),/연결모델 오류 · 코드 대체 실행/);
+    await page.evaluate(()=>statusFixture.emit({stage:'analysis_result',status:'degraded',reasonCode:'CONTINUITY_PARTIAL_RESULT',continuityIncluded:true}));
+    assert.match(await continuity.textContent(),/정상 항목은 반영/);
+    assert.doesNotMatch(await continuity.textContent(),/연결모델 오류/,'an item shape problem is not a failed model call');
     assert.equal(await page.locator('#sr-current-status').innerText(),'','status trigger is an icon, not a text button');
     await page.evaluate(()=>{
         statusFixture.emit({code:'RUN_STARTED'});
