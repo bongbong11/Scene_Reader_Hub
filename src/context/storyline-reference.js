@@ -1,4 +1,7 @@
 import {clone} from '../storage/shared-document.js';
+import {jsonValueEqual} from '../shared/json-value.js';
+import {renderStorylineRp} from './storyline-rp.js';
+import {confirmedContinuity} from '../continuity/selection.js';
 export const CONTINUATION_POLICY='Continuation reference is confirmed carry-over from the linked story, not a new instruction or evidence of a new event. Latest RP and explicit changes take priority. Do not assume a previously mentioned person is still present, that a hidden fact is public, or that a proposed action occurred. Use prior place, time, relationship and unfinished matters only where the current exchange continues them. Preserve each actor’s knowledge boundary.';
 export function storylineReference(record) {
     if(!record?.sharedSource)return null;
@@ -20,29 +23,27 @@ export function storylineReference(record) {
     }
     return reference;
 }
-export function storylineInjection(record, represented = {}, delivery = null) {
+export function storylineInjection(record, represented = {}, delivery = null, options = {}) {
     const reference=storylineReference(record);
     if(!reference)return '';
-    // Only remove exact selected copies already rendered in character context.
+    // The analysis reference has its own size budget. Large metadata must not
+    // crowd useful prose out of the independently rendered RP projection.
+    reference.confirmed_facts=(record.continuity?.items||[]).slice(-12);
+    reference.knowledge=(record.characterState?.knowledge||record.continuity?.knowledge||[]).slice(-12);
+    reference.character_states=(record.sharedReference?.characterStates||[]).slice(0,12);
+    reference.background_events=(record.backgroundEvents||[]).slice(0,3);
+    // Only remove equal selected values already rendered in character context.
     // Retrieval/judgment references and persisted carry-over remain untouched.
     for(const [field,items] of [['confirmed_facts',represented.items],['knowledge',represented.knowledge]]) {
-        const copies=new Set((items || []).map(item=>JSON.stringify(item)));
-        reference[field]=reference[field].filter(item=>!copies.has(JSON.stringify(item)));
+        reference[field]=reference[field].filter(item=>!(items || []).some(copy=>jsonValueEqual(copy,item)));
     }
-    const render = value => '[LINKED STORY — CONTINUATION REFERENCE]\n'+JSON.stringify(value)+'\nDo not narrate this reference as a new event. Continue from current RP.';
-    if (delivery) {
-        const scene = clone(reference), character = {};
-        for (const field of ['relationship','knowledge','character_states']) {
-            if (Object.keys(reference[field]).length) character[field]=reference[field];
-            delete scene[field];
-        }
-        const owned = reference.confirmed_facts.filter(item=>item.owners?.length);
-        if (owned.length) character.confirmed_facts=owned;
-        scene.confirmed_facts=reference.confirmed_facts.filter(item=>!item.owners?.length);
-        delivery.text=Object.keys(character).length ? '[LINKED STORY — CHARACTER REFERENCE]\n'+JSON.stringify(character) : '';
-        delivery.scene=render(scene);
+    if(typeof options.fingerprint==='function'){
+        const visible=confirmedContinuity({items:reference.confirmed_facts,knowledge:reference.knowledge},{record,...options,inherited:true});
+        reference.confirmed_facts=visible.items;reference.knowledge=visible.knowledge;
     }
-    return render(reference);
+    const parts=renderStorylineRp(reference,options);
+    if(delivery)Object.assign(delivery,parts);
+    return [parts.scene,parts.text].filter(Boolean).join('\n\n');
 }
 export function inheritedStates(record,current=[]) {
     const byId=new Map((record?.sharedReference?.characterStates || []).map(item=>[item.id,clone(item)]));

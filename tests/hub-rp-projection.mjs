@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {storylineReference,storylineInjection,storylineRetrievalCue} from '../src/context/storyline-reference.js';
+const record={sharedSource:{id:'internal-story'},sharedReference:{summary:'Aster and Briar are in the library.',scene:{location:'Library'},characterStates:[{id:'internal-actor',name:'Aster',values:{fear:20},revision:7}]},relationshipState:{trust:'mixed',revision:8},continuity:{items:[{id:'internal-fact',label:'A prior misunderstanding',owners:['Aster'],summary:'Aster doubts the explanation.',lifecycle:'active',sourceRefs:[{messageIndex:342,contentHash:'PRIVATE_HASH'}],stateUpdates:[{baseState:{summary:'PRIVATE_OLD_STATE'}}]}],knowledge:[],dependencies:[],followups:[]}};
+const before=structuredClone(record),parts={};
+const rendered=storylineInjection(record,{},parts);
+assert.match(rendered,/Aster doubts the explanation/);
+assert.match(rendered,/Aster — prior feelings: fear: 20/);
+assert.match(parts.scene,/Library/);assert.doesNotMatch(parts.scene,/doubts the explanation/);
+for(const forbidden of ['sourceRefs','messageIndex','contentHash','stateUpdates','baseState','revision','internal-story','internal-fact','internal-actor','PRIVATE_'])assert.ok(!rendered.includes(forbidden),forbidden);
+assert.deepEqual(record,before,'RP projection cannot delete the internal evidence');
+assert.equal(storylineReference(record).confirmed_facts[0].sourceRefs[0].messageIndex,342);
+assert.match(storylineRetrievalCue(storylineReference(record)),/Library/);
+record.continuity.items[0].sourceRefs=Array.from({length:300},()=>({contentHash:'metadata',messageIndex:1}));
+assert.match(storylineInjection(record),/Aster doubts the explanation/,'metadata size cannot evict a short RP fact');
+console.log('RP projection passed: prose-only delivery, scoped character split, preserved internal evidence and independent rendering budget.');

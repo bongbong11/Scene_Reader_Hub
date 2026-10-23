@@ -112,11 +112,11 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             if(frame.characterDelivery.version===1)frame.characterDelivery.scenePayload=frame.characterDelivery.scenePayload.slice(0,-2)+`\n\n${castText}\n)`;
         }
         const carriedParts={};
-        const carried=storylineInjection(frame.rec, personContext.moved, carriedParts);
+        const carried=storylineInjection(frame.rec, personContext.moved, carriedParts,{chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,people:frame.liveCharacters});
         if(carried){
             frame.payload=carried+'\n\n'+frame.payload;
             if(frame.characterDelivery.version===1){
-                frame.characterDelivery.scenePayload=carriedParts.scene+'\n\n'+frame.characterDelivery.scenePayload;
+                frame.characterDelivery.scenePayload=[carriedParts.scene,frame.characterDelivery.scenePayload].filter(Boolean).join('\n\n');
                 frame.characterDelivery.text=[carriedParts.text,frame.characterDelivery.text].filter(Boolean).join('\n\n');
             }
         }

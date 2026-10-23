@@ -70,7 +70,7 @@ for(const failure of ['network','malformed']) {
     let saved=code.records.get('room-A');
     assert.equal(calls,1);assert.equal(saved.lastContinuityTrace.status,'fallback');assert.ok(saved.continuity.references.length);
     assert.equal(saved.continuity.items.length,0,'an excerpt is not a verified promise/completion');
-    const text=buildContinuityInjection(selectActiveContinuity(continuityView(saved),''));assert.match(text,/Uninterpreted RP context/);
+    const text=buildContinuityInjection(selectActiveContinuity(continuityView(saved),''));assert.match(text,/Uninterpreted prior RP/);
     assert.ok(!JSON.stringify(code.events).includes('bridge is blocked'));
     const reference=saved.continuity.references[0];
     const opts={record:saved,chatRef:'room-A',chat:code.context.chat,fingerprint:code.deps.fingerprint};

@@ -82,7 +82,7 @@ export function continuityLines(selected, chosenFollowup = null, eventFollowups 
         if (summary) lines.push(`${short(item.character, 80)} has ${item.source} information concerning ${summary}; source type=${SOURCE_TYPES.has(item.sourceType)?item.sourceType:'unspecified'}.`);
     }
     for (const item of selected?.dependencies || []) lines.push(`${short(item.stateId, 60)} remains in its established lifecycle; pressure=${item.pressure}${item.reason?`; ${short(item.reason,160)}`:''}.`);
-    for (const item of selected?.references || []) lines.push(`Uninterpreted RP context (${item.role}, message ${item.messageIndex}): ${JSON.stringify(short(item.text,600))}. This is an excerpt, not a verified state update; distinguish statements and plans from completed actions.`);
+    for (const item of selected?.references || []) lines.push(`Uninterpreted prior RP (${item.role}): ${short(item.text,600)}. Distinguish statements and plans from completed actions.`);
     const action = usable(chosenFollowup?.data?.action, 180);
     if (action) lines.push(`Carry the selected established thread forward: ${action}. Perform its next supported step within the current interaction; do not claim an unseen action already happened.`);
     for(const item of eventFollowups.slice(0,1)) {

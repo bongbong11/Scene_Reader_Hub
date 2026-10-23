@@ -90,13 +90,13 @@ assert.deepEqual(storylineReference(record),before);
 assert.equal(JSON.stringify(record),recordBefore);
 assert.match(storylineInjection(record,{items:[{...promise,lifecycle:'completed'}]}),/Deliver the sealed letter/,'do not remove a different state with the same ID');
 {
-    const prior={...record,relationshipState:{tension:'high'},sharedReference:{...record.sharedReference,characterStates:[{id:'alex',fear:30}]}};
+    const prior={...record,relationshipState:{tension:'high'},sharedReference:{...record.sharedReference,characterStates:[{id:'alex',name:'Alex',fear:30}]}};
     const parts={};
     assert.equal(storylineInjection(prior,{},parts),storylineInjection(prior),'splitting carry-over does not change integrated output');
-    assert.match(parts.text,/"tension":"high"/);
-    assert.match(parts.text,/"fear":30/);
+    assert.match(parts.text,/tension: high/);
+    assert.match(parts.text,/Alex — prior feelings: fear: 30/);
     assert.match(parts.text,/west gate|Deliver the sealed letter/);
-    assert.doesNotMatch(parts.scene,/west gate|Deliver the sealed letter|"tension":"high"|"fear":30/);
+    assert.doesNotMatch(parts.scene,/west gate|Deliver the sealed letter|tension: high|fear: 30/);
     assert.match(parts.scene,/market|ongoing trip/);
 }
 
@@ -113,8 +113,8 @@ const frame={details:{},prefs:settings,decisions:{...FALLBACKS},liveCharacters:[
     staged:{},memory:{status:'unused'},context:{contextKey:'synthetic'},additions:[],npcTargets:[]};
 await createInjectionPreparation(deps).prepareInjection({identity:'synthetic'},frame);
 assert.ok(frame.rec.lastJudgment.characterDelivery.text.includes(promise.label));
-assert.match(frame.rec.lastJudgment.characterDelivery.text,/"tension":"high"/);
-assert.doesNotMatch(frame.rec.lastJudgment.characterDelivery.scenePayload,/"tension":"high"/);
+assert.match(frame.rec.lastJudgment.characterDelivery.text,/tension: high/);
+assert.doesNotMatch(frame.rec.lastJudgment.characterDelivery.scenePayload,/tension: high/);
 assert.ok(frame.rec.pendingPlan.judgment.characterDelivery.text.includes(promise.label));
 assert.equal(frame.payload.split(fact.summary).length-1,1);
 assert.ok(!frame.characterDelivery.scenePayload.includes(promise.label));
