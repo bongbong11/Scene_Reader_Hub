@@ -82,8 +82,10 @@ if (frame.prefs.settingsContract >= 3) {
     if(frame.npcReferenceCandidates)deps.noteDiagnostic?.('npc_reference_search',{module:'src/decision/prepare.js',registeredCount:deps.characterStore.npcs.length,
         currentCount:currentNpcIds.size,prospectiveCount:future.length,skippedCount:[...(frame.npcReferences?.values()||[])].filter(value=>value==='skip').length,
         fallbackCount:prospective.filter(entry=>!['reference','skip'].includes(frame.npcReferences?.get(entry.id))).length});
+    const villainIds=new Set([frame.rec.villainProfile,...frame.generatedVillainTargets].filter(Boolean).map(item=>item.id));
     frame.castGenerated=[frame.rec.npcProfile,frame.rec.villainProfile,...frame.generatedNpcTargets,...frame.generatedVillainTargets]
-        .filter((item,index,all)=>item&&item.status!=='retired'&&all.findIndex(other=>other?.id===item.id)===index).slice(0,8);
+        .filter((item,index,all)=>item&&item.status!=='retired'&&all.findIndex(other=>other?.id===item.id)===index).slice(0,8)
+        .map(item=>villainIds.has(item.id)?{...item,antagonist:true}:item);
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));
     frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? [...frame.activeCharacters,...future] : [],
         transcripts:new Map(frame.castSheets.map(entry=>[entry.id,`${frame.retrievalTranscript||frame.transcript}\n${castQuery}`])),

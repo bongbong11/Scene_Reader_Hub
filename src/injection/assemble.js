@@ -9,6 +9,8 @@ import {buildStoryDirection} from '../world/story-direction.js';
 import { selectExecutionCorrectionKeys } from '../scene/correction-selection.js';
 import {negativePriorityInstruction} from './priority.js';
 import {buildAntagonistExecution} from './npc-execution.js';
+import {conflictExecutionEnabled} from './conflict-routing.js';
+import {npcDeliveryTarget,scopeNpcExecution,npcTargetMatches} from './npc-routing.js';
 
 const TURN_END = `Let non-user characters act on their own intent before handing back the turn. Do not end with a generic question, menu, permission request, or invented deadline. A natural in-character question is welcome when the interaction genuinely needs {{user}}'s response.`;
 
@@ -280,7 +282,7 @@ export const SCENE_FOCUS_LABELS = {
     villain: 'the selected antagonist involvement', continuity: 'the selected continuity consequence',
 };
 
-export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', characterContextBlock = '', sheetCastNames = [], sheetNpcTarget = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], storyDirection = null, activeWorldName = '', correctionDetails = {}, hasAdditions = false, delivery = null }) {
+export function buildInjection({ settings, decisions, villainProfile, npcProfile, eventProfile, privatePrompt = '', characterBlock = '', sexualBlock = '', continuityBlock = '', characterContextBlock = '', sheetCastNames = [], sheetNpcTarget = '', sheetNpcId = '', presentSheetNpcNames = [], antagonistActors = [], eventActors = [], storyDirection = null, activeWorldName = '', correctionDetails = {}, hasAdditions = false, delivery = null }) {
     if (settings.developmentStyle) settings = normalizeDevelopmentPreferences(settings);
     const agency = worldAgencyParts(settings, decisions);
     const boosting = settings.developmentStyle!=='static' && decisions.progress_boost==='yes';
@@ -365,31 +367,43 @@ Answer the current interaction through character-consistent speech, a decision, 
         const arrival = {visit:'Arrive in person for a setting-compatible reason.',encounter:'Meet naturally along an established activity or route.',participate:'Join or become involved in the current activity.',background:'Let a previously peripheral person become locally involved without rewriting their prior role.',contact:'Make a plausible bounded contact; a call or message is one option, not the default.'}[decisions.arrival_mode];
         if (arrival) blocks.push(`<PERSON_ARRIVAL>${arrival} Keep the entrance proportionate to the current interaction. Do not invent prior familiarity, hidden access, or duplicate a registered person.</PERSON_ARRIVAL>`);
     }
-    const boundNames=new Set(eventActors.map(actor=>actor.name).filter(Boolean));
+    const npcTarget=npcDeliveryTarget({decisions,profile:npcProfile,sheetName:sheetNpcTarget,sheetId:sheetNpcId,presentNames:presentSheetNpcNames});
     const boundIds=new Set(eventActors.map(actor=>actor.actorId).filter(Boolean));
-    const boundGeneral=boundNames.has(sheetNpcTarget)||Boolean(npcProfile?.id&&boundIds.has(npcProfile.id))||eventActors.some(actor=>actor.kind==='scene_existing');
+    const boundGeneral=eventActors.some(actor=>npcTargetMatches(npcTarget,actor));
     const npc = npcIsSheetCast || boundGeneral ? '' : genreNpcPrompt(npcProfile, decisions.npc_route);
     if (npc && ['create', 'replace', 'reuse', 'background'].includes(decisions.npc_route)) personal(npc);
     if (sheetNpcTarget && !boundGeneral && decisions.npc_route === 'reuse') blocks.push(`<SHEET_NPC_SCENE>Let ${sheetNpcTarget} perform one scene-relevant ${decisions.npc_role || 'participant'} function at ${decisions.npc_weight || 'brief'} weight. Follow established characterization and any selected stored records for motive, knowledge, and response.</SHEET_NPC_SCENE>`);
-    const npcExecution = npcExecutionPrompt(decisions, presentSheetNpcNames.length===1 && decisions.npc_role && decisions.npc_role!=='none', agency.npc);
-    const actionTarget=sheetNpcTarget||(presentSheetNpcNames.length===1?presentSheetNpcNames[0]:'');
-    if (npcExecution && !boundGeneral && !boundNames.has(actionTarget)) personal(actionTarget ? `<SHEET_NPC_ACTION_TARGET>${actionTarget}: Apply the following role guidance to this registered person using their own characterization.</SHEET_NPC_ACTION_TARGET>\n${npcExecution}` : npcExecution);
+    const establishedNpcTarget=presentSheetNpcNames.length===1 && decisions.npc_role && decisions.npc_role!=='none';
+    const npcExecution = npcExecutionPrompt(decisions, establishedNpcTarget, agency.npc);
+    const actionTarget=npcTarget?.name||'';
+    if (npcExecution && !boundGeneral) personal(scopeNpcExecution(npcExecution,npcTarget));
+    // The assigned move replaces a second action, never its selected information boundaries.
+    if (boundGeneral && (establishedNpcTarget || ['create','replace','reuse'].includes(decisions.npc_route))) {
+        const information=[NPC_KNOWLEDGE_PROMPTS[decisions.npc_knowledge],NPC_DISCLOSURE_PROMPTS[decisions.npc_disclosure]].filter(Boolean);
+        if(information.length)personal(scopeNpcExecution(`<NPC_INFORMATION_SCOPE>\n${information.join('\n')}\n</NPC_INFORMATION_SCOPE>`,npcTarget));
+    }
+    // The event owns this person's move, not the surrounding world's activity.
+    if (boundGeneral && agency.npc) personal(npcExecutionPrompt({},false,agency.npc));
 
     // Current conflict actions follow the scene plan; persistent settings are above.
     // Preserve the supplied wording and order inside each source group.
     const fightBlocks = [];
     for (const actor of antagonistActors.filter(actor=>!boundIds.has(actor.id))) blocks.push(buildAntagonistExecution({actor:actor.name,tactic:decisions[`character_${actor.index}_conflict_tactic`]||'character_driven',antagonist:true}));
     if (['create','replace','continue'].includes(decisions.villain_route) && villainProfile && !boundIds.has(villainProfile.id)) blocks.push(buildAntagonistExecution({tactic:decisions.npc_conflict_tactic,antagonist:true}));
-    if (decisions.npc_route==='reuse' && !boundGeneral && ['opposition','exploiter'].includes(decisions.npc_role) && !boundNames.has(actionTarget) && !antagonistActors.some(actor=>actor.name===actionTarget)) blocks.push(buildAntagonistExecution({actor:actionTarget||'the selected opposed NPC',tactic:decisions.npc_conflict_tactic,antagonist:true}));
+    if (decisions.npc_route==='reuse' && !boundGeneral && ['opposition','exploiter'].includes(decisions.npc_role) && !antagonistActors.some(actor=>npcTargetMatches(npcTarget,{...actor,kind:'sheet'}))) blocks.push(buildAntagonistExecution({actor:actionTarget||'the selected opposed NPC',tactic:decisions.npc_conflict_tactic,antagonist:true}));
     if (decisions.npc_autonomy === 'yes') fightBlocks.push(L.AUTONOMOUS_NPC_DYNAMICS);
     if (decisions.villain_route === 'create' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, true));
     if (decisions.villain_route === 'replace' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, true));
     if (decisions.villain_route === 'continue' && villainProfile) fightBlocks.push(antagonistPrompt(villainProfile, false));
     if (decisions.fight_sustain === 'yes') fightBlocks.push(L.SUSTAINED_INTERPERSONAL_CONFLICT);
-    const existingConflict = fightBlocks.length || ['tension','active'].includes(decisions.conflict_state);
+    const existingConflict = conflictExecutionEnabled(settings, decisions, {
+        legacyConflict: fightBlocks.length || ['tension','active'].includes(decisions.conflict_state),
+        privatePrompt, villainProfile, antagonistActors, eventActors,
+    });
+    if (!existingConflict) personal(...fightBlocks);
     if (existingConflict || agency.conflict) {
         const conflictBlock = values => `<CONFLICT_PROGRESSION>\nApply these conflict instructions through the selected scene and each participant's established motives, information, and means.\n${[existingConflict ? L.CONFLICT_EXECUTION : '', ...values, agency.conflict].filter(Boolean).join('\n\n')}\n</CONFLICT_PROGRESSION>`;
-        split(conflictBlock(fightBlocks), conflictBlock([]), fightBlocks.join('\n\n'));
+        split(conflictBlock(existingConflict ? fightBlocks : []), conflictBlock([]), existingConflict ? fightBlocks.join('\n\n') : '');
     }
 
     if (String(characterContextBlock || '').trim()) personal(String(characterContextBlock).trim());

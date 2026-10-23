@@ -27,6 +27,10 @@ export function buildEventCastInjection(bindings=[]) {
     return bindings.map(binding=>{
         if(binding.kind==='unresolved')return 'For the selected event, do not invent an inaccessible actor or a new identity without the person offer. Execute the available part with established participants; do not claim the missing contact occurred.';
         const actor=binding.kind==='current_cast'?'the existing non-user participants':binding.kind==='scene_existing'?'the relevant established NPC':String(binding.name||'the selected actor').replace(/[<>\r\n]/g,' ');
+        if(binding.antagonist){
+            const profile=binding.profile?` Established purpose: ${binding.profile.aim||binding.profile.motive||''}. Means and access: ${binding.profile.access||''}. Established conduct: ${binding.profile.method||''}.`:'';
+            return `Event actor: ${actor}. ${buildAntagonistExecution({actor,tactic:binding.action,antagonist:true})}${profile} This actor's move belongs to the selected event or ongoing interaction; do not add a second entrance or independent subplot. Preserve the target's response and uncertain outcome.`;
+        }
         const tactic=(CONFLICT_TACTICS[binding.action]||CONFLICT_TACTICS.character_driven).replaceAll('the NPC','the acting character');
         const profile=binding.kind==='generated'?` Established purpose: ${binding.profile?.aim||binding.profile?.motive||''}. Means and access: ${binding.profile?.access||''}.`:'';
         if(binding.beatKey==='direction')return `Ongoing actor: ${actor}. ${tactic}${profile} Use available presence or contact within the ongoing interaction; do not add an unselected incident or identity. Preserve established personality, knowledge and relationship pace; leave the other person's response and success open.`;

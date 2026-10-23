@@ -3,6 +3,7 @@ import {createTransmissionPreview} from './transmission-preview.js';
 import {activePresetPrompts} from './preset-catalog.js';
 import {applyPresetSlots, slotBlock} from './preset-position.js';
 import {injectionSourceCurrent, captureOwnedBlocks, stripOwnedBlocks} from './source-validity.js';
+import {createRequestOwnership} from './request-ownership.js';
 
 const CHAIN=Symbol.for('hyedam.request-injection.hook-chain.v1');
 const TYPES=new Set(['normal','regenerate','swipe','continue']);
@@ -16,11 +17,11 @@ function ownedHook(previous,owner,wrapper) {
 export function createPresetRequest(deps) {
     const fetchOwner=Symbol('scene-reader.request'),captureOwner=Symbol('scene-reader.capture');
     let host={},active=false,pending=null,ready=null,invalidated=null,owned=[];
-    const prepared=new Map(),certified=new Set();
+    const prepared=new Map(),ownership=createRequestOwnership();
     const cycle=()=>deps.getCycle();
     const characterMacro=createCharacterMacro({getContext:deps.getContext,isEnabled:()=>deps.isEnabled()&&deps.isCharacterMacroEnabled?.(),isActive:()=>active&&Boolean(expected()?.payload)});
     const preview=createTransmissionPreview({isCurrent:value=>injectionSourceCurrent(value,{chat:deps.getContext().chat,chatKey:deps.getChatKey()}),enabled:()=>deps.isEnabled()&&deps.isCharacterMacroEnabled?.(),render:names});
-    function reset({keepPreview=false}={}){if(!keepPreview)preview.clear();characterMacro.reset();active=false;pending=null;ready=null;invalidated=null;owned=[];prepared.clear();certified.clear();}
+    function reset({keepPreview=false}={}){ownership.reset();if(!keepPreview)preview.clear();characterMacro.reset();active=false;pending=null;ready=null;invalidated=null;owned=[];prepared.clear();}
     function capture() {
         const manager=host.promptManager || deps.getContext().promptManager;
         const original=manager?.preparePrompt;
@@ -40,7 +41,7 @@ export function createPresetRequest(deps) {
         return [value.scenePreset?{kind:'scene',slot:value.sceneSlot,content:slotBlock('scene',names([value.deliveryPayload??value.payload,value.capturePayload].filter(Boolean).join('\n\n')))}:null,
             value.worldPreset?{kind:'world',slot:value.worldSlot,content:slotBlock('world',names(value.worldPayload))}:null].filter(Boolean);
     }
-    function remember(body){certified.add(fingerprint(body));if(certified.size>6)certified.delete(certified.values().next().value);}
+    function remember(body){ownership.remember(fingerprint(body),ready,owned);}
     function apply(body,phase) {
         const value=expected();
         if(!active || !value || !Array.isArray(body?.messages))return;
@@ -61,19 +62,29 @@ export function createPresetRequest(deps) {
             let receipt=null;
             const address=typeof input==='string'?input:String(input?.url || input?.href || '');
             const method=String(options?.method || input?.method || '').toUpperCase();
-            if(active && method==='POST' && /\/api\/backends\/chat-completions\/generate(?:[?#]|$)/.test(address)) {
+            if((active || ownership.pending) && method==='POST' && /\/api\/backends\/chat-completions\/generate(?:[?#]|$)/.test(address)) {
                 // Capture the caller and owner before reading a Request body:
                 // awaiting clone().text() may drop callers or cross a new cycle.
                 const requestOwner=ready;
+                const requestEpoch=ownership.epoch,requestOwned=owned;
                 const frames=String(new Error().stack || '').split('\n');
                 const sender=frames.findIndex(frame=>/\bsendOpenAIRequest\b/.test(frame));
                 const callers=sender<0?[]:frames.slice(sender+1);
                 const mainPath=sender>=0 && callers.some(frame=>/\b(?:sendGenerationRequest|finishGenerating)\b/.test(frame)) && !callers.some(frame=>/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(frame));
+                const auxiliary=frames.some(frame=>/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(frame));
                 try {
                     const raw=options?.body ?? (typeof input?.clone==='function'?await input.clone().text():null);
                     if(typeof raw==='string') {
                         const body=JSON.parse(raw);
-                        if(active && requestOwner && ready===requestOwner && (!body.type || TYPES.has(body.type)) && (certified.has(fingerprint(body)) || mainPath)) {
+                        const ticket=ownership.get(fingerprint(body));
+                        const stale=ticket?.cancelled ? ticket : requestOwner && requestEpoch!==ownership.epoch && mainPath ? {owned:requestOwned} : null;
+                        if(!auxiliary && (!body.type || TYPES.has(body.type)) && stale){
+                            const removed=stripOwnedBlocks(body,stale.owned);
+                            deps.report('injection.consume','INJECTION_INVALIDATED',{module:'src/injection/source-validity.js',status:'info',removedCount:removed});
+                            if(removed){if(typeof input?.clone==='function' && options?.body===undefined)request=new deps.window.Request(input,{body:JSON.stringify(body)});else init={...options,body:JSON.stringify(body)};}
+                            return previous.call(this,request,init,...rest);
+                        }
+                        if(active && requestOwner && ready===requestOwner && (!body.type || TYPES.has(body.type)) && (ticket?.epoch===requestEpoch && !ticket.cancelled || mainPath)) {
                             if(requestOwner!==expected()){
                                 const removed=stripOwnedBlocks(body,owned);
                                 deps.report('injection.consume','INJECTION_INVALIDATED',{module:'src/injection/source-validity.js',status:'info',removedCount:removed});
@@ -85,7 +96,7 @@ export function createPresetRequest(deps) {
                                 if(typeof input?.clone==='function' && options?.body===undefined)request=new deps.window.Request(input,{body:JSON.stringify(body)});
                                 else init={...options,body:JSON.stringify(body)};
                             }
-                            track(body,requestOwner);deps.verifyRequest(body);requestOwner.requestSent=true;
+                            track(body,requestOwner);remember(body);deps.verifyRequest(body);requestOwner.requestSent=true;
                             if(characterMacro.enabled)receipt=preview.capture(body,requestOwner);
                         }
                     }

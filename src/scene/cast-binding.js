@@ -59,18 +59,19 @@ export function resolveCastBindings({beats=[],sheets=[],generated=[],answers={},
         const base={schemaVersion:CAST_CONTRACT,beatKey:beat.key,action:ACTIONS.has(action)?action:'character_driven',delivery:'prepared',verification:'awaiting_output'};
         const sheet=/^sheet_\d+$/.test(choice||'')?sheets[Number(choice.slice(6))]:null;
         const existing=/^generated_\d+$/.test(choice||'')?generated[Number(choice.slice(10))]:null;
-        if(sheet)return {...base,kind:'sheet',actorId:sheet.id,name:sheet.name};
-        if(existing)return {...base,kind:'generated',actorId:existing.id,name:existing.role||existing.motive||'established NPC',profile:existing};
+        if(sheet)return {...base,kind:'sheet',actorId:sheet.id,name:sheet.name,...(sheet.antagonist||sheet.npcRole==='villain'?{antagonist:true}:{})};
+        if(existing)return {...base,kind:'generated',actorId:existing.id,name:existing.role||existing.motive||'established NPC',profile:existing,...(existing.antagonist?{antagonist:true}:{})};
         if(choice==='new_person'&&person){
             // One new person, with a role in this event, not an unrelated second entrance.
             person.boundEvent=beat.key;
             person.candidate={...person.candidate,action:`Introduce one relevant participant through plausible access to act in this event: ${beat.text}`,effect:'The new participant actually enters or contacts the scene and acts in the selected event.'};
-            person.profile.role=beat.title || person.profile.role;
-            person.profile.aim=`Pursue their own character-specific purpose within this event: ${beat.text}`;
-            person.profile.access='Use a plausible arrival or contact supported by this event and the setting; do not invent prior familiarity or hidden access.';
-            person.profile.method=beat.text;
+            const antagonist=person.kind==='villain';
+            if(!antagonist)person.profile.role=beat.title || person.profile.role;
+            person.profile.aim=antagonist?`${person.profile.aim||person.profile.motive||'their established purpose'} Within this event: ${beat.text}`:`Pursue their own character-specific purpose within this event: ${beat.text}`;
+            if(!antagonist)person.profile.access='Use a plausible arrival or contact supported by this event and the setting; do not invent prior familiarity or hidden access.';
+            if(!antagonist)person.profile.method=beat.text;
             person.profile.contribution=event?.candidate.effect || beat.text;
-            return {...base,kind:'new',actorId:person.profile.id,name:'the selected new participant',profile:person.profile};
+            return {...base,kind:'new',actorId:person.profile.id,name:antagonist?'the selected new antagonist':'the selected new participant',profile:person.profile,...(antagonist?{antagonist:true}:{})};
         }
         if(choice==='current_cast'&&beat.requiresOutsideActor)return {...base,kind:'unresolved',reason:'outside_actor_required'};
         if(['scene_existing','current_cast'].includes(choice))return {...base,kind:choice};
@@ -79,5 +80,5 @@ export function resolveCastBindings({beats=[],sheets=[],generated=[],answers={},
 }
 
 export function castSummary(bindings=[]) {
-    return bindings.map(({schemaVersion,beatKey,kind,actorId,name,action,reason,delivery,verification})=>({schemaVersion,beatKey,kind,actorId,name,action,reason,delivery,verification}));
+    return bindings.map(({schemaVersion,beatKey,kind,actorId,name,action,reason,delivery,verification,antagonist})=>({schemaVersion,beatKey,kind,actorId,name,action,reason,delivery,verification,...(antagonist?{antagonist:true}:{})}));
 }

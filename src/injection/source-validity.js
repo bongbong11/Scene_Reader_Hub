@@ -20,7 +20,7 @@ export function captureOwnedBlocks(body,texts){
 }
 export function stripOwnedBlocks(body,manifest){
  let removed=0;
- const ambiguous=()=>{throw Object.assign(new Error('숨김 변경 후 주입을 안전하게 분리하지 못했습니다. 다시 실행해 주세요.'),{code:'HUB_STALE_INJECTION'});};
+ const ambiguous=()=>{throw Object.assign(new Error('이전 주입문을 안전하게 분리하지 못했습니다. 다시 실행해 주세요.'),{code:'HUB_STALE_INJECTION'});};
  for(const entry of manifest){
   const candidates=[];
   for(const message of body.messages||[])if(message.role===entry.role)for(const part of parts(message)){
