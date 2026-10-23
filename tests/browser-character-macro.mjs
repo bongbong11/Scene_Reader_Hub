@@ -23,6 +23,15 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     }
     assert.match(await previewText(),/아직 전송 전/);
     await page.locator('#sr-macro-preview button').click();
+    await page.evaluate(()=>{
+        const original=HTMLDialogElement.prototype.showModal;
+        HTMLDialogElement.prototype.showModal=function(){if(this.id==='sr-macro-preview')throw new Error('Synthetic preview failure');return original.call(this);};
+        window.restoreMacroDialog=()=>{HTMLDialogElement.prototype.showModal=original;};
+    });
+    await page.locator('#sr-character-macro-preview').click();
+    await page.waitForFunction(()=>SceneReaderHub.diagnostics().events.some(e=>e.errorKind==='MACRO_PREVIEW_FAILED'&&e.module==='src/ui/macro-preview.js'));
+    assert.equal(await page.locator('#sr-macro-preview').count(),0,'failed preview removes the dialog and subscription');
+    await page.evaluate(()=>{restoreMacroDialog();delete window.restoreMacroDialog;});
     for(const width of [390,1280]) {
         await setViewportSize({width,height:850});
         const box=await page.locator('#sr-character-macro-panel').boundingBox();

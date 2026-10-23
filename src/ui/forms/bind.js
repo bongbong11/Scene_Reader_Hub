@@ -109,7 +109,10 @@ function bindForm() {
         deps.renderAll();
     })(),'인물 매크로 설정을 저장하지 못했습니다.'));
     deps.document.getElementById('sr-character-macro-copy')?.addEventListener('click',()=>deps.runUiTask(deps.copyText('{{scene-reader-character}}')));
-    deps.document.getElementById('sr-character-macro-preview')?.addEventListener('click',()=>openMacroPreview({document:deps.document,preview:deps.macroTransmissionPreview}));
+    deps.document.getElementById('sr-character-macro-preview')?.addEventListener('click',()=>deps.runUiTask(Promise.resolve().then(()=>openMacroPreview({document:deps.document,preview:deps.macroTransmissionPreview})).catch(error=>{
+        deps.noteDiagnostic?.('macro_preview',{module:'src/ui/macro-preview.js',status:'failed',phase:'render',errorKind:'MACRO_PREVIEW_FAILED'});
+        throw error;
+    }),'인물 매크로 전송 내용을 표시하지 못했습니다.'));
     deps.document.getElementById('sr-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveInjectionMode(event.target.value)));
     deps.document.getElementById('sr-world-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveWorldInjectionMode(event.target.value)));
     deps.document.getElementById('sr-relationship-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('relationshipPace', event.target.value)));

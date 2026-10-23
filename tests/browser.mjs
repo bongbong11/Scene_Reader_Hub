@@ -551,6 +551,10 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.ok(!pausedPrompt.includes('CHARACTER_EXECUTION'),'dynamic character direction pauses');
     assert.ok(!pausedPrompt.includes('SEXUAL_CONDUCT'),'dynamic physical-conduct routing pauses');
     assert.match(pausedPrompt,/<FIXED_SCENE_SETTINGS>/,'basic fixed extension settings remain active');
+    const pausedLog=await page.evaluate(()=>SceneReaderHub.diagnostics().events.findLast(e=>e.code==='SCENE_DELIVERY'));
+    assert.equal(pausedLog.characterMacroSkipped,true);
+    assert.equal(pausedLog.referenceCount,1);
+    assert.match(await page.locator('#sr-hub-run-trace').textContent(),/NSFW 중단.*일반 시트 분석·매크로 생성 생략/);
     assert.match(pausedPrompt,/Active world:/,'the active world marker remains active');
     assert.match(pausedPrompt,/directions govern scene developments, not writing style/,'fixed prompt coexistence remains');
     gateScenario={level:'0',phase:'ended'};

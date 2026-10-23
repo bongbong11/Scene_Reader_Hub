@@ -17,5 +17,6 @@ export function openMacroPreview({document,preview}) {
     };
     const unsubscribe=preview.subscribe(refresh);
     dialog.addEventListener('close',()=>{unsubscribe();dialog.remove();});
-    dialog.append(title,status,content,note,close);document.body.append(dialog);refresh();dialog.showModal();
+    try{dialog.append(title,status,content,note,close);document.body.append(dialog);refresh();dialog.showModal();}
+    catch(error){unsubscribe();dialog.remove();throw error;}
 }

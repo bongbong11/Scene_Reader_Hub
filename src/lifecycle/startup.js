@@ -1,6 +1,7 @@
 import {stopProgress} from '../scene/progress-tracking.js';
 import {registerEmptyLegacyMacros} from '../injection/legacy-cleanup.js';
 import {recentTurnCount} from '../context/turn-settings.js';
+import {HUB_VERSION} from '../version.js';
 // Lifecycle coordination only; feature implementation lives in its module.
 export function createStartup(deps) {
 async function init() {
@@ -69,7 +70,7 @@ async function init() {
     await deps.clearInjection();
     deps.initVisibility?.();
     if(deps.chatReadyKey===deps.stateChatKey())await deps.analysis?.resume?.();
-    console.info('[씬판독기] loaded');
+    deps.noteDiagnostic?.('startup_ready',{module:'src/lifecycle/startup.js',status:'succeeded',version:HUB_VERSION});
 }
 return {init};
 }

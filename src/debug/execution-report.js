@@ -1,5 +1,6 @@
 import { safeDetail } from './events.js';
 import {HUB_VERSION} from '../version.js';
+import {activitySummary} from './activity-summary.js';
 export const EXECUTION_REPORT_VERSION = 4;
 export function executionReport({hub,failureStop=null,settings={},version=HUB_VERSION}) {
     const snapshot=hub?.snapshot() || {state:{},events:[]};
@@ -9,5 +10,6 @@ export function executionReport({hub,failureStop=null,settings={},version=HUB_VE
             retrievalProvider:['transformers','palm','vertexai','nanogpt'].includes(settings.retrievalProvider)?settings.retrievalProvider:'transformers'},
         lastRunFailure:failureStop ? safeDetail(failureStop) : null,state:safeDetail(snapshot.state),last:snapshot.last ? safeDetail(snapshot.last) : null,
         lastFailure:snapshot.lastFailure ? {event:safeDetail(snapshot.lastFailure.event),context:snapshot.lastFailure.context.map(safeDetail)} : null,
+        activity:events.flatMap(e=>{const summary=activitySummary(e);return summary?[{sequence:e.sequence,cycleId:e.cycleId,...summary}]:[];}).slice(-40),
         failures:events.filter(event=>event.status==='failed'||event.status==='degraded'||/FAILED|TIMEOUT|FALLBACK/.test(event.code || '')).slice(-20),events};
 }

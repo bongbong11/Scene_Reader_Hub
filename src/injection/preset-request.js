@@ -47,7 +47,7 @@ export function createPresetRequest(deps) {
         const report=applyPresetSlots(body,blocks(value),{prompts:activePresetPrompts(host,deps.getContext()),prepared});
         const character=routeCharacterMacro(body,value,{marker:characterMacro.marker,enabled:characterMacro.enabled,render:names});
         report.changed ||= character.changed;
-        if(character.status!=='disabled'||character.changed)deps.report('injection.character','CHARACTER_MACRO_ROUTE',{module:'src/injection/character-macro.js',phase,resultStatus:character.status,count:character.occurrences,characterChars:character.characterChars});
+        if(phase==='send'||character.status!=='disabled'||character.changed)deps.report('injection.character','CHARACTER_MACRO_ROUTE',{module:'src/injection/character-macro.js',phase,resultStatus:character.status,count:character.occurrences,characterChars:character.characterChars,scenePaused:!value.characterDelivery&&cycle()?.stateCollectionPaused===true});
         value.slotResults=report.results;
         if(value.scenePreset && value.capturePayload)cycle().stateCaptureEnabled=report.results.some(item=>item.kind==='scene' && item.status!=='missing');
         for(const item of report.results)deps.report('injection.slot','PRESET_SLOT_RESULT',{phase,kind:item.kind,identifier:item.identifier,side:item.side,resultStatus:item.status,reason:item.reason || '',status:item.status==='missing'?'warning':'info',module:'src/injection/preset-position.js'});

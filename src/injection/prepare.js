@@ -114,6 +114,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             }
         }
         deps.noteDiagnostic?.('character_delivery_prepared', {module:'src/injection/prepare.js',status:'prepared',
+            appliedCount:frame.characterTrace.reduce((n,p)=>n+(p.injectedRuleIds?.length||0),0),candidateCount:frame.characterTrace.reduce((n,p)=>n+(p.candidateCount||0),0),storedCount:frame.characterTrace.reduce((n,p)=>n+(p.storedRecordCount||0),0),
             characterChars:frame.characterDelivery.text?.length || 0,
             sceneChars:frame.characterDelivery.scenePayload?.length || 0});
         frame.finalContinuityCacheKey=continuityCacheKey(frame.rec,deps.settings,deps.stableFingerprint);

@@ -56,6 +56,7 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     const preview = deps.document.getElementById('sr-prompt-preview');
     if (preview) preview.textContent = payload || '현재 주입문 없음';
     deps.hub?.report('injection.register','PROMPT_REGISTERED',{payloadChars:payload.length,worldChars:worldPayload.length,scenePreset,worldPreset,inputKey:rec?.lastJudgment?.inputKey||''});
+    if(payload&&judgment?.sceneIntimacy?.route==='paused')deps.hub?.report('scene_delivery','SCENE_DELIVERY',{module:'src/injection/writer.js',route:'paused',reasonCode:'NSFW_SCENE_PAUSED',referenceCount:judgment.sceneDelivery?.referenceCount??null,characterAnalysisSkipped:true,characterMacroSkipped:true,fixedGuidancePrepared:true});
     return { applied: true, chatKey, inputKey: rec?.lastJudgment?.inputKey || '', sourceKey: rec?.lastJudgment?.sourceKey || '', sourceCurrent, payloadChars: payload.length, worldChars: worldPayload.length,scenePreset,worldPreset };
     } catch (error) {
         // This still owns the serialized prompt write. Clear a partial apply
