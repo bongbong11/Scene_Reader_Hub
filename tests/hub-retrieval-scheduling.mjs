@@ -38,6 +38,12 @@ const entries=Array.from({length:4},(_,i)=>{
     return entry;
 });
 const options={entries,priorStates:new Map(),transcript:'Workshop staff discuss their duties.',identity:'room'};
+for (const code of ['EMBEDDING_DIMENSION_MISMATCH','EMBEDDING_INDEX_MISSING','EMBEDDING_INVALID_VECTOR','CHARACTER_RECORD_READ_FAILED']) {
+    let calls=0;
+    const isolated=await searchCharacterRecords({...options,retrieval:{config:()=>({source:'transformers'}),search:async()=>++calls===1?{status:'fallback',code,indices:[]}:{status:'ready',indices:[0]}}});
+    assert.equal(calls,entries.length,`${code} is a bank failure, not evidence that all other banks are unavailable`);
+    assert.equal(isolated.get(entries[1].id).status,'ready');
+}
 async function seed(f) {
     for(const entry of entries)assert.equal((await f.retrieval.rebuild({kind:'character',bankId:`room:${entry.id}`,items:currentRecords(entry)})).status,'rebuilt');
     f.calls.length=0;

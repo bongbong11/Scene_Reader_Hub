@@ -9,7 +9,10 @@ import {requirePreparedIndex} from './record-hashes.js';
 export async function searchCharacterRecords({ entries, priorStates, transcript, transcripts=new Map(), identity, retrieval, signal, recovery=false, shared=false }) {
     const results = new Map();
     let unavailable = null;
-    const connectionFailure=result=>result.status==='fallback'&&!['EMBEDDING_INDEX_PENDING','EMBEDDING_INDEX_MISSING'].includes(result.code);
+    // A corrupt/different bank is local to that person. Only confirmed service
+    // failures suppress the rest of this batch to avoid a request storm.
+    const connectionFailure=result=>result.status==='fallback'
+        && /^RETRIEVAL_(?:AUTH_FAILED|FORBIDDEN|RATE_LIMIT|BILLING|NOT_FOUND|SERVER_ERROR|NETWORK_ERROR)$/.test(result.code || '');
     const eligible=entries.filter(recordBankIsCurrent);
     // Page loading mutates the bank's loaded window, so keep that path serial.
     const width=['palm','vertexai','nanogpt'].includes(retrieval.config?.().source) && !eligible.some(entry=>entry.recordBank?.pagedRecords)?2:1;
