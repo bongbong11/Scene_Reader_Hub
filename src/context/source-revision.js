@@ -18,7 +18,7 @@ function bankSource(bank) {
 
 export function createSourceRevision(deps) {
 function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
-    const vaultRevision=includeVault ? knowledgeVaultRevision(deps.window?.KnowledgeVaultV1,deps.stableFingerprint) : '';
+    const vaultRevision=includeVault ? knowledgeVaultRevision(deps.window?.KnowledgeVaultV1,deps.stableFingerprint,deps.noteDiagnostic) : '';
     return deps.stableFingerprint({
         visibility:visibilityKey(deps.getContext?.()?.chat||[]),
         ...(rec?.sharedSource?{sharedReference:[rec.sharedSource.baselineId,rec.sharedSource.baselineRevision,rec.sharedSource.assetId,rec.sharedSource.epoch,rec.sharedReference?.sourceCheckpoint]}:{}),

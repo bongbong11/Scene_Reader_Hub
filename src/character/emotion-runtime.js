@@ -4,7 +4,7 @@ import { missingStateFields, mergeRecoveredStates, captureDiagnostic } from './s
 import {waitForIdle} from '../lifecycle/jobs.js';
 export function createEmotionRuntime(deps) {
 function notifyEmotionCapture(status, count=0, selected=true) {
-    const messages={too_long:'답변이 감정 수집 길이 한도를 넘었습니다. 값을 임의로 잘라 수집하지 않았습니다.',incomplete:'요청한 인물의 감정값 일부가 반환되지 않았습니다. 기존 저장값은 유지했습니다.',timeout:'감정 수집 시간 초과 · 다시 판독해 주세요.',request:'감정 수집 실패 · 확장 연결모델의 응답을 확인하세요.',format:'감정값 형식 확인 필요 · 인물의 감정값 탭을 확인하세요.',unavailable:'감정 수집 실패 · 확장 연결모델 설정을 확인하세요.',save_failed:'감정값을 저장하지 못했습니다. 다시 판독해 주세요.'};
+    const messages={too_long:'답변이 감정 수집 길이 한도를 넘었습니다. 값을 임의로 잘라 수집하지 않았습니다.',incomplete:'요청한 인물의 감정값 일부가 반환되지 않았습니다. 기존 저장값은 유지했습니다.',timeout:'감정 수집 시간 초과 · 다시 판독해 주세요.',request:'감정 수집 실패 · 확장 연결모델의 응답을 확인하세요.',format:'감정값 형식 확인 필요 · 인물의 감정값 탭을 확인하세요.',unavailable:'감정 수집 실패 · 확장 연결모델 설정을 확인하세요.',save_failed:'감정값을 저장하지 못했습니다. 다시 판독해 주세요.',processing_failed:'감정 수집의 확장 처리에 실패했습니다. 전체 로그에서 단계를 확인해 주세요.'};
     const message=status==='collecting'?'감정 수집 중…':status==='collected'?`${selected?'감정 수집 완료':'다른 스와이프 감정 저장 완료'} · ${count}명`:status==='partial'?`감정 ${count}명 수집 · 일부 값은 형식 확인 필요`:status==='empty'?'감정 수집 완료 · 이번 답변에서 수집할 값 없음':messages[status];
     if(!message)return;
     const level=status==='collecting'||status==='empty'?'info':status==='collected'?'success':'warning';
@@ -23,8 +23,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const preserved = missingOnly ? structuredClone(existing?.states || []) : [];
     const fullRoster = roster;
     if (missingOnly) {
-        const absentIds=new Set((existing?.capture?.diagnostics?.actors || []).filter(actor=>actor.rosterIndex>=0 && actor.reasons?.includes('not_participating') && !actor.reasons.includes('duplicate_person')).map(actor=>existing.capture.participantIds?.[actor.rosterIndex]));
-        roster = roster.map(person=>({...person,requestedFields:missingStateFields(preserved.find(state=>state.id===person.id),person)})).filter(person=>!absentIds.has(person.id) && person.requestedFields.length);
+        roster = roster.map(person=>({...person,requestedFields:missingStateFields(preserved.find(state=>state.id===person.id),person)})).filter(person=>person.requestedFields.length);
         if (!roster.length) {
             deps.notifySceneReaderToast(deps.window,'info','대상 인물의 감정값이 이미 저장되어 있습니다. 추가로 수집하지 않았습니다.','씬판독기');
             return;
@@ -41,6 +40,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(capture)});
     deps.storeStateEvent(owner,{outputIndex,swipeId,fingerprint,states:preserved,source:'profile-output',capture},deps.STATE_HISTORY_LIMIT);
     const controller=new AbortController();
+    let phase='request';
     const task = (async () => {
         if (!deps.connectionRequestService) await deps.loadReasonerProfiles();
         const result = await deps.collectProfileOutputState({
@@ -48,6 +48,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             profileId, output: text, roster, context, signal:controller.signal,
         });
         if(controller.signal.aborted)return;
+        phase='source';
         await deps.waitForOutputChanges();
         do { await waitForIdle({hub:deps.hub,signal:controller.signal,isBusy:deps.isGenerationBusy}); }
         while(deps.hub?.snapshot().state.status==='running'||deps.isGenerationBusy?.());
@@ -69,27 +70,31 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         const absentIds=new Set((result.diagnostics?.absentIndices || []).map(index=>roster[index]?.id));
         const incomplete=roster.some(person=>!absentIds.has(person.id) && missingStateFields(states.find(state=>state.id===person.id),person).length);
         const malformed=diagnostics?.actors?.some(actor=>actor.reasons?.some(reason=>reason!=='not_participating' && reason!=='missing_moods'));
-        const completed = {outputIndex,swipeId,fingerprint,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics};
+        const completed = {outputIndex,swipeId,fingerprint,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics,...(result.errorKind?{errorKind:result.errorKind,phase:'request'}:{})};
         if (selected) rec.characterStateCapture = completed;
         deps.storeStateEvent(rec,{outputIndex,swipeId,fingerprint,states,source:'profile-output',capture:completed},deps.STATE_HISTORY_LIMIT,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
+        phase='storage';
         await deps.persistChat();
+        phase='render';
         deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(completed)});
         if (chatKey === deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             deps.renderAll();
             notifyEmotionCapture(completed.status,completed.count,selected);
         }
     })().catch(error => {
-        console.warn('[씬판독기] 출력 상태 판독 실패', error?.message || error);
+        if(controller.signal.aborted)return;
         if(chatKey===deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             const rec=deps.record();
             const event=rec?.characterStateEvents?.find(item=>item.outputIndex===outputIndex && item.swipeId===swipeId && item.fingerprint===fingerprint);
+            const status=phase==='storage'&&!error.storageSaved?'save_failed':'processing_failed';
+            const errorKind=/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code||'')?error.code:'EMOTION_PROCESSING_FAILED';
             if(event) {
-                event.states=preserved;
-                event.capture={...capture,status:'save_failed',count:preserved.length};
+                if(!error.storageSaved)event.states=preserved;
+                event.capture={...capture,status,count:event.states.length,errorKind,phase:error.phase||phase};
                 if(rec.characterStateCapture?.fingerprint===fingerprint && rec.characterStateCapture?.swipeId===swipeId)rec.characterStateCapture=event.capture;
             }
-            notifyEmotionCapture('save_failed');
-            deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status:'save_failed',errorKind:error.code || error.name});
+            notifyEmotionCapture(status);
+            deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status,errorKind,phase:error.phase||phase});
         }
     }).finally(()=>{ deps.pendingProfileStateRequests.delete(requestId); if (chatKey===deps.stateChatKey()) deps.renderCharacterTurnResults(); });
     const closeCancelled = () => {

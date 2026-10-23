@@ -17,7 +17,7 @@ export function createSceneExecution(deps) {
  const failureStop=createFailureStop({onChange:()=>deps.hub.report('lifecycle','LAST_FAILURE_CHANGED',{needsAttention:Boolean(failureStop.snapshot()),automaticBlocked:false})});
  const judgmentFailureState=()=>failureStop.snapshot();
  const services=Object.create(deps);
-const {sourceRevisionKey,stagedRecord}=createSourceRevision(selectCapabilities(services,["seasonalDate","characterStore","getContext","linkedCharacterBooks","lorebookRevisions","settings","stableFingerprint","worldInfoModule","window"]));
+const {sourceRevisionKey,stagedRecord}=createSourceRevision(selectCapabilities(services,["noteDiagnostic","seasonalDate","characterStore","getContext","linkedCharacterBooks","lorebookRevisions","settings","stableFingerprint","worldInfoModule","window"]));
 const {verifyAppliedJudgment}=createInjectionVerification(selectCapabilities(services,["activeInjectionPayload","noteDiagnostic","record","storagePost","storageVersion"]));
 const {pendingExternalCandidates,sourceUserRpForOutput,commitContinuityCandidates}=createContinuityRuntime(selectCapabilities(services,["activePendingCandidates","getContext","loadStateHistory","saveStateHistory","settings","stateChatKey"]));
 const {registerSceneOpportunity,commitPriorVerification}=createDecisionVerification(selectCapabilities(services,["noteDiagnostic","commitVerifiedPlan","loadStateHistory","reversibleStateSnapshot","saveStateHistory","stateChatKey","verificationSummary"]));

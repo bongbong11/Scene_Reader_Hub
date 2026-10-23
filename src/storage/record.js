@@ -82,7 +82,9 @@ async function persistChat(chatKey = deps.stateChatKey(), value = record()) {
     const snapshot = structuredClone(value);
     if(snapshot?.preferences)restoreOpportunityPreferences(snapshot,snapshot.preferences);
     const saving = deps.saveServerChat(chatKey, snapshot);
-    await Promise.all([saving, chatKey === deps.stateChatKey() ? deps.reconcileInjection({report:false}) : null]);
+    const [saved,reconciled]=await Promise.allSettled([saving,chatKey===deps.stateChatKey()?deps.reconcileInjection({report:false}):null]);
+    if(saved.status==='rejected')throw saved.reason;
+    if(reconciled.status==='rejected')throw Object.assign(new Error('자료는 저장됐지만 이전 주입 정리를 마치지 못했습니다.'),{code:'INJECTION_RECONCILE_FAILED',phase:'cleanup',storageSaved:true,cause:reconciled.reason});
 }
 return {record, preferences, persistChat};
 }

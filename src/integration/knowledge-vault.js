@@ -1,16 +1,17 @@
 // Optional sibling extension. Scene Reader keeps working when it is absent.
-export function knowledgeVaultRevision(bridge, fingerprint) {
+const reportFailure=(report,phase,code)=>{try{report?.('vault_bridge',{module:'src/integration/knowledge-vault.js',status:'degraded',phase,errorKind:code});}catch{/* Diagnostics cannot stop another domain. */}};
+export function knowledgeVaultRevision(bridge, fingerprint, report) {
     try {
         if (bridge?.version !== '0.1.0' || typeof bridge.getRevision !== 'function') return '';
         const revision = bridge.getRevision();
         return typeof revision === 'string' && revision && revision !== '[]' ? fingerprint(revision) : '';
-    } catch { return ''; }
+    } catch { reportFailure(report,'revision','VAULT_REVISION_FAILED');return ''; }
 }
 
-export function prepareKnowledgeVault(frame, bridge) {
+export function prepareKnowledgeVault(frame, bridge, report) {
     if (!bridge || bridge.version !== '0.1.0' || typeof bridge.getSceneInput !== 'function') return [];
     let input;
-    try { input = bridge.getSceneInput(); } catch { return []; }
+    try { input = bridge.getSceneInput(); } catch { reportFailure(report,'prepare','VAULT_INPUT_FAILED');return []; }
     const cards = (Array.isArray(input) ? input : []).filter(item => typeof item?.secret_id === 'string' && typeof item?.text === 'string' && item.text && Array.isArray(item.knownBy)).slice(0, 12)
         .map(({secret_id,text,knownBy,truthScope,public:isPublic,holderAliases})=>({secret_id,text:text.slice(0,2000),knownBy:knownBy.filter(name=>typeof name==='string'),truthScope:truthScope==='world'?'world':'private',public:isPublic===true,
             ...(Array.isArray(holderAliases) ? {holderAliases:holderAliases.filter(actor=>typeof actor?.name==='string'&&Array.isArray(actor.aliases)).slice(0,20).map(actor=>({name:actor.name.slice(0,80),aliases:actor.aliases.filter(alias=>typeof alias==='string').slice(0,10).map(alias=>alias.slice(0,80))}))} : {})}));
@@ -36,7 +37,7 @@ export function knowledgeVaultDecisionState(cards) {
     };
 }
 
-export function publishKnowledgeVault(bridge, cards, answers) {
+export function publishKnowledgeVault(bridge, cards, answers, report) {
     if (!bridge || typeof bridge.publishSceneResult !== 'function' || !cards?.length) return;
     const knowledge_vault = [];
     const vault_injections = [];
@@ -49,5 +50,5 @@ export function publishKnowledgeVault(bridge, cards, answers) {
         vault_injections.push({ secret_id: card.secret_id, inject: relevant, mode: typeof bridge.beginAnalysis === 'function' ? 'scoped_fact' : 'masked_boundary' });
     });
     try { bridge.publishSceneResult({ knowledge_vault, vault_injections }); }
-    catch { /* A sibling extension must not stop Scene Reader. */ }
+    catch { reportFailure(report,'publish','VAULT_PUBLISH_FAILED'); }
 }

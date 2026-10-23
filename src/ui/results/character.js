@@ -18,7 +18,7 @@ function renderCharacterTurnResults() {
     const latestEvent=latestStateEventForChat(currentRecord,deps.getContext().chat || [],deps.stableFingerprint);
     const storedCapture=latestEvent?.capture;
     const capture=storedCapture?.status==='collecting' && !deps.isStateCapturePending(storedCapture.requestId) ? {...storedCapture,status:'cancelled'} : storedCapture;
-    const captureFailures={too_long:'답변이 감정 수집 길이 한도를 넘음',incomplete:'이번 응답에서 이 인물의 감정값이 반환되지 않음',save_failed:'감정값 저장 실패 · 다시 수집해 주세요.',cancelled:'수집 중단 · 다음 응답부터 다시 수집',missing:'응답에 상태 정보 없음',opening:'모델의 감정값 태그를 읽지 못함',closing:'상태 정보가 중간에 끊김',trailing:'모델이 감정값을 중복 출력함',format:'모델의 감정값 형식을 읽지 못함',empty_output:'완성된 답변 없음',timeout:'응답 시간 초과',request:'연결 요청 실패',unavailable:'연결 설정 확인 필요',paused:'수집 쉬는 중',skipped:'수집 대상 또는 수집 조건 없음'};
+    const captureFailures={processing_failed:'감정값 처리 실패 · 전체 로그에서 단계를 확인해 주세요.',too_long:'답변이 감정 수집 길이 한도를 넘음',incomplete:'이번 응답에서 이 인물의 감정값이 반환되지 않음',save_failed:'감정값 저장 실패 · 다시 수집해 주세요.',cancelled:'수집 중단 · 다음 응답부터 다시 수집',missing:'응답에 상태 정보 없음',opening:'모델의 감정값 태그를 읽지 못함',closing:'상태 정보가 중간에 끊김',trailing:'모델이 감정값을 중복 출력함',format:'모델의 감정값 형식을 읽지 못함',empty_output:'완성된 답변 없음',timeout:'응답 시간 초과',request:'연결 요청 실패',unavailable:'연결 설정 확인 필요',paused:'수집 쉬는 중',skipped:'수집 대상 또는 수집 조건 없음'};
     const chat=deps.getContext().chat || [];
     const latestOutputIndex=latestStateOutputIndex(chat,currentRecord?.nonRpOutputIndices);
     const captureCurrent=capture?.outputIndex===latestOutputIndex ? capture : null;
