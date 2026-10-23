@@ -60,7 +60,7 @@ export function pendingPlanEffects(decisions = {}) {
         || ['create', 'continue', 'retire', 'replace'].includes(decisions.villain_route)) effects.push('npc');
     if (decisions.fight_sustain === 'yes' || decisions.primary_focus === 'conflict') effects.push('conflict');
     if (decisions.direct_execution === 'yes' || decisions.primary_focus === 'direct') effects.push('direct');
-    if (decisions.selected_continuity_id) effects.push('continuity');
+
     return [...new Set(effects)];
 }
 
@@ -76,9 +76,8 @@ const EFFECT_LABELS = {
 
 export function buildVerificationQuestions(pendingPlan) {
     if (!pendingPlan?.outputText || !Array.isArray(pendingPlan.effects)) return {};
-    const support=(pendingPlan.eventFollowups||[]).slice(0,1).map((item,index)=>[`verification_event_followup_${index}`,{type:'choice',instructions:`In the matching completed CHARACTER output only, did this established event step actually happen: ${item.action}? Intention or a mention alone is not execution.`,criteria:{fulfilled:'The actual step happened.',partial:'Only a real part happened; the step remains open.',missed:'The step did not happen.',unavailable:'The matching output is unavailable.'}}]);
     const cast=(pendingPlan.cast||[]).filter(item=>['ongoing','direction'].includes(item.beatKey)&&item.kind!=='unresolved').map((item,index)=>[`verification_event_actor_${index}`,{type:'choice',instructions:`In the matching completed CHARACTER output, did ${item.name||'the selected event actor'} actually carry out ${item.action} for the ongoing interaction or event? Inner thoughts, intention or atmosphere alone are not action.`,criteria:{fulfilled:'The concrete move happened.',partial:'A real part happened.',missed:'No actual move.',unavailable:'Output unavailable.'}}]);
-    return {...Object.fromEntries([...support,...cast]),...additionVerificationQuestions(pendingPlan),...Object.fromEntries(pendingPlan.effects.filter(effect=>effect!=='progress').map((effect) => [`verification_${effect}`, {
+    return {...Object.fromEntries(cast),...additionVerificationQuestions(pendingPlan),...Object.fromEntries(pendingPlan.effects.filter(effect=>effect!=='progress'&&effect!=='continuity').map((effect) => [`verification_${effect}`, {
         type: 'choice',
         instructions: `Compare the prior pending plan with the immediately following CHARACTER output. Verify only actual execution of the planned ${EFFECT_LABELS[effect] || effect}. A mention, intention, atmosphere, or setup without material execution is not fulfillment. Do not use the current USER reaction as proof that the prior output executed the plan.`,
         criteria: {
@@ -94,7 +93,7 @@ export function buildVerificationQuestions(pendingPlan) {
 
 export function verificationSummary(pendingPlan, decisions = {}) {
     const result = {};
-    for (const effect of pendingPlan?.effects || []) result[effect] = decisions[`verification_${effect}`] || 'unavailable';
+    for (const effect of (pendingPlan?.effects || []).filter(effect=>effect!=='continuity')) result[effect] = decisions[`verification_${effect}`] || 'unavailable';
     return result;
 }
 

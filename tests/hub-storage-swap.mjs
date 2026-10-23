@@ -19,7 +19,7 @@ try {
  const oldChat=JSON.parse(f.run('JSON.stringify(record(true))'));
  oldChat.preferences.characterVolume='generous';oldChat.preferences.settingsContract=4;
  oldChat.marker='existing-user-chat';oldChat.preferences.selectedWorldId='my-world';
- oldChat.lastJudgment={payload:'Existing prepared scene',worldPayload:'Existing world',inputKey:'existing',judgedAt:'2026-10-02T13:00:00Z'};
+ oldChat.lastJudgment={rpContextVersion:6,payload:'Existing prepared scene',worldPayload:'Existing world',inputKey:'existing',judgedAt:'2026-10-02T13:00:00Z'};
  const oldBank={schemaVersion:7,enabled:true,characters:[],npcs:[],persona:null,recordGroups:[],updatedAt:'existing-user-bank'};
  const oldHistory=[{inputKey:'existing',assistantIndex:0,before:{},after:{},plan:{},judgment:oldChat.lastJudgment}];
  const oldSettings={global:{enabled:true,autoJudge:true,recentTurns:3},worlds:[{id:'my-world',name:'My World',prompt:'Existing custom world',hint:'',franchise:false}],owner:{unlocked:false,prompt:''},schemaVersion:1,updatedAt:'existing-user-settings'};
@@ -50,6 +50,11 @@ try {
  assert.equal(hubStored.chat.drawOpportunityKey,'durable-ticket');
  await f.run('hydrateServerState()');
  assert.equal(f.run('record().generatedCast[0].profile.id'),'preserved-actor');
+ await call('transaction',{chatKey,chat:{...hubStored.chat,lastJudgment:{payload:'Old task payload'},pendingPlan:{outputText:'Completed reply',judgment:{payload:'Old task payload'}}},history:oldHistory});
+ await f.run('hydrateServerState()');
+ assert.equal(f.run('record().lastJudgment'),null,'obsolete prepared payload must be rebuilt');
+ assert.equal(f.run('record().pendingPlan.judgment'),null);
+ assert.equal(f.run('record().pendingPlan.outputText'),'Completed reply','migration preserves completed RP');
 
  console.log('Shared storage swap passed: stable chat identity, existing settings/world/session/bank/history/key, non-destructive first read and legacy-readable Hub write on unchanged plugin 0.7.0.');
 } finally {if(previousStorage===undefined)delete globalThis.localStorage;else globalThis.localStorage=previousStorage;await rm(directory,{recursive:true,force:true});}

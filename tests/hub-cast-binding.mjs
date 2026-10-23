@@ -76,7 +76,7 @@ for(const advanced of [true,false])for(const personChance of [0,100]) {
   f.run(`record().continuity={items:[],knowledge:[],dependencies:[],revision:0,followups:[{id:'invite-step',action:'Send the reception invitation',character:'Morgan',relatedStateId:'event:current',status:'available',executed:false,lastOffered:null}]};
     Object.assign(record().pendingPlan,{outputText:getContext().chat[1].mes,outputIndex:1,outputFingerprint:stableFingerprint(getContext().chat[1].mes),eventFollowups:[{id:'invite-step',action:'Send the reception invitation'}]});`);
   await f.run('runJudge({force:true,pendingUserText:"Morgan waits for the answer."})');
-  assert.equal(f.run('record().continuity.followups.find(item=>item.id==="invite-step").executed'),true);
+  assert.equal(f.run('record().continuity.followups.find(item=>item.id==="invite-step").executed'),false,'retired continuity steps are no longer executed or verified');
   assert.ok(!f.run('JSON.stringify(record().lastJudgment.actionPlan)').includes('invite-step'),'a step verified complete cannot be offered again in that same preparation cycle');
  }
 }
@@ -113,10 +113,10 @@ for(const verdict of ['missed','partial','fulfilled']) {
  const history=[], diagnostics=[];
  const questions=buildVerificationQuestions(rec.pendingPlan);
  assert.match(questions.verification_event_actor_0.instructions,/Inner thoughts/);
- assert.match(questions.verification_event_followup_0.instructions,/not execution/);
+ assert.equal(questions.verification_event_followup_0,undefined,'retired followup questions cannot return from an old pending plan');
  const verifier=createDecisionVerification({stateChatKey:()=> 'synthetic',verificationSummary:()=>({}),reversibleStateSnapshot:()=>({}),commitVerifiedPlan:()=>({committed:false,committedEffects:{}}),loadStateHistory:async()=>history,saveStateHistory:async value=>history.push(...value),noteDiagnostic:(stage,detail)=>diagnostics.push({stage,...detail})});
  await verifier.commitPriorVerification(rec,{verification_event_actor_0:verdict,verification_event_followup_0:verdict});
- assert.equal(rec.continuity.followups[0].executed,verdict==='fulfilled');
+ assert.equal(rec.continuity.followups[0].executed,false);
  assert.equal(rec.lastVerification.cast[0].verification,verdict);
  assert.equal(history[0].castVerification[0].verification,verdict);
  assert.ok(!JSON.stringify(diagnostics).includes('Blair'));

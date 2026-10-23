@@ -154,12 +154,12 @@ assert.equal(windows,3);assert.ok(readChars>18000,'an unread suffix is preserved
 const state={items:[],followups:[{id:'old',action:'Lead contacts the office',status:'available',expiry:2,lastOffered:null},{id:'new',action:'Lead contacts the office',status:'available',lastOffered:9}]};
 assert.equal(selectActiveContinuity(state,'Lead contacts the office',{opportunity:10}).followups[0].id,'old');
 assert.equal(verifiedSecondaryCandidates([{id:'f',type:'followup'}],{}).length,1);
-const f=auxiliaryFixture();f.deps.requestWithConnectionProfile=async(...args)=>{f.requests.push(args);return {result:{new_items:[{kind:'commitment',label:'Meet at noon',owners:['Lead'],source_type:'promise',evidence:'I will meet you at noon.'}],affected:[],knowledge_updates:[],possible_followups:[],topic_fixation:null}};};
-await f.turn('I will meet you at noon.');await f.turn();await f.turn();assert.equal(f.requests.length,1);assert.match(f.requests[0][3].source_rp,/meet you at noon/);assert.equal(f.records.get('room-A').continuity.items.length,1);
+const f=auxiliaryFixture();f.deps.requestWithConnectionProfile=async(...args)=>{f.requests.push(args);return {result:{current_situation:'Lead has answered the invitation.',remaining_effects:'The earlier disagreement remains.'}};};
+await f.turn('Lead answers the invitation.');assert.equal(f.requests.length,1);assert.match(f.requests[0][3].current_turn.character,/answers the invitation/);assert.equal(f.records.get('room-A').continuity.items.length,0);
 const report=wholeDiagnosticReport({judgment:{rawChoices:{scene_status:{choice:'ended'},scene_participant_0:{choice:'direct'}}},record:f.records.get('room-A')});
-assert.equal(report.jevOriginalChoices.scene_participant_0.choice,'direct');assert.equal(report.auxiliary.groupCount,3);assert.doesNotMatch(JSON.stringify(report),/meet you|Lead/);
+assert.equal(report.jevOriginalChoices.scene_participant_0.choice,'direct');assert.equal(report.auxiliary.groupCount,1);assert.doesNotMatch(JSON.stringify(report),/invitation|disagreement/);
 const continuityRoot={innerHTML:''};
-createContinuityView({readState:()=>({settings:{continuityEnabled:true,showConfidence:true},reasonerProfiles:[]}),record:()=>f.records.get('room-A'),document:{getElementById:()=>continuityRoot},escapeHtml:value=>String(value??''),continuityLabel:value=>String(value??''),resultLabel:()=>''}).renderContinuity();
-assert.match(continuityRoot.innerHTML,/답변 번호 연결/);assert.doesNotMatch(continuityRoot.innerHTML,/Jev|NaN|undefined|검증 대기/,'ordinary continuity no longer claims a second Jev approval');
+createContinuityView({readState:()=>({settings:{continuityEnabled:true,showConfidence:true},reasonerProfiles:[]}),record:()=>f.records.get('room-A'),document:{getElementById:()=>continuityRoot},escapeHtml:value=>String(value??''),getContext:()=>f.context,stateChatKey:()=> 'room-A',stableFingerprint:f.deps.fingerprint}).renderContinuity();
+assert.match(continuityRoot.innerHTML,/현재 상황/);assert.match(continuityRoot.innerHTML,/남은 여파/);assert.doesNotMatch(continuityRoot.innerHTML,/Jev|NaN|undefined|검증 대기/);
 assert.equal(sourceRp({is_user:false,mes:'(OOC: Only a direction.)'}),'');
 console.log('Classification routing passed: valid choices, partial answers, participation, bounded records, independent expression, scoped NPC tactics, remote conduct, truthful verification, source-preserving continuity and immutable conflict bodies.');

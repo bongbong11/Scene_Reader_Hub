@@ -1,7 +1,7 @@
 import {createCurrentStatusModel} from './current-status-model.js';
 import {MASCOT_ICON_URL,MASCOT_ERROR_URL} from './mascot.js';
 
-const STATES={idle:'확인 전',unused:'사용 안 함',not_run:'실행 전',needs_setup:'설정 필요',running:'진행 중',success:'완료',failed:'오류',cancelled:'중단',skipped:'주입할 내용 없음'};
+const STATES={partial:'일부 반영',waiting:'수집 대기',idle:'확인 전',unused:'사용 안 함',not_run:'실행 전',needs_setup:'설정 필요',running:'진행 중',success:'완료',failed:'오류',cancelled:'중단',skipped:'주입할 내용 없음'};
 const TITLES={error:'확인할 문제가 있습니다',success:'주입·연속성 상태',neutral:'주입·연속성 상태'};
 function resultLabel(row) {
     if(row.id==='delivery')return ({success:'확인됨',idle:'확인 전',failed:'오류',skipped:'주입할 내용 없음'})[row.state] || STATES[row.state];

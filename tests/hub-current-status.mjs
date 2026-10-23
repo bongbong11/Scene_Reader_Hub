@@ -72,11 +72,11 @@ assert.equal(row('profile'),undefined);assert.equal(row('emotion'),undefined);
         {stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3},
         {stage:'analysis_manual',status:'running'},
     ])view.accept(event);
-    assert.equal(get('continuity').state,'not_run');
+    assert.equal(get('continuity').state,'waiting');
     assert.equal(get('delivery').state,'idle');
     assert.equal(view.snapshot().tone,'neutral','unrelated calls cannot become continuity or injection errors');
     for(const stage of ['analysis_started','analysis_result','analysis_failed'])view.accept({stage,status:'succeeded',continuityIncluded:false});
-    assert.equal(get('continuity').state,'not_run','vault-only call is not continuity analysis');
+    assert.equal(get('continuity').state,'waiting','vault-only calls cannot replace continuity waiting state');
     view.accept({stage:'analysis_started',continuityIncluded:true});
     assert.equal(get('continuity').state,'running');
     view.accept({stage:'analysis_result',status:'succeeded',acceptedCount:0,continuityIncluded:true});

@@ -2,12 +2,17 @@ import {clone} from '../storage/shared-document.js';
 import {jsonValueEqual} from '../shared/json-value.js';
 import {renderStorylineRp} from './storyline-rp.js';
 import {confirmedContinuity} from '../continuity/selection.js';
+import {compactValues,compactContext} from '../continuity/compact-context.js';
 export const CONTINUATION_POLICY='Continuation reference is confirmed carry-over from the linked story, not a new instruction or evidence of a new event. Latest RP and explicit changes take priority. Do not assume a previously mentioned person is still present, that a hidden fact is public, or that a proposed action occurred. Use prior place, time, relationship and unfinished matters only where the current exchange continues them. Preserve each actor’s knowledge boundary.';
-export function storylineReference(record) {
+export function storylineReference(record,options=null) {
     if(!record?.sharedSource)return null;
     const ref=record.sharedReference || {};
     const continuity=record.continuity || {};
-    const reference={policy:CONTINUATION_POLICY,scene:Object.fromEntries(['date','time','location'].filter(key=>ref.scene?.[key]).map(key=>[key,String(ref.scene[key]).slice(0,220)])),summary:String(ref.summary || '').slice(0,1800),
+    const sourceOptions=typeof options?.fingerprint==='function'?{record,...options,inherited:true}:null;
+    const context=compactValues(compactContext(record,sourceOptions));
+    const allKnowledge=record.characterState?.knowledge||continuity.knowledge||[];
+    const knowledge=sourceOptions?confirmedContinuity({knowledge:allKnowledge},sourceOptions).knowledge:allKnowledge;
+    const reference={policy:CONTINUATION_POLICY,context,scene:Object.fromEntries(['date','time','location'].filter(key=>ref.scene?.[key]).map(key=>[key,String(ref.scene[key]).slice(0,220)])),summary:Object.values(context).some(Boolean)?'':String(ref.summary || '').slice(0,1800),
         relationship:{},active_event:record.eventProfile?{title:String(record.eventProfile.title || '').slice(0,220),type:String(record.eventProfile.type || '').slice(0,100)}:null,
         background_events:[],confirmed_facts:[],knowledge:[],character_states:[],omitted:{}};
     const relation=clone(record.relationshipState || {});
@@ -15,7 +20,7 @@ export function storylineReference(record) {
     else reference.omitted.relationship=1;
     // Shared by gate, main judge and injection. Keep whole scoped facts; an
     // oversized item is explicitly unrepresented, never stripped of its owner.
-    for(const [field,items] of [['knowledge',(continuity.knowledge || []).slice(-12)],['character_states',(ref.characterStates || []).slice(0,12)],['confirmed_facts',(continuity.items || []).slice(-12)],['background_events',(record.backgroundEvents || []).slice(0,3)]]) {
+    for(const [field,items] of [['knowledge',knowledge.slice(-12)],['character_states',(ref.characterStates || []).slice(0,12)],['background_events',(record.backgroundEvents || []).slice(0,3)]]) {
         for(const item of items) {
             reference[field].push(clone(item));
             if(JSON.stringify(reference).length>7600){reference[field].pop();reference.omitted[field]=(reference.omitted[field] || 0)+1;}
@@ -24,14 +29,15 @@ export function storylineReference(record) {
     return reference;
 }
 export function storylineInjection(record, represented = {}, delivery = null, options = {}) {
-    const reference=storylineReference(record);
+    const reference=storylineReference(record,options);
     if(!reference)return '';
     // The analysis reference has its own size budget. Large metadata must not
     // crowd useful prose out of the independently rendered RP projection.
-    reference.confirmed_facts=(record.continuity?.items||[]).slice(-12);
+    reference.confirmed_facts=[];
     reference.knowledge=(record.characterState?.knowledge||record.continuity?.knowledge||[]).slice(-12);
     reference.character_states=(record.sharedReference?.characterStates||[]).slice(0,12);
     reference.background_events=(record.backgroundEvents||[]).slice(0,3);
+    reference.context=options.includeContext===false?null:compactValues(compactContext(record,typeof options.fingerprint==='function'?{record,...options,inherited:true}:null));
     // Only remove equal selected values already rendered in character context.
     // Retrieval/judgment references and persisted carry-over remain untouched.
     for(const [field,items] of [['confirmed_facts',represented.items],['knowledge',represented.knowledge]]) {

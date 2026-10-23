@@ -3,6 +3,7 @@ import {clone, digest, object} from '../storage/shared-document.js';
 import {latestStateForChat} from '../character/state-contract.js';
 import {roomPreferences} from '../storage/common-preferences.js';
 import {retireCollection} from '../storage/retired-collection.js';
+import {compactContext} from '../continuity/compact-context.js';
 export const STORY_FIELDS=['pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','eventProfile','npcProfile','villainProfile','generatedCast','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','continuity','opportunities','lastOpportunityVerification'];
 const TRANSIENT=new Set(['sharedSource','sharedWorld','sharedReference','sharedLinkV1']);
 function portableCompanions(value,sourceChatRef) {
@@ -13,7 +14,7 @@ function portableCompanions(value,sourceChatRef) {
     return stores;
 }
 export const localCompanions=record=>Object.fromEntries(Object.entries(record?.companionStores || {}).filter(([namespace])=>namespace!=='knowledgeVaultV1').map(([namespace,value])=>[namespace,clone(value)]));
-export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef=''}={}) {
+export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef='',sourceChatKey=sourceChatRef}={}) {
     record=clone(record);
     const before=record.pendingPlan?.stateSnapshot;
     retireCollection(record);retireCollection(before);
@@ -22,6 +23,10 @@ export function confirmedStory(record={}, {chat=[],fingerprint,sourceChatRef=''}
         const source=object(before)?before:record;
         if(Object.hasOwn(source,key))result[key]=clone(source[key]);
     }
+    // Output collection is already grounded in a completed reply. It is not an
+    // unverified automatic-progression effect from the pending plan snapshot.
+    const context=compactContext(record,typeof fingerprint==='function'&&sourceChatKey?{record,chatRef:sourceChatKey,chat,fingerprint,inherited:true}:null);
+    if(context)result.continuity={...result.continuity,context:clone(context),revision:Math.max(result.continuity?.revision||0,record.continuity?.revision||0)};
     result.progressionState=emptyProgress();
     if(result.sceneIntimacy){delete result.sceneIntimacy.contextEndIndex;delete result.sceneIntimacy.contextKey;delete result.sceneIntimacy.inputKey;}
     if(result.opportunities)result.opportunities.current=null;

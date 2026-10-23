@@ -29,7 +29,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         retrieval: [deps.settings.retrievalProvider, deps.settings.retrievalModel, deps.settings.retrievalVertexAuth, deps.settings.retrievalVertexRegion, deps.settings.retrievalVertexProject],
         memoryReferenceEnabled: MEMORY_REFERENCE_ENABLED,
         decisionContract: DECISION_CONTRACT_VERSION,
-        continuityContract: 5,continuityConfig:[deps.settings.continuityEnabled],
+        continuityContract: 6,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 8,
         injectionAssemblyContract: 19,
         seasonalContract: 2,

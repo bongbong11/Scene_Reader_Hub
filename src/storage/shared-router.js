@@ -69,7 +69,7 @@ export function createSharedRouter(deps) {
         return serial(view.link.storylineId,async()=>{
             if(epoch!==started || views.get(chatKey)!==view)throw fail('STORAGE_STALE_CHAT','채팅 연결이 바뀌었습니다.');
             const ref=chatRef(chatKey);
-            const state=confirmedStory(record,{chat:chatKey===deps.stateChatKey()?deps.getContext().chat:[],fingerprint:deps.stableFingerprint,sourceChatRef:ref});
+            const state=confirmedStory(record,{chat:chatKey===deps.stateChatKey()?deps.getContext().chat:[],fingerprint:deps.stableFingerprint,sourceChatRef:ref,sourceChatKey:chatKey});
             const prior=view.story.checkpoints[view.link.checkpointId]?.state || {};
             let story=view.story,link={...view.link},confirmed=prior;
             if(link.active && digest(state)!==digest(prior)) {

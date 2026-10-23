@@ -1,6 +1,6 @@
 import {activityQuestions} from './activity-questions.js';
 import {progressComparison} from '../scene/progress-tracking.js';
-import {selectActiveContinuity, confirmedContinuity} from '../continuity/selection.js';
+import {selectTurnContinuity} from '../continuity/turn-context.js';
 import {continuityActors} from '../continuity/actors.js';
 import {makeOpportunities} from '../scene/opportunities.js';
 import {addOpportunityQuestions} from '../scene/opportunity-policy.js';
@@ -51,12 +51,9 @@ if (frame.prefs.settingsContract >= 3) {
     frame.progressComparison=progressComparison(deps.getContext().chat, {excluded:frame.rec.nonRpOutputIndices||[],selected:frame.context.selected,transcript:frame.transcript,blockedTurn:frame.rec.progressionState?.blockedTurn});
     frame.vaultCards = prepareKnowledgeVault(frame, deps.window?.KnowledgeVaultV1, deps.noteDiagnostic);
     frame.continuityActors=continuityActors(deps.characterStore,deps.getContext(),frame.transcript,frame.sceneGate.participantIds);
-    frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
-    (frame.continuityContext = deps.settings.continuityEnabled ? selectActiveContinuity(frame.confirmedContinuity, frame.transcript, { opportunity: frame.rec.sceneOpportunity,actorIds:frame.continuityActors }) : { items: [], knowledge: [], followups: [] });
-    (frame.storedFollowupCandidates = frame.continuityContext.followups.map((item) => ({ id: item.id, type: 'followup', label: item.action, evidence: item.reason, data: { relatedStateId: item.relatedStateId, action: item.action, reason: item.reason }, sourceIdentity: {refs:item.sourceRefs} })));
-    (frame.pendingCandidates = deps.settings.continuityEnabled
-        ? [...deps.pendingExternalCandidates(frame.rec, frame.sourceKey), ...frame.storedFollowupCandidates.filter((item) => !(frame.rec.pendingContinuityCandidates || []).some((pending) => pending.id === item.id))].slice(0, 5)
-        : []);
+    frame.continuityContext=selectTurnContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)},{enabled:deps.settings.continuityEnabled,transcript:frame.transcript,actorIds:frame.continuityActors});
+    frame.storedFollowupCandidates=[];
+    frame.pendingCandidates=[];
     (frame.carriedCharacterIds = [...new Set([...frame.sceneGate.participantIds,...(frame.rec.lastJudgment?.characterTrace || [])
         .filter((item) => (item?.presence || item?.final?.presence) && (item.presence || item.final.presence) !== 'absent')
         .map((item) => item.id)])]);

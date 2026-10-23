@@ -14,6 +14,7 @@ export async function changeAnalysisProfile(deps, profileId) {
     rec.pendingContinuityCandidates = [];
     rec.repetitionGuard = null;
     rec.lastReasonerSource = null;
+    if(rec.auxiliaryStateV1)rec.auxiliaryStateV1.retryAfter=0;
     rec.lastJudgment = null;
     try {
         await deps.persistChat(chatKey, rec);

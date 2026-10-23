@@ -99,7 +99,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
                 if(event.reasonCode==='ANALYSIS_CANCELLED') {
                     set('continuity',event,{state:'cancelled',sticky:false});return;
                 }
-                set('continuity',{...event,errorKind:event.reasonCode || event.errorKind},{state:'failed',sticky:false,message:continuityError(event)+(event.codeFallback?' · 코드 대체 실행':'')});return;
+                set('continuity',{...event,errorKind:event.reasonCode || event.errorKind},{state:event.reasonCode==='CONTINUITY_PARTIAL_RESULT'?'partial':'failed',sticky:false,message:continuityError(event)});return;
             }
             if(event.stage==='analysis_result') {
                 set('continuity',event,{state:event.status==='succeeded'?'success':'cancelled',sticky:false});return;
@@ -110,7 +110,8 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
             if(event.stage==='auxiliary_usage' && event.reasonCode==='profile_not_configured') {
                 set('continuity',event,{state:'failed',message:'연결모델 설정 필요'});return;
             }
-            // Waiting/duplicate notices do not replace an actual result or failure.
+            if(event.stage==='auxiliary_usage'&&event.status==='waiting'){set('continuity',event,{state:'waiting',message:'재시도 대기 · 이전 자료 보존'});return;}
+            // Duplicate notices do not replace an actual result.
             return;
         }
         if(event.stage==='storage_resolution'&&event.status==='succeeded'){set('storage',event,{key:event.phase||'',sticky:false,message:'실제 저장 완료를 다시 확인했습니다.'});pendingFailures.delete('storage');return;}

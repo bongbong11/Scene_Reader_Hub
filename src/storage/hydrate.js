@@ -68,7 +68,12 @@ async function hydrateServerState({ migrate = true } = {}) {
     delete deps.chat_metadata[deps.MODULE];
     if (!current()) return false;
     const loadedChat = deps.chatRecords.get(chatKey);
-    const retiredCollection = retireCollection(loadedChat);
+    let retiredCollection = retireCollection(loadedChat);
+    if(loadedChat?.lastJudgment&&loadedChat.lastJudgment.rpContextVersion!==6){
+        loadedChat.lastJudgment=null;
+        if(loadedChat.pendingPlan)loadedChat.pendingPlan.judgment=null;
+        retiredCollection=true;
+    }
     const migratedCommon = deps.getContext().chatId && migrateCommonPreferences(deps.settings, loadedChat?.preferences);
     if (migratedCommon || obsoleteGlobal) {
         const target=deps.settings, previous=target.commonPreferences;

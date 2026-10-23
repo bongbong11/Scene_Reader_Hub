@@ -87,7 +87,7 @@ export function createSharedService(deps,router) {
             const baseline={id:baselineId,revision:1,ownerRef:ownerRef(chatKey),assetId:projection.assetId,defaultPreferences:projection.defaultPreferences};
             await documents.write('baseline',baselineId+':1',baseline,{operationId,signal});
             await documents.write('baseline_head',baselineId,{baselineId,revision:1,revisions:[1]},{operationId,signal});
-            const state=confirmedStory(record,{chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,sourceChatRef:chatRef(chatKey)});
+            const state=confirmedStory(record,{chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,sourceChatRef:chatRef(chatKey),sourceChatKey:chatKey});
             const story=initialStory({id:storyId,baselineId,baselineRevision:1,state,writer:chatRef(chatKey),operationId});
             await documents.write('storyline',storyId,story,{operationId,signal});assert();
             const link={schemaVersion:1,chatRef:chatRef(chatKey),ownerRef:ownerRef(chatKey),storylineId:storyId,baselineId,baselineRevision:1,checkpointId:story.headCheckpointId,entryCheckpointId:story.headCheckpointId,epoch:story.epoch,summary:String(summary).slice(0,1800),mode:'migrated'};
@@ -119,7 +119,7 @@ export function createSharedService(deps,router) {
                 story.pendingHandoff={chatRef:chatRef(chatKey),epoch:story.epoch+1,operationId};story.revision++;
                 state=clone(story.checkpoints[story.headCheckpointId].state);
             } else {
-                state=mode==='branch'?confirmedStory(deps.record(),{chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,sourceChatRef:chatRef(chatKey)}):{};
+                state=mode==='branch'?confirmedStory(deps.record(),{chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,sourceChatRef:chatRef(chatKey),sourceChatKey:chatKey}):{};
                 // New story never inherits automatic acquired knowledge or old cards by default.
                 story=initialStory({id:digest(['new-story',operationId]),baselineId:baseline.id,baselineRevision:baseline.revision,state,writer:chatRef(chatKey),operationId});
             }

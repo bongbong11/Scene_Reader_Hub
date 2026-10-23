@@ -1,9 +1,11 @@
+import {compactValues,CONTEXT_FIELDS} from './compact-context.js';
 export function continuityCacheKey(record,settings,fingerprint) {
- return settings.continuityEnabled?fingerprint({revision:record.continuity?.revision||0,
-  candidates:(record.pendingContinuityCandidates||[]).map(c=>c.id),...(record.repetitionGuard?{repetition:record.repetitionGuard}:{})}):'';
+ const context=record.continuity?.context;
+ return fingerprint({contract:6,enabled:Boolean(settings.continuityEnabled),revision:settings.continuityEnabled?record.continuity?.revision||0:0,
+  context:settings.continuityEnabled?{...compactValues(context),sourceKey:context?.sourceKey||'',fieldStatus:CONTEXT_FIELDS.map(field=>context?.fieldStatus?.[field]||'')}:null});
 }
 export function continuityCacheMatches(record,settings,fingerprint) {
- // Older snapshots without additive state keep their established behavior.
- if(record.lastJudgment?.continuityCacheKey===undefined)return true;
+ // A cache created before the RP/context contract changed must be rebuilt.
+ if(record.lastJudgment?.continuityCacheKey===undefined)return false;
  return record.lastJudgment?.continuityCacheKey===continuityCacheKey(record,settings,fingerprint);
 }

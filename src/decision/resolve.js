@@ -4,12 +4,12 @@ import {opportunityDetail, resolveOpportunities} from '../scene/opportunity-poli
 import {opportunitySummary, reportOpportunities} from '../debug/opportunity-events.js';
 import {archiveCurrentEvent} from '../scene/state-effects.js';
 import {drawDiagnostics} from './draw-diagnostics.js';
-import {selectActiveContinuity,confirmedContinuity} from '../continuity/selection.js';
+import {selectTurnContinuity} from '../continuity/turn-context.js';
 import {resolveCharacterPresence} from '../character/presence.js';
 import {applyAppearanceOffer} from "../scene/appearance.js";
 import {applySexualChoice} from "../character/sexual-conduct.js";
 import {resolveCastBindings,castSummary} from '../scene/cast-binding.js';
-import {eventFollowups} from '../continuity/candidates.js';
+
 import {resolveStoryDirection} from '../world/story-direction.js';
 
 export function createDecisionResolution(deps) {
@@ -42,16 +42,9 @@ async function resolveDecision(run,frame) {
         }
         deps.noteDiagnostic?.('progress_observed',{module:'src/scene/progress-tracking.js',status:'succeeded',outcome:frame.progressStatus.outcome,count:frame.progressStatus.count,boost:frame.progressStatus.boost,comparisonCount:frame.progressComparison?.turns.length||0});
         (frame.priorVerification = await deps.commitPriorVerification(frame.rec, frame.decisions, run));
-        // Preparation preceded verification; do not offer a step just confirmed complete.
-        frame.pendingCandidates=frame.pendingCandidates.filter(candidate=>candidate.type!=='followup'
-            || !(frame.rec.continuity?.followups||[]).some(item=>item.id===candidate.id&&(item.executed||item.status==='executed')));
-        (frame.verifiedExternalCandidates = deps.verifiedSecondaryCandidates(frame.pendingCandidates));
-        frame.eventFollowups=eventFollowups(frame.verifiedExternalCandidates,frame.rec.eventProfile);
-        frame.verifiedExternalCandidates=frame.verifiedExternalCandidates.filter(item=>!frame.eventFollowups.includes(item));
-        await deps.commitContinuityCandidates(frame.rec, frame.pendingCandidates, frame.decisions, frame.details, run);
-        run.assert();
-        frame.confirmedContinuity=confirmedContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)});
-        frame.continuityContext=deps.settings.continuityEnabled?selectActiveContinuity(frame.confirmedContinuity,frame.transcript,{opportunity:frame.rec.sceneOpportunity,actorIds:frame.continuityActors}):{items:[],knowledge:[],dependencies:[],followups:[]};
+        frame.verifiedExternalCandidates=[];
+        frame.eventFollowups=[];
+        frame.continuityContext=selectTurnContinuity(deps.continuityView(frame.rec),{record:frame.rec,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,inherited:Boolean(frame.rec.sharedReference||frame.rec.legacyCarryReferenceV1)},{enabled:deps.settings.continuityEnabled,transcript:frame.transcript,actorIds:frame.continuityActors});
         deps.deriveDependentDecisions(frame.rec, frame.details, frame.decisions);
         (frame.stateBefore = deps.reversibleStateSnapshot(frame.rec));
         deps.commitObservedState(frame.rec, frame.decisions, frame.context.observationKey);
@@ -144,11 +137,7 @@ async function resolveDecision(run,frame) {
         frame.finalPlan.excluded = [...frame.excludedById.values()];
         }
         frame.rec.deferredRoutes = deps.nextDeferredRoutes(frame.rec.deferredRoutes, frame.provisionalPlan || frame.finalPlan);
-        (frame.chosenExternal = frame.verifiedExternalCandidates.find((item) => frame.finalPlan.secondary?.id === `external:${item.id}`) || null);
-        (frame.chosenContinuity = frame.chosenExternal);
-        frame.chosenEventFollowups=[frame.finalPlan.primary,frame.finalPlan.secondary,...(frame.finalPlan.overlays||[])].some(item=>item?.kind==='event')?frame.eventFollowups:[];
-        frame.finalPlan.followups=frame.chosenEventFollowups.map(item=>({id:item.id,kind:'continuity',label:item.label}));
-        if (frame.chosenContinuity) frame.decisions.selected_continuity_id = frame.chosenContinuity.id;
+        frame.chosenContinuity=null;frame.chosenEventFollowups=[];
         // Canonical records are constraints, not extra independent action beats.
         if (frame.decisions.npc_route !== 'reuse') deps.overrideDecision(frame.details, frame.decisions, 'npc_target', 'none', '이번 응답에 기존 NPC 재사용 없음');
         if (!['create', 'replace', 'reuse'].includes(frame.decisions.npc_route) && !frame.liveCharacters.some(person=>person.kind==='npc'&&frame.details[`character_${person.index}_presence`]?.effective==='active')) {

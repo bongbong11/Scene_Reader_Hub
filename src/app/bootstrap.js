@@ -242,7 +242,7 @@ let {apiError, pluginError, callJev} = createJevClient({
 });
 
 let {reversibleStateSnapshot, restoreReversibleState} = createStateSnapshots({
-
+    get pendingProfileStateRequests() { return runtime.pendingProfileStateRequests; },
 });
 
 let {updateStatus, updateKeyStatus, runUiTask, runEventTask, setBusy, testConnection} = createStatusUi({
@@ -288,6 +288,7 @@ let {optionsHtml, createDialog, createWandEntry, createExtensionSettings, openSc
 });
 
 let {cachedJudgmentMatches, onLorebookUpdated, onBeforeGeneration, onChatChanged,prepareFallback} = createGenerationLifecycle({
+    get analysis() { return analysis; },
     checkVisibility:()=>visibility?.check(),
     isStorageBusy:()=>sharedStorage.isBusy(),
     get judgmentFailureState() { return judgmentFailureState; },
@@ -365,6 +366,7 @@ const seasonalDate=createSeasonalDate({
     render:seasonalDateUi.render,confirm:seasonalDateUi.confirm,
 });
 let {init} = createStartup({
+    get analysis() { return analysis; },
     initVisibility:()=>{void visibility.check({notify:false});visibilityAdapter.init();seasonalDate.init(eventSource,event_types);},
     get hub() { return hub; },
     initPresetRequest:presetRequest.init,
@@ -517,7 +519,7 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
-let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({document, getContext, stateChatKey, record, ownerPrompt, escapeHtml,window,
+let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({getAnalysisState:()=>analysis?.state,document, getContext, stateChatKey, record, ownerPrompt, escapeHtml,window,
     isRoomReady:()=>runtime.chatReadyKey===null||runtime.chatReadyKey===stateChatKey(),
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,

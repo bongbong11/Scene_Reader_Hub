@@ -1,5 +1,6 @@
 // Extracted from Scene Reader 0.26.2; behavior preserved.
 import {retireCollection} from '../storage/retired-collection.js';
+const REVERSIBLE_FIELDS=new Set(['opportunities','lastOpportunityVerification','pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','characterStateEvents','characterStateCapture','eventProfile','npcProfile','generatedCast','drawOpportunityKey','villainProfile','lastEventRoll','lastNpcRoll','lastVillainRoll','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','observedOpportunityKeys','continuity','lastReasonerSource','lastContinuityTrace','lastOpportunityInput','lastStateInput']);
 export function createStateSnapshots(deps) {
 function reversibleStateSnapshot(rec) {
     return JSON.parse(JSON.stringify({
@@ -28,10 +29,8 @@ function reversibleStateSnapshot(rec) {
         deferredRoutes: rec.deferredRoutes || {},
         observedOpportunityKeys: rec.observedOpportunityKeys || [],
         continuity: rec.continuity || { items: [], knowledge: [], followups: [], revision: 0 },
-        pendingContinuityCandidates: rec.pendingContinuityCandidates || [],
         lastReasonerSource: rec.lastReasonerSource || null,
         lastContinuityTrace: rec.lastContinuityTrace || null,
-        ...(rec.repetitionGuard ? {repetitionGuard:rec.repetitionGuard} : {}),
         lastOpportunityInput: rec.lastOpportunityInput || null,
         lastStateInput: rec.lastStateInput || null,
     }));
@@ -39,10 +38,9 @@ function reversibleStateSnapshot(rec) {
 
 function restoreReversibleState(rec, snapshot) {
     if (!snapshot) return;
-    Object.assign(rec, JSON.parse(JSON.stringify(snapshot)));
+    Object.assign(rec, JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(snapshot).filter(([key])=>REVERSIBLE_FIELDS.has(key))))));
     retireCollection(rec);
-    if(snapshot.repetitionGuard)rec.repetitionGuard=structuredClone(snapshot.repetitionGuard);
-    else delete rec.repetitionGuard;
+    delete rec.repetitionGuard;rec.pendingContinuityCandidates=[];
     if(!snapshot.generatedCast)delete rec.generatedCast;
     if(!snapshot.drawOpportunityKey)delete rec.drawOpportunityKey;
     rec.opportunities = snapshot.opportunities ? structuredClone(snapshot.opportunities) : null;
@@ -50,6 +48,9 @@ function restoreReversibleState(rec, snapshot) {
     rec.sceneIntimacy = snapshot.sceneIntimacy ? structuredClone(snapshot.sceneIntimacy) : null;
     rec.characterStateEvents = structuredClone(snapshot.characterStateEvents || []);
     rec.characterStateCapture = snapshot.characterStateCapture ? structuredClone(snapshot.characterStateCapture) : null;
+    for(const capture of [rec.characterStateCapture,...rec.characterStateEvents.map(event=>event.capture)].filter(Boolean)){
+        if(capture.status==='collecting'&&!deps.pendingProfileStateRequests?.has(capture.requestId))capture.status='cancelled';
+    }
 }
 return {reversibleStateSnapshot, restoreReversibleState};
 }

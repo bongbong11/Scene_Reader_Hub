@@ -1,5 +1,5 @@
 import {sexualRoutingState} from '../character/sexual-conduct.js';
-import {continuityAnalysisContext} from '../continuity/analysis-context.js';
+import {turnContinuityInput} from '../continuity/turn-context.js';
 import {ROUTING_SCOPE} from './opportunity-questions.js';
 import {CONTINUATION_POLICY} from '../context/storyline-reference.js';
 import {publishKnowledgeVault, knowledgeVaultDecisionState} from '../integration/knowledge-vault.js';
@@ -40,7 +40,7 @@ async function requestDecision(run,frame) {
                 })),
                 registered_sheet_cast: [...deps.characterStore.characters, ...deps.characterStore.npcs, ...[deps.characterStore.persona].filter(Boolean)].map(entry => ({ name: entry.name, aliases: entry.aliases || [], ...(entry.kind === 'npc' ? { npc_role_hint: entry.npcRole || (entry.antagonist ? 'villain' : 'mixed') } : {}) })),
                 pending_verification: frame.rec.pendingPlan?.outputText ? { plan: { effects: frame.rec.pendingPlan.effects, decisions: frame.rec.pendingPlan.decisions }, source_user_rp: deps.sourceUserRpForOutput(frame.rec.pendingPlan.outputIndex), character_output: frame.rec.pendingPlan.outputText } : null,
-                continuity_context: deps.settings.continuityEnabled ? continuityAnalysisContext(frame.continuityContext) : null,
+                continuity_context: deps.settings.continuityEnabled ? turnContinuityInput(frame.continuityContext) : null,
                 priority: frame.prefs.negativePriority ? 'Enabled original negative-bias directives take priority over generic relationship, event, NPC and pacing guidance without rewriting a registered person\'s established knowledge, relationships, or characterization.' : 'Normal scene-reader priority.',
                 safety_policy: frame.prefs.settingsContract >= 3 ? 'Do not confuse uncertainty about hidden facts with inability to respond. Ordinary dialogue, feelings, attempts, and small consequences can move in every style. Preserve genuine user decisions and hard constraints. No forced resolution or new incident is required. Do not count sexual activity as required plot progress. Character feelings may coexist with every progression style; judge their expression through the character questions independently of event budgets.' : frame.prefs.judgmentStyle === 'active' ? 'Uncertainty blocks unsupported major invention, but it does not require passive holding when an established thread can move by one concrete genre-compatible beat. Sexual activity is not a scene-progression axis and must not be used to decide whether an NSFW scene should continue, slow, or end.' : 'Uncertainty defaults to no unsupported new event, NPC, or escalation and continued current interaction. Sexual activity is not a scene-progression axis and must not be used to decide whether an NSFW scene should continue, slow, or end.',
             },

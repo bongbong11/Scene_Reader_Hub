@@ -1,11 +1,13 @@
 // Explicitly bounded diagnostics: never retain provider messages or RP content.
 const phases=new Set(['prepare','request','response','items','storage','vault','cleanup']);
-const modules=new Set(['src/continuity/auxiliary-runtime.js','src/adapters/connection-profile.js','src/continuity/json-parser.js','src/continuity/response.js','src/storage/session-transaction.js']);
-const fields=new Set(['source_type','source_indices','kind','label','lifecycle','state_id','relation','pressure','character','source','summary','related_state_id','action','new_items','affected','knowledge_updates','possible_followups']);
+const modules=new Set(['src/continuity/auxiliary-runtime.js','src/adapters/connection-profile.js','src/continuity/json-parser.js','src/continuity/response.js','src/continuity/compact-context.js','src/continuity/turn-source.js','src/storage/session-transaction.js']);
+const fields=new Set(['current_situation','remaining_effects','source_type','source_indices','kind','label','lifecycle','state_id','relation','pressure','character','source','summary','related_state_id','action','new_items','affected','knowledge_updates','possible_followups']);
 const counts=['httpStatus','durationMs','requestMs','inputChars','outputChars','maxTokens','timeoutMs','groupCount','messageCount','candidateCount','acceptedCount','invalidCount','reusedCount','sectionCount','retryAfter','firstMessageIndex','lastMessageIndex'];
 export function safeAnalysisInfo(value={}) {
     if(!value||typeof value!=='object'||Array.isArray(value))return {};
     const safe={};
+    for(const key of ['invalidFields','updatedFields'])if(Array.isArray(value[key]))safe[key]=value[key].filter(field=>['current_situation','remaining_effects'].includes(field));
+    if(value.fieldLengths&&typeof value.fieldLengths==='object')safe.fieldLengths=Object.fromEntries(['current_situation','remaining_effects'].filter(field=>Number.isSafeInteger(value.fieldLengths[field])&&value.fieldLengths[field]>=0).map(field=>[field,value.fieldLengths[field]]));
     for(const key of counts)if(Number.isFinite(value[key])&&value[key]>=0)safe[key]=value[key];
     if(phases.has(value.phase))safe.phase=value.phase;
     if(modules.has(value.module))safe.module=value.module;
@@ -24,7 +26,7 @@ export function safeAnalysisInfo(value={}) {
 }
 export function analysisFailure(error,phase='prepare',details={}) {
     return safeAnalysisInfo({...details,...error?.diagnostic,phase:error?.diagnostic?.phase||phase,
-        module:error?.diagnostic?.module||(phase==='storage'?'src/storage/session-transaction.js':phase==='items'?'src/continuity/response.js':'src/continuity/auxiliary-runtime.js'),
+        module:error?.diagnostic?.module||(phase==='storage'?'src/storage/session-transaction.js':phase==='response'?'src/continuity/compact-context.js':phase==='items'?'src/continuity/response.js':'src/continuity/auxiliary-runtime.js'),
         code:typeof error?.code==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code)?error.code:'ANALYSIS_FAILED',httpStatus:Number(error?.httpStatus||error?.status||error?.cause?.status||error?.diagnostic?.httpStatus)||0,at:new Date().toISOString()});
 }
 export function recordAnalysisDiagnostic(record,attempt,failure=null) {
@@ -45,7 +47,7 @@ export function analysisFailureTitle(failure) {
 }
 export function analysisFailureReason(failure) {
     const code=failure?.code||'';
-    const reasons={PROFILE_UNAVAILABLE:'선택한 연결 프로필을 읽거나 사용할 수 없습니다.',PROFILE_TIMEOUT:'모델 응답 대기 시간이 초과됐습니다.',PROFILE_NETWORK_ERROR:'모델 요청 중 네트워크 오류가 발생했습니다.',PROFILE_REQUEST_FAILED:'모델 요청이 실패했지만 호스트에서 구체적인 원인을 제공하지 않았습니다.',PROFILE_AUTH_FAILED:'모델 요청의 키 인증이 거절됐습니다.',PROFILE_FORBIDDEN:'모델 요청 권한이 거절됐습니다.',PROFILE_RATE_LIMIT:'모델 요청 한도를 초과했습니다.',PROFILE_BILLING:'모델 사용·결제 한도에 걸렸습니다.',PROFILE_NOT_FOUND:'요청한 모델 또는 연결 주소를 찾지 못했습니다.',PROFILE_SERVER_ERROR:'모델 서버가 오류를 반환했습니다.',PROFILE_REQUEST_REJECTED:'모델 서버가 요청을 거절했습니다.',PROFILE_REQUEST_TOO_LARGE:'요청 크기가 모델 서버의 한도를 초과했습니다.',PROFILE_EMPTY_RESPONSE:'모델 응답이 비어 있습니다.',PROFILE_TRUNCATED_RESPONSE:'모델 응답이 출력 한도에서 잘렸습니다.',PROFILE_UNFINISHED_JSON:'응답의 JSON이 끝나지 않았습니다. 출력 한도 초과 여부는 확인되지 않았습니다.',PROFILE_MULTIPLE_JSON:'응답에 JSON 결과가 여러 개 있어 사용할 결과를 정하지 못했습니다.',PROFILE_JSON_NOT_FOUND:'응답에서 JSON 결과를 찾지 못했습니다.',PROFILE_INVALID_JSON:'응답의 JSON 문법을 읽지 못했습니다.',PROFILE_RESPONSE_NOT_OBJECT:'응답이 필요한 JSON 객체 형식이 아닙니다.',PROFILE_INVALID_RESPONSE:'응답이 필요한 형식과 다릅니다.',CONTINUITY_SECTIONS_MISSING:'응답은 읽었지만 연속성 결과 배열이 없습니다.',CONTINUITY_PARTIAL_RESULT:'일부 연속성 항목을 처리하지 못했습니다. 아래 제외 사유를 확인하세요.'};
+    const reasons={CONTINUITY_FIELD_TOO_LARGE:'모델이 반환한 맥락이 필드 길이 한도를 넘었습니다. 이전 자료를 보존했습니다.',CONTINUITY_FIELDS_MISSING:'응답에 현재 상황·남은 여파 문자열이 없습니다.',CONTINUITY_INPUT_TOO_LARGE:'답변이 수집 입력 한도를 넘었습니다. 원문을 보존하며 이후 새 턴 처리는 계속합니다.',PROFILE_UNAVAILABLE:'선택한 연결 프로필을 읽거나 사용할 수 없습니다.',PROFILE_TIMEOUT:'모델 응답 대기 시간이 초과됐습니다.',PROFILE_NETWORK_ERROR:'모델 요청 중 네트워크 오류가 발생했습니다.',PROFILE_REQUEST_FAILED:'모델 요청이 실패했지만 호스트에서 구체적인 원인을 제공하지 않았습니다.',PROFILE_AUTH_FAILED:'모델 요청의 키 인증이 거절됐습니다.',PROFILE_FORBIDDEN:'모델 요청 권한이 거절됐습니다.',PROFILE_RATE_LIMIT:'모델 요청 한도를 초과했습니다.',PROFILE_BILLING:'모델 사용·결제 한도에 걸렸습니다.',PROFILE_NOT_FOUND:'요청한 모델 또는 연결 주소를 찾지 못했습니다.',PROFILE_SERVER_ERROR:'모델 서버가 오류를 반환했습니다.',PROFILE_REQUEST_REJECTED:'모델 서버가 요청을 거절했습니다.',PROFILE_REQUEST_TOO_LARGE:'요청 크기가 모델 서버의 한도를 초과했습니다.',PROFILE_EMPTY_RESPONSE:'모델 응답이 비어 있습니다.',PROFILE_TRUNCATED_RESPONSE:'모델 응답이 출력 한도에서 잘렸습니다.',PROFILE_UNFINISHED_JSON:'응답의 JSON이 끝나지 않았습니다. 출력 한도 초과 여부는 확인되지 않았습니다.',PROFILE_MULTIPLE_JSON:'응답에 JSON 결과가 여러 개 있어 사용할 결과를 정하지 못했습니다.',PROFILE_JSON_NOT_FOUND:'응답에서 JSON 결과를 찾지 못했습니다.',PROFILE_INVALID_JSON:'응답의 JSON 문법을 읽지 못했습니다.',PROFILE_RESPONSE_NOT_OBJECT:'응답이 필요한 JSON 객체 형식이 아닙니다.',PROFILE_INVALID_RESPONSE:'응답이 필요한 형식과 다릅니다.',CONTINUITY_SECTIONS_MISSING:'응답은 읽었지만 연속성 결과 배열이 없습니다.',CONTINUITY_PARTIAL_RESULT:'현재 상황·남은 여파 중 일부만 읽었습니다. 정상 값은 반영하고 미확인 값은 이전 내용을 보존했습니다.'};
     const reason=reasons[code]||(failure?.phase==='storage'?'분석 결과를 저장하지 못했습니다.':failure?.phase==='items'?'응답을 연속성 기록으로 처리하는 중 오류가 발생했습니다.':'확장 처리 중 오류가 발생했습니다. 전체 로그의 실패 단계를 확인하세요.');
     return reason+(failure?.httpStatus?` HTTP ${failure.httpStatus}.`:'');
 }

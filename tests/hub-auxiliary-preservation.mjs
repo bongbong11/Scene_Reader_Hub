@@ -1,40 +1,36 @@
 import assert from 'node:assert/strict';
 import {auxiliaryFixture,emptyResponse} from './fixtures/auxiliary-runtime.mjs';
 import {createSessionTransaction} from '../src/storage/session-transaction.js';
-const f=auxiliaryFixture();await f.turn();await f.turn();assert.equal(f.requests.length,0);
-f.deps.requestWithConnectionProfile=async(...args)=>{f.requests.push(args);return {result:{...emptyResponse().result,new_items:[{kind:'commitment',label:'Meet at noon',lifecycle:'active',owners:['Actor'],source_type:'promise',evidence:'I will meet you at noon.'}]}};};
-await f.turn('I will meet you at noon.');assert.equal(f.requests.length,1);
-const rec=f.records.get('room-A');assert.equal(rec.continuity.items.length,1);assert.equal(rec.continuity.items[0].sourceRefs.length,2);assert.equal(rec.lastContinuityTrace.status,'verified');assert.equal(rec.lastContinuityTrace.groupCount,3);assert.equal(rec.pendingContinuityCandidates,undefined);
-assert.equal(rec.characterEvolutionV1,undefined);assert.equal(rec.analysisRuntimeV1,undefined);
-assert.doesNotMatch(f.requests[0][2],/character_changes|baseline_records|record_reviews/);
-await f.analysis.queue(5);assert.equal(f.requests.length,1,'duplicate completion is not billed twice');
-for(const settings of [{enabled:false},{continuityEnabled:false},{reasonerProfileId:''}]){const disabled=auxiliaryFixture({settings});await disabled.turn();await disabled.turn();await disabled.turn();assert.equal(disabled.requests.length,0);}
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+const f=auxiliaryFixture();await f.turn();await f.turn();assert.equal(f.requests.length,2);
+assert.equal(f.deps.record().lastContinuityTrace.status,'verified');assert.equal(f.deps.record().characterEvolutionV1,undefined);assert.equal(f.deps.record().analysisRuntimeV1,undefined);
+assert.doesNotMatch(f.requests[0][2],/character_changes|baseline_records|record_reviews|new_items|possible_followups/);
+await f.analysis.queue(3);assert.equal(f.requests.length,2);
+for(const settings of [{enabled:false},{continuityEnabled:false},{reasonerProfileId:''}]){const disabled=auxiliaryFixture({settings});await disabled.turn();assert.equal(disabled.requests.length,0);}
 for(const message of [{is_user:true,mes:'User'},{is_user:false,is_hidden:true,mes:'Hidden'},{is_user:false,mes:'(OOC: Explain this.)'},{is_user:false,mes:'',extra:{ooc_chat:true}}]){const skip=auxiliaryFixture({chat:[message]});await skip.analysis.queue(0);assert.equal(skip.requests.length,0);}
-// The optional vault keeps its per-output call, even with continuity off.
-let commits=0,abandons=0;const vault=auxiliaryFixture({settings:{continuityEnabled:false}});
-vault.deps.window.KnowledgeVaultV1={version:'0.1.0',isEnabled:()=>true,beginAnalysis:()=>({token:'token',input:{cards:[]},system:'VAULT_AUDIT',count:1}),analysisCurrent:()=>true,commitAnalysis:async()=>{commits++;return {status:'succeeded'};},abandonAnalysis:()=>abandons++};
-await vault.turn();assert.equal(vault.requests.length,1);assert.equal(commits,1);assert.equal(abandons,1);assert.match(vault.requests[0][2],/VAULT_AUDIT/);assert.doesNotMatch(vault.requests[0][2],/CONTINUITY_REASONER/);
-assert.equal(vault.events.find(event=>event.code==='analysis_started').continuityIncluded,false);
-assert.equal(vault.events.at(-1).continuityIncluded,false,'vault completion is not continuity completion');
-vault.deps.window.KnowledgeVaultV1.isEnabled=()=>false;await vault.turn();assert.equal(vault.requests.length,1);
-// A malformed ordinary section may not delete the prior valid candidates.
-const malformed=auxiliaryFixture();const pending=[{id:'ordinary'}];malformed.records.get('room-A').pendingContinuityCandidates=pending;
-malformed.deps.requestWithConnectionProfile=async()=>({result:{topic_fixation:null}});await malformed.turn();await malformed.turn();await malformed.turn();assert.deepEqual(malformed.records.get('room-A').pendingContinuityCandidates,pending);
-// Edits, hide, stop and room switch while a real request is pending discard its result.
+for(const enabled of [false,true]){
+ let commits=0,failures=0;const vault=auxiliaryFixture({settings:{continuityEnabled:enabled}});
+ vault.deps.window.KnowledgeVaultV1={version:'0.1.0',isEnabled:()=>true,beginAnalysis:()=>({token:'token',input:{cards:[]},system:'VAULT_AUDIT',count:1}),analysisCurrent:()=>true,commitAnalysis:async()=>{commits++;return {status:'succeeded'};},abandonAnalysis(){},failAnalysis(){failures++;}};
+ vault.deps.requestWithConnectionProfile=async(...args)=>{vault.requests.push(args);return {result:{vault_results:[]}};};
+ await vault.turn();assert.equal(commits,1,'valid Vault results survive an independent continuity-format failure');assert.equal(failures,0);
+ assert.equal(vault.requests.length,1);assert.equal(Boolean(vault.deps.record().lastContinuityTrace),enabled);
+ vault.deps.record().auxiliaryStateV1={retryAfter:Date.now()+30000,pending:{turns:[]}};
+ await vault.turn();assert.equal(commits,2,'continuity backoff must not change Vault cadence');
+}
 for(const operation of ['edit','hide','switch','stop']){
- const r=auxiliaryFixture();let resolve;await r.turn();await r.turn();
- r.deps.requestWithConnectionProfile=()=>new Promise(done=>{resolve=done;});
- const run=r.turn();while(!resolve)await new Promise(done=>setImmediate(done));
- if(operation==='edit')r.context.chat[5].mes='Changed';
- if(operation==='hide')r.context.chat[5].is_hidden=true;
- if(operation==='switch')r.deps.stateChatKey=()=> 'room-B';
- if(operation==='stop')r.analysis.cancel('generation_stopped');
- resolve(emptyResponse());assert.equal((await run).status,'cancelled');assert.equal(r.stored.length,0);
- assert.equal(r.events.some(event=>event.code==='analysis_cancelled'),operation!=='switch','cancelled status must not leak into a different room');
+ const r=auxiliaryFixture();let resolve;r.deps.requestWithConnectionProfile=()=>new Promise(done=>resolve=done);
+ const run=r.turn();while(!resolve)await tick();
+ if(operation==='edit')r.context.chat[1].mes='Changed';if(operation==='hide')r.context.chat[1].is_hidden=true;
+ if(operation==='switch')r.deps.stateChatKey=()=> 'room-B';if(operation==='stop')r.analysis.cancel('generation_stopped');
+ resolve(emptyResponse());assert.equal((await run).status,'cancelled');assert.equal(r.records.get('room-A').continuity.context,undefined);
+ assert.equal(r.events.some(event=>event.code==='analysis_cancelled'),operation!=='switch');
  assert.ok(!r.events.some(event=>event.code==='analysis_result'&&event.status==='succeeded'));
 }
-// Network and persistence failures retain the last good state and terminate.
-for(const kind of ['network','storage']){const r=auxiliaryFixture();r.records.get('room-A').relationshipState={trust:'keep'};if(kind==='network')r.deps.requestWithConnectionProfile=async()=>{throw new Error('failure');};else r.deps.storagePost=async()=>{throw new Error('failure');};await r.turn();await r.turn();assert.equal((await r.turn()).status,kind==='network'?'fallback':'failed');assert.equal(r.analysis.busy,false);assert.deepEqual(r.records.get('room-A').relationshipState,{trust:'keep'});}
+for(const kind of ['network','storage']){
+ const r=auxiliaryFixture();r.deps.record().relationshipState={trust:'keep'};
+ if(kind==='network')r.deps.requestWithConnectionProfile=async()=>{throw new Error('Synthetic failure');};else r.deps.storagePost=async()=>{throw new Error('Synthetic failure');};
+ assert.equal((await r.turn()).status,'failed');assert.equal(r.analysis.busy,false);assert.deepEqual(r.deps.record().relationshipState,{trust:'keep'});
+}
 // Failed/stale writes cannot publish or erase the current ordinary state.
 for(const scenario of ['normal','invalid','save-failed','stale-after-save']){
  const run=async(factory)=>{const r=auxiliaryFixture();let valid=true;r.records.get('room-A').preferences={keep:true};const write=r.deps.storagePost;r.deps.storagePost=async(route,body)=>{if(scenario==='save-failed')throw new Error('fail');await write(route,body);if(scenario==='stale-after-save')valid=false;};
@@ -47,5 +43,5 @@ for(const scenario of ['normal','invalid','save-failed','stale-after-save']){
  assert.equal(outcome.record.visibilityStateV1?.status,scenario==='normal'?'applied':undefined);
  assert.equal(outcome.writes.length,scenario==='normal'?1:scenario==='stale-after-save'?2:0);
 }
-assert.ok(!JSON.stringify(f.events).includes('meet you'));
-console.log('Auxiliary preservation passed: ordinary continuity, no evolution, disabled/OOC/hidden, vault independence, cancellation, failure, deduplication and transaction equivalence.');
+
+console.log('Auxiliary preservation passed: per-turn work, no evolution, independent Vault, cancellation, failure and serialized transaction ownership.');

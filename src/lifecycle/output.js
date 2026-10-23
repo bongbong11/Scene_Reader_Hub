@@ -101,7 +101,7 @@ async function onCharacterMessageReceived(messageId) {
     const index=Number.isInteger(Number(messageId))?Number(messageId):(deps.getContext().chat||[]).length-1;
     await processCharacterMessageReceived(messageId);
     if(chatKey===deps.stateChatKey()&&mode==='rp'&&deps.settings.enabled&&cycle?.startedAt&&analysis?.cancellationToken===cancellationToken)
-        analysis?.observe(index,{generationType:type||'normal'});
+        await analysis?.observe(index,{generationType:type||'normal'});
 }
 async function onUserMessageSent(messageId) {
     deps.messageSnapshots.set(deps.stateChatKey(), deps.messageSnapshot(deps.getContext().chat));

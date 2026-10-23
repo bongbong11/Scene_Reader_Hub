@@ -23,7 +23,7 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
     deps.messageSnapshots.set(chatKey, currentMessages);
     if (!Number.isInteger(index)) return;
     if (kind === 'deleted' && rec.nonRpOutputIndices?.includes(index) && isSingleMessageDeletion(previousMessages,currentMessages,index)) {
-        rebaseExcludedDeletion(rec,history,index);
+        rebaseExcludedDeletion(rec,history,index,deps.stableFingerprint);
         await deps.clearInjection({chatKey});
         await deps.saveSession(chatKey,rec,history);
         if(chatKey===deps.stateChatKey())deps.renderAll();
@@ -100,7 +100,7 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
         return;
     }
     const entry = history[affected];
-    const canReuseSwipe = !hasRetiredCollection(entry.before) && !hasRetiredCollection(entry.after) && !sceneGateAffected && ['swiped', 'regenerated'].includes(kind) && entry.plan && entry.judgment;
+    const canReuseSwipe = entry.judgment?.rpContextVersion===6 && !hasRetiredCollection(entry.before) && !hasRetiredCollection(entry.after) && !sceneGateAffected && ['swiped', 'regenerated'].includes(kind) && entry.plan && entry.judgment;
     deps.restoreReversibleState(rec, entry.before);
     invalidateProgressFrom(rec,index);
     for (const stateEvent of preservedSwipeStates) deps.storeStateEvent(rec, stateEvent);

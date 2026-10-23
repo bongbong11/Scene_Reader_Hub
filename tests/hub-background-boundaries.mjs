@@ -38,11 +38,11 @@ for(const failed of [false,true]){
  const a=auxiliaryFixture();let finish,hostBusy=false,clears=0;
  a.deps.isGenerationBusy=()=>hostBusy;a.deps.clearInjection=async()=>{assert.equal(hostBusy,false);clears++;};
  a.deps.requestWithConnectionProfile=()=>new Promise((resolve,reject)=>{finish=()=>failed?reject(Error('synthetic failure')):resolve(emptyResponse());});
- await a.turn();await a.turn();const task=a.turn();while(!finish)await tick();
- hostBusy=true;finish();await tick();assert.equal(a.stored.length,0);assert.equal(clears,0);
+ const task=a.turn();while(!finish)await tick();
+ hostBusy=true;finish();await tick();assert.equal(a.stored.length,1);assert.equal(clears,0);
  a.records.get('room-A').lastJudgment={inputKey:'newer-foreground'};
  hostBusy=false;await within(task);assert.ok(a.stored.length);
- if(failed){assert.equal(a.records.get('room-A').lastContinuityTrace.status,'fallback');assert.ok(a.records.get('room-A').continuity.references.length);assert.equal(clears,1,'new fallback context invalidates injection only after foreground activity ends');}
+ if(failed){assert.equal(a.records.get('room-A').lastContinuityTrace.status,'error');assert.equal(a.records.get('room-A').continuity.context,undefined);assert.equal(clears,0,'failed collection must not clear a newer foreground injection');}
 }
 
 // Paged maintenance uses bounded pages and ignores mutable search-cache records.

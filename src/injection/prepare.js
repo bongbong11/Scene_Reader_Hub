@@ -7,7 +7,7 @@ import {characterVolume} from '../character/volume.js';
 import {additionBlocks, incorporateAdditions} from './opportunity.js';
 import {selectActingAntagonists,buildEventCastInjection} from './npc-execution.js';
 import {castSummary} from '../scene/cast-binding.js';
-import {repetitionInjection} from '../continuity/repetition.js';
+
 import {storylineInjection} from '../context/storyline-reference.js';
 import {selectExecutionCorrectionKeys} from "../scene/correction-selection.js";
 import {splitCharacterContext} from './character-context.js';
@@ -75,7 +75,8 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         frame.characterBlock=[frame.characterBlock,plannedRecords.text?plannedGuard+plannedRecords.text:''].filter(Boolean).join('\n');
         frame.characterExecution.charCount=frame.characterBlock.length;
         frame.characterExecution.charLimit=fullCharacterBudget;
-        const personContext = splitCharacterContext(deps.settings.continuityEnabled ? frame.continuityContext : null,
+        const selectedContext={...frame.continuityContext,items:[],dependencies:[],followups:[],references:[],context:frame.continuityContext?.context||null};
+        const personContext = splitCharacterContext(selectedContext,
             [...frame.liveCharacters, ...(frame.futureCast || [])],
             frame.characterExecution.deliveredKnowledge || []);
         frame.characterContextBlock = personContext.text;
@@ -85,14 +86,6 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
         (frame.continuityBlock = deps.settings.continuityEnabled
             ? deps.buildContinuityInjection(personContext.scene, frame.chosenContinuity,frame.chosenEventFollowups)
             : '');
-        if(deps.settings.continuityEnabled && frame.rec.repetitionGuard) {
-            const review=repetitionInjection(frame.rec.repetitionGuard,{chat:deps.getContext().chat,chatKey:run.identity,excluded:frame.rec.nonRpOutputIndices || [],fingerprint:deps.stableFingerprint});
-            if(review.text) {
-                frame.continuityBlock=[frame.continuityBlock,review.text].filter(Boolean).join('\n');
-                frame.rec.repetitionGuard=review.guard;
-            } else frame.rec.repetitionGuard=null;
-            deps.noteDiagnostic?.('topic_fixation_injection',{module:'src/continuity/repetition.js',status:review.status,targetCount:review.text?1:0});
-        }
         (frame.sheetCastNames = [...deps.characterStore.characters, ...deps.characterStore.npcs, ...[deps.characterStore.persona].filter(Boolean)].flatMap(entry => [entry.name, ...(entry.aliases || [])]));
         (frame.selectedSheetNpc = frame.decisions.npc_route === 'reuse' && /^sheet_\d+$/.test(frame.decisions.npc_target || '')
             ? frame.npcTargets[Number(frame.decisions.npc_target.slice(6))] || null : null);
@@ -112,7 +105,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             if(frame.characterDelivery.version===1)frame.characterDelivery.scenePayload=frame.characterDelivery.scenePayload.slice(0,-2)+`\n\n${castText}\n)`;
         }
         const carriedParts={};
-        const carried=storylineInjection(frame.rec, personContext.moved, carriedParts,{chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,people:frame.liveCharacters});
+        const carried=storylineInjection(frame.rec, personContext.moved, carriedParts,{includeContext:!deps.settings.continuityEnabled,chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,people:frame.liveCharacters});
         if(carried){
             frame.payload=carried+'\n\n'+frame.payload;
             if(frame.characterDelivery.version===1){
@@ -125,7 +118,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             sceneChars:frame.characterDelivery.scenePayload?.length || 0});
         frame.finalContinuityCacheKey=continuityCacheKey(frame.rec,deps.settings,deps.stableFingerprint);
         (frame.rawChoices = Object.fromEntries(Object.entries({...frame.worldRecordAnswers,...frame.data.answers}).map(([key, answer]) => [key, { choice: answer?.choice, confidence: answer?.confidence, probabilities: answer?.probabilities, noul: answer?.noul }])));
-        frame.rec.lastJudgment = { decisionContract:DECISION_CONTRACT_VERSION, details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
+        frame.rec.lastJudgment = { decisionContract:DECISION_CONTRACT_VERSION,rpContextVersion:6, details: frame.details, decisions: frame.decisions, rawChoices: frame.rawChoices, jevDiagnostics:frame.data.answerDiagnostics||null, npcTargetName: frame.selectedSheetNpc?.name || '', memoryStatus: frame.memory.status, memoryKey: frame.memoryKey, characterTrace: frame.characterTrace, characterInjectionChars:frame.characterExecution.charCount, characterInjectionLimit:frame.characterExecution.charLimit, sexualInjectionChars:frame.sexualExecution.charCount, sexualTrace:frame.sexualExecution.traces, actionPlan: deps.actionPlanSummary(frame.finalPlan), payload: frame.payload, worldSelection: frame.worldSelection, worldId:frame.world?.id||'',...(frame.world?.worldRef?{worldVersion:frame.world.worldRef}:{}), worldPayload: frame.selectedWorldPayload, sceneIntimacy:frame.rec.sceneIntimacy, inputKey: frame.inputKey, contextKey: frame.context.contextKey, sourceKey: frame.sourceKey, continuityCacheKey: frame.finalContinuityCacheKey, priorVerification: frame.priorVerification, rolls: { event: frame.staged.lastEventRoll || null, npc: frame.staged.lastNpcRoll || null, villain: frame.staged.lastVillainRoll || null }, judgedAt: new Date().toISOString(), model: String(frame.data.model || deps.JEV_MODEL) };
         if(frame.characterDelivery.version===1)frame.rec.lastJudgment.characterDelivery=frame.characterDelivery;
         frame.rec.lastJudgment.activity=frame.activitySummary;
         frame.rec.lastJudgment.cast=castSummary(frame.castBindings);
@@ -142,7 +135,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
                 additions: structuredClone(frame.additions||[]),
                 cast:castSummary(frame.castBindings),
                 storyDirection:frame.storyDirection?structuredClone(frame.storyDirection):null,
-                eventFollowups:(frame.chosenEventFollowups||[]).map(item=>({id:item.id,action:item.data.action})),
+
                 opportunityKey: frame.opportunityOffers?.key||null,
                 inputKey: frame.inputKey,
                 sourceKey: frame.sourceKey,

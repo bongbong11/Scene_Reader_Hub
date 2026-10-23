@@ -5,6 +5,7 @@ import {restoreOpportunityPreferences,normalizeChance} from '../scene/opportunit
 import { normalizePresetSlot } from '../injection/preset-catalog.js';
 import { effectivePreferences } from './common-preferences.js';
 import {retireCollection} from './retired-collection.js';
+import {retireContinuityPlan} from '../continuity/compact-context.js';
 // Shared storage contract retained across extension replacement.
 export function createRecordRepository(deps) {
 function record(create = false) {
@@ -13,6 +14,9 @@ function record(create = false) {
     const value = deps.chatRecords.get(key) || null;
     retireCollection(value);
     if (value && create) {
+        retireContinuityPlan(value.pendingPlan);
+        value.pendingContinuityCandidates=[];
+        delete value.repetitionGuard;
         deps.migrateKnowledge(value);
         const saved = value.preferences || {};
         value.preferences = Object.fromEntries(Object.entries(deps.CHAT_DEFAULTS).map(([key, fallback]) => [key, Object.hasOwn(saved, key) ? saved[key] : Array.isArray(fallback) ? [...fallback] : fallback]));

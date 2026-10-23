@@ -36,7 +36,7 @@ await deps.waitForOutputChanges?.();
 
     run.assert();
     (frame.rec = deps.stagedRecord(deps.record(true)));
-    frame.storylineReference=storylineReference(frame.rec);
+    frame.storylineReference=storylineReference(frame.rec,{chatRef:run.identity,chat:deps.getContext().chat,fingerprint:deps.stableFingerprint});
     (frame.prefs = frame.rec.preferences);
     (frame.inputKey = deps.currentInputKey(frame.pendingUserText, frame.cycleSalt));
     const [history]=await Promise.all([deps.loadStateHistory(run.identity),ensureSharedWorld(frame.prefs.selectedWorldId,{signal:run.controller?.signal})]);

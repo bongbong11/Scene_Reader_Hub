@@ -84,20 +84,20 @@ const record={sharedSource:{id:'previous'},sharedReference:{summary:'An ongoing 
 const recordBefore=JSON.stringify(record),before=storylineReference(record);
 const carried=storylineInjection(record,split.moved);
 assert.doesNotMatch(carried,/Deliver the sealed letter|west gate/);
-assert.match(carried,/market/);
+assert.doesNotMatch(carried,/market/,'retired task arrays stay out of linked RP');
 assert.match(carried,/ongoing trip/);
 assert.deepEqual(storylineReference(record),before);
 assert.equal(JSON.stringify(record),recordBefore);
-assert.match(storylineInjection(record,{items:[{...promise,lifecycle:'completed'}]}),/Deliver the sealed letter/,'do not remove a different state with the same ID');
+assert.doesNotMatch(storylineInjection(record,{items:[{...promise,lifecycle:'completed'}]}),/Deliver the sealed letter/,'retired tasks cannot reappear through a different state');
 {
     const prior={...record,relationshipState:{tension:'high'},sharedReference:{...record.sharedReference,characterStates:[{id:'alex',name:'Alex',fear:30}]}};
     const parts={};
     assert.equal(storylineInjection(prior,{},parts),storylineInjection(prior),'splitting carry-over does not change integrated output');
     assert.match(parts.text,/tension: high/);
     assert.match(parts.text,/Alex — prior feelings: fear: 30/);
-    assert.match(parts.text,/west gate|Deliver the sealed letter/);
+    assert.match(parts.text,/west gate/);
     assert.doesNotMatch(parts.scene,/west gate|Deliver the sealed letter|tension: high|fear: 30/);
-    assert.match(parts.scene,/market|ongoing trip/);
+    assert.match(parts.scene,/ongoing trip/);
 }
 
 // Actual preparation must connect the split to saved and pending delivery.
@@ -112,13 +112,13 @@ const frame={details:{},prefs:settings,decisions:{...FALLBACKS},liveCharacters:[
     chosenContinuity:followup,chosenEventFollowups:[],rec:{...record,relationshipState:{tension:'high'}},questions:{},data:{answers:{}},
     staged:{},memory:{status:'unused'},context:{contextKey:'synthetic'},additions:[],npcTargets:[]};
 await createInjectionPreparation(deps).prepareInjection({identity:'synthetic'},frame);
-assert.ok(frame.rec.lastJudgment.characterDelivery.text.includes(promise.label));
+assert.ok(!frame.rec.lastJudgment.characterDelivery.text.includes(promise.label),'stale selected task data cannot reactivate the retired delivery path');
 assert.match(frame.rec.lastJudgment.characterDelivery.text,/tension: high/);
 assert.doesNotMatch(frame.rec.lastJudgment.characterDelivery.scenePayload,/tension: high/);
-assert.ok(frame.rec.pendingPlan.judgment.characterDelivery.text.includes(promise.label));
+assert.ok(!frame.rec.pendingPlan.judgment.characterDelivery.text.includes(promise.label));
 assert.equal(frame.payload.split(fact.summary).length-1,1);
 assert.ok(!frame.characterDelivery.scenePayload.includes(promise.label));
-assert.ok(frame.characterDelivery.scenePayload.includes(followup.data.action));
+assert.ok(!frame.characterDelivery.scenePayload.includes(followup.data.action));
 assert.equal(diagnostics.find(e=>e.stage==='character_context_prepared').deduplicatedKnowledgeCount,1);
 assert.ok(!JSON.stringify(diagnostics).includes(fact.summary),'diagnostics contain counts, not content');
 deps.settings.continuityEnabled=false;

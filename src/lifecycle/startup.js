@@ -68,6 +68,7 @@ async function init() {
     if (deps.event_types.GENERATION_ENDED) deps.eventSource.on(deps.event_types.GENERATION_ENDED, () => { (deps.finishPresetRequest||deps.resetPresetRequest)?.();deps.pendingGenerationType = '';deps.hub?.endCycle(); });
     await deps.clearInjection();
     deps.initVisibility?.();
+    if(deps.chatReadyKey===deps.stateChatKey())await deps.analysis?.resume?.();
     console.info('[씬판독기] loaded');
 }
 return {init};

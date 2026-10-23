@@ -28,22 +28,6 @@ async function commitPriorVerification(rec, decisions, run = null) {
         result.committed=true;
     }
     for(const item of additions)deps.noteDiagnostic?.('opportunity_verification',{module:'src/scene/opportunity-state.js',feature:item.feature,templateId:item.templateId,reasonCode:item.verification});
-    const followed = rec.continuity?.followups?.find((item) => item.id === pending.decisions?.selected_continuity_id);
-    if (followed) {
-        followed.lastOffered = rec.sceneOpportunity;
-        if (['fulfilled', 'partial'].includes(verification.continuity)) {
-            followed.executed = true;
-            followed.status = 'executed';
-        }
-        rec.continuity.revision += 1;
-    }
-    for(const [index,item] of (pending.eventFollowups||[]).slice(0,1).entries()) {
-        const followed=rec.continuity?.followups?.find(entry=>entry.id===item.id);
-        if(!followed)continue;
-        followed.lastOffered=rec.sceneOpportunity;
-        if(decisions[`verification_event_followup_${index}`]==='fulfilled'){followed.executed=true;followed.status='executed';}
-        rec.continuity.revision+=1;
-    }
     const ongoing=(pending.cast||[]).filter(item=>['ongoing','direction'].includes(item.beatKey)&&item.kind!=='unresolved');
     for(const actor of pending.cast||[]) {
         actor.verification=actor.kind==='unresolved'?'unavailable':['ongoing','direction'].includes(actor.beatKey)

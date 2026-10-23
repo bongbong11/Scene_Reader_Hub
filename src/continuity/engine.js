@@ -1,4 +1,5 @@
 import {applyItemUpdate} from './state-updates.js';
+import {compactInjection} from './compact-context.js';
 export {selectActiveContinuity as selectContinuityContext} from './selection.js';
 
 import {SOURCE_TYPES} from './response.js';
@@ -14,6 +15,7 @@ export function normalizeContinuity(value) {
         dependencies: Array.isArray(base.dependencies) ? base.dependencies.slice(0, 30) : [],
         followups: Array.isArray(base.followups) ? base.followups.slice(0, 20) : [],
         ...(Array.isArray(base.references)?{references:base.references.slice(-6)}:{}),
+        ...(base.context&&typeof base.context==='object'?{context:structuredClone(base.context)}:{}),
         revision: Math.max(0, Number(base.revision) || 0),
     };
 }
@@ -93,6 +95,7 @@ export function continuityLines(selected, chosenFollowup = null, eventFollowups 
 }
 
 export function buildContinuityInjection(selected, chosenFollowup = null, eventFollowups = []) {
+    if(selected&&Object.hasOwn(selected,'context'))return compactInjection(selected.context);
     const lines = continuityLines(selected, chosenFollowup, eventFollowups);
     return lines.length ? `<CONTINUITY_CONTEXT>\n${lines.join('\n')}\nTreat pressure as context, not a completed off-screen action.\n</CONTINUITY_CONTEXT>` : '';
 }

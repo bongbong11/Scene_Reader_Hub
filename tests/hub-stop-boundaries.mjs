@@ -100,7 +100,7 @@ assert.equal(queuedCalls,0,'a preparation cancelled before dispatch sends nothin
 for(const autoJudge of [false,true]) {
     let release,entered,calls=0;
     const ready=new Promise(resolve=>{entered=resolve;});
-    const record={lastJudgment:{inputKey:'input',contextKey:'context',sourceKey:'source',payload:'saved'}};
+    const record={lastJudgment:{rpContextVersion:6,continuityCacheKey:'cache',inputKey:'input',contextKey:'context',sourceKey:'source',payload:'saved'}};
     const deps={hub,stateChatKey:()=> 'synthetic',settings:{enabled:true,autoJudge},chatReadyKey:null,
         getContext:()=>({chat:[]}),record:()=>record,selectedWorld:()=>null,sourceRevisionKey:()=> 'source',
         currentInputKey:()=> 'input',recentContext:()=>({contextKey:'context'}),stableFingerprint:()=> 'cache',

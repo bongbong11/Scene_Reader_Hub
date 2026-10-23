@@ -11,6 +11,8 @@ export function renderStorylineRp(reference,{people=[]}={}) {
     const add=(target,value)=>{if(value&&!target.includes(value))target.push(value);};
     add(scene,line('Earlier scene',Object.entries(reference.scene||{}).map(([key,value])=>`${key}: ${value}`).join('; ')));
     add(scene,line('Prior context',reference.summary));
+    add(scene,line('Earlier situation',reference.context?.current_situation));
+    add(scene,line('Remaining earlier effects',reference.context?.remaining_effects));
     add(scene,line('Existing event',reference.active_event?.title));
     for(const event of reference.background_events||[])add(scene,line('Background',text(event.title)||text(event.summary)));
     for(const item of reference.confirmed_facts||[])add(item.owners?.length?character:scene,fact(item));

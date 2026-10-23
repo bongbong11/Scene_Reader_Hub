@@ -146,7 +146,7 @@ console.log('Failure/rollback/UI regression passed: failed writes, expired snaps
 // Reuse is tied to the original USER/OOC, selected range, settings and sources.
 {
     const f=fixture();f.ctx.chat=[{is_user:true,mes:'Enter. (OOC: No reconciliation.)'}];
-    f.run('var r=record(true); r.pendingPlan={chatCount:1}; r.lastJudgment={inputKey:currentInputKey(),contextKey:recentContext().contextKey,sourceKey:sourceRevisionKey(r,selectedWorld(r))};');
+    f.run('var r=record(true); r.pendingPlan={chatCount:1}; r.lastJudgment={continuityCacheKey:stableFingerprint({contract:6,enabled:false,revision:0,context:null}),inputKey:currentInputKey(),contextKey:recentContext().contextKey,sourceKey:sourceRevisionKey(r,selectedWorld(r))};');
     f.ctx.chat.push({is_user:false,mes:'A different swipe.'});
     assert.equal(f.run('cachedJudgmentMatches(record(),recentContext(),currentInputKey(),true)'),true);
     f.ctx.chat[0].mes='Enter. (OOC: Reconcile this time.)';
