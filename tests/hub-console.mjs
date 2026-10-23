@@ -8,6 +8,7 @@ const failure={status:'failed',errorKind:'PROFILE_SERVER_ERROR',httpStatus:502,p
 reporter.accept({code:'RUN_STARTED',cycleId:'first'});
 reporter.accept({...failure,stage:'profile_request'});reporter.accept({...failure,stage:'analysis_failed'});
 assert.equal(lines.length,1,'same root in transport and continuity is grouped');
+reporter.accept({...failure,errorKind:'RUN_FAILED',stage:'lifecycle'});assert.equal(lines.length,1,'generic catch wrappers do not duplicate the root');
 assert.match(lines[0][0],/연결/);assert.equal(lines[0][1].HTTP,502);
 reporter.accept({...failure,errorKind:'PROFILE_INVALID_JSON',stage:'analysis_failed',phase:'response'});assert.match(lines.at(-1)[0],/분석/);
 reporter.accept({...failure,errorKind:'STORAGE_WRITE_FAILED',stage:'storage_request',phase:'storage'});assert.match(lines.at(-1)[0],/저장·설정/);

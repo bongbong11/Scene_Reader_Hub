@@ -1,5 +1,6 @@
 const code=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(value)?value:'';
 const phases=new Set(['prepare','request','response','items','storage','settings','cleanup','commit','read','write','render','query','list','insert','index_check','index_sync','connection_test','send','assembly']);
+const wrappers=new Set(['STAGE_FAILED','RUN_FAILED','GENERATION_PREPARATION_FAILED','UI_TASK_FAILED','EVENT_TASK_FAILED']);
 function classification(event,root){
  if(/STORAGE|SAVE|SETTINGS|CLEANUP/.test(root)||/storage|settings|migration/.test(event.stage||''))return ['저장·설정','저장·설정 처리'];
  if(/^(PROFILE|JEV|NANO|RETRIEVAL)_(?:NETWORK|TIMEOUT|AUTH|FORBIDDEN|RATE|BILLING|SERVER|REQUEST|UNAVAILABLE|NOT_FOUND|SUBSCRIPTION)/.test(root))return ['연결','모델 연결'];
@@ -8,7 +9,7 @@ function classification(event,root){
 }
 // Read-only, bounded, safe projection. Never forward an Error or event object.
 export function createConsoleReporter({console:output=globalThis.console,now=()=>Date.now()}={}){
- const seen=new Map();let run='',attempt=0;
+ const seen=new Map();let run='',attempt=0,lastFailure=null;
  function accept(event){
   if(event.code==='RUN_STARTED'){run=event.cycleId||String(event.sequence);attempt=0;}
   if(event.stage==='analysis_started')attempt++;
@@ -16,11 +17,14 @@ export function createConsoleReporter({console:output=globalThis.console,now=()=
   const root=code(event.errorKind)||code(event.reasonCode)||code(event.code)||'EXTENSION_FAILED';
   if(/CANCELLED|STALE_RUN|ABORT/.test(root))return;
   const [category,feature]=classification(event,root),time=now();
+  const scope=`${run||event.cycleId||'outside'}:${attempt}`;
+  if(wrappers.has(root)&&lastFailure?.scope===scope&&time-lastFailure.time<2000)return;
   const identity=JSON.stringify([run||event.cycleId||'outside',attempt,category,root]);
   const previous=seen.get(identity);
   // Generic follow-on stage errors share the first root where available.
   if(previous!==undefined&&(run||time-previous<5000))return;
   seen.set(identity,time);if(seen.size>128)seen.delete(seen.keys().next().value);
+  lastFailure={scope,time};
   const detail={기능:feature,코드:root};
   if(phases.has(event.phase))detail.단계=event.phase;
   if(typeof event.module==='string'&&/^src\/[a-z0-9/-]+\.js$/.test(event.module)&&event.module.length<100)detail.담당=event.module;
@@ -31,7 +35,7 @@ export function createConsoleReporter({console:output=globalThis.console,now=()=
   const write=event.status==='failed'?output?.error:output?.warn;
   try{write?.call(output,`[씬판독기 · ${category}]`,detail);}catch{/* Console cannot affect execution. */}
  }
- return {accept,reset:()=>{seen.clear();run='';attempt=0;}};
+ return {accept,reset:()=>{seen.clear();run='';attempt=0;lastFailure=null;}};
 }
 export function attachConsoleReporter(hub,options){
  const reporter=createConsoleReporter(options);let sequence=0;

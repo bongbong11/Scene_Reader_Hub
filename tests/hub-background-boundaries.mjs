@@ -42,6 +42,7 @@ for(const failed of [false,true]){
  hostBusy=true;finish();await tick();assert.equal(a.stored.length,1);assert.equal(clears,0);
  a.records.get('room-A').lastJudgment={inputKey:'newer-foreground'};
  hostBusy=false;await within(task);assert.ok(a.stored.length);
+  assert.equal(a.records.get('room-A').lastJudgment.inputKey,'newer-foreground','background collection preserves the prior request receipt; the cache key controls next preparation');
  if(failed){assert.equal(a.records.get('room-A').lastContinuityTrace.status,'error');assert.equal(a.records.get('room-A').continuity.context,undefined);assert.equal(clears,0,'failed collection must not clear a newer foreground injection');}
 }
 

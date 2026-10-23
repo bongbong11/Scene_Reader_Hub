@@ -34,10 +34,17 @@ export function createAuxiliaryRuntime(deps){
         const valid=()=>epoch===cancellationToken&&!stopped&&deps.settings.enabled&&deps.stateChatKey()===key&&deps.settings.reasonerProfileId===profile&&Boolean(deps.settings.continuityEnabled)===enabled&&visibilityKey(deps.getContext().chat||[])===stamp&&validateSourceRefs(turn.refs,sourceOptions(key));
         // Register work before waiting for the model. New completed turns remain
         // distinct and survive reload even while an earlier request is running.
-        const registration=enabled?commitSession(key,({current:rec,history})=>{
-            rec.auxiliaryStateV1={...rec.auxiliaryStateV1,contract:COMPACT_CONTRACT,pending:{turns:pendingTurns(rec,turn,sourceOptions(key))}};
-            return {chat:rec,history};
-        },valid):Promise.resolve(true);
+        const registration=enabled?(async()=>{
+            for(let retry=0;retry<2&&valid();retry++){
+                const saved=await commitSession(key,({current:rec,history})=>{
+                    rec.auxiliaryStateV1={...rec.auxiliaryStateV1,contract:COMPACT_CONTRACT,pending:{turns:pendingTurns(rec,turn,sourceOptions(key))}};
+                    return {chat:rec,history};
+                },valid);
+                if(saved)return true;
+            }
+            if(valid())throw Object.assign(new Error('수집할 답변 등록 중 저장 상태가 계속 변경됐습니다.'),{code:'CONTINUITY_REGISTRATION_CHANGED'});
+            return false;
+        })():Promise.resolve(true);
         // Attach immediately; registration failure is handled by the job below.
         void registration.catch(()=>{});
         const completion=scheduler.request(async job=>{
@@ -86,7 +93,9 @@ export function createAuxiliaryRuntime(deps){
                         next.auxiliaryStateV1={contract:COMPACT_CONTRACT,sourceKey:turn.key,retryAfter:review.partial?Date.now()+30000:0,pending:{turns:pending}};
                         next.lastReasonerSource={refs:turn.refs,assistantIndex:index,outputFingerprint:deps.fingerprint(String(opts.chat[index]?.mes||''))};
                         next.lastContinuityTrace={contract:COMPACT_CONTRACT,mode:'model',groupCount:source.covered.length,status:review.partial?'partial':'verified',trigger:'each_turn',outputIndex:index,acceptedCount:Object.keys(review.values).length,invalidCount:review.invalidFields.length,retryPending:Boolean(pending.length),pendingCount:pending.length,...(failure?{failure,errorCode:failure.code}:{})};
-                        next.lastJudgment=null;
+                        // The prior judgment remains the receipt for the prior
+                        // request. Its continuity cache key is now stale, so the
+                        // next preparation rebuilds it without an orphan alarm.
                         recordAnalysisDiagnostic(next,{...attempt,at:new Date().toISOString(),status:review.partial?'partial':'succeeded',acceptedCount:Object.keys(review.values).length,invalidCount:review.invalidFields.length,persisted:true},failure);
                         return {chat:next,history};
                     },()=>sourceValid()&&foregroundIdle());

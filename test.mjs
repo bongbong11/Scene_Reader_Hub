@@ -1,5 +1,6 @@
 import { prepareProfileItems, createProfile } from './tests/fixtures/legacy-profiles.mjs';
 import assert from 'node:assert/strict';
+import {HUB_VERSION} from './src/version.js';
 import {characterBehaviorPrompt} from './src/injection/character-behavior.js';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -40,7 +41,8 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.31');
+assert.equal(manifest.version, '0.2.32');
+assert.equal(manifest.version,HUB_VERSION,'manifest and runtime diagnostics identify the same release');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);
 assert.match(decisionEngineSource, /allowedChoices\.includes\(candidate\)/);

@@ -1,6 +1,7 @@
 import { safeDetail } from './events.js';
+import {HUB_VERSION} from '../version.js';
 export const EXECUTION_REPORT_VERSION = 4;
-export function executionReport({hub,failureStop=null,settings={},version='0.2.27'}) {
+export function executionReport({hub,failureStop=null,settings={},version=HUB_VERSION}) {
     const snapshot=hub?.snapshot() || {state:{},events:[]};
     const events=snapshot.events.map(event=>safeDetail(event));
     return {reportVersion:EXECUTION_REPORT_VERSION,version,capabilities:['bounded-network','embedding-retry','whole-extension-log','retained-failure','capture-field-coverage','chunk-storage-v2','atomic-cas','storyline-storage','stream-backup','continuity-failure-stages'],

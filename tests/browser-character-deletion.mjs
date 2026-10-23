@@ -48,15 +48,15 @@ export async function checkCharacterDeletion(page,store,requests,setViewportSize
     const count=page.locator('#sr-recent-turns'),continuity=page.locator('#sr-continuity-enabled');
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),count.selectOption('1')]);
     assert.equal(store.settings.global.recentTurns,1);
-    await continuity.check();await page.waitForFunction(()=>document.getElementById('sr-recent-turns').value==='2');
-    assert.equal(store.settings.global.continuityEnabled,true);assert.equal(store.settings.global.recentTurns,2);
-    assert.equal(await count.locator('option[value="1"]').count(),0);
-    await continuity.uncheck();await page.waitForFunction(()=>document.querySelector('#sr-recent-turns option[value="1"]'));
-    assert.equal(await count.inputValue(),'2','turning off does not force a lower value');
+    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),continuity.check()]);
+    assert.equal(store.settings.global.continuityEnabled,true);assert.equal(store.settings.global.recentTurns,1);
+    assert.equal(await count.locator('option[value="1"]').count(),1);
+    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),continuity.uncheck()]);
+    assert.equal(await count.inputValue(),'1','collection does not change foreground context settings');
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),count.selectOption('5')]);
-    await continuity.check();await page.waitForFunction(()=>!document.querySelector('#sr-recent-turns option[value="1"]'));
+    await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),continuity.check()]);
     assert.equal(await count.inputValue(),'5');
     await open();await page.locator('#sr-settings-button').click();assert.equal(await count.inputValue(),'5');
-    assert.equal(await count.locator('option[value="1"]').count(),0);
-    console.log('Browser person deletion and turn settings passed: mobile controls, cancel/failure/sibling/reload/empty registration and continuity min-two persistence.');
+    assert.equal(await count.locator('option[value="1"]').count(),1);
+    console.log('Browser person deletion and turn settings passed: mobile controls, cancel/failure/sibling/reload/empty registration and independent per-turn continuity settings.');
 }

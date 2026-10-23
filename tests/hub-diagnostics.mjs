@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {wholeDiagnosticReport} from '../src/debug/whole-report.js';
 import {appearanceRollText} from '../src/ui/appearance-status.js';
+import {executionReport} from '../src/debug/execution-report.js';
+import {HUB_VERSION} from '../src/version.js';
+assert.equal(executionReport({}).version,HUB_VERSION,'copied diagnostics identify the installed candidate instead of the old hardcoded version');
 const paused={judgedAt:'2025-01-01T12:00:00.000Z',model:'jev-latest',sceneIntimacy:{route:'paused',level:4,phase:'active'},details:{},decisions:{},payload:'synthetic private guide'};
 const before=JSON.stringify(paused);
 const report=wholeDiagnosticReport({judgment:paused});

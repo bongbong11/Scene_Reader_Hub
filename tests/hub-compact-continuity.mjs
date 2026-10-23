@@ -17,6 +17,13 @@ function setup(options){const f=auxiliaryFixture(options);f.deps.requestWithConn
 const opts=f=>({record:f.deps.record(),chatRef:'room-A',chat:f.context.chat,fingerprint:f.deps.fingerprint,inherited:false});
 const context=f=>f.deps.record().continuity.context;
 {
+ const f=setup();let changed=false;
+ f.deps.loadStateHistory=async()=>{if(!changed){changed=true;f.deps.record().unrelatedSetting='preserved';}return [];};
+ await f.turn();assert.equal(f.requests.length,1,'a registration race retries against the current record before analysis');
+ assert.equal(f.deps.record().unrelatedSetting,'preserved');
+ assert.ok(f.stored.some(saved=>saved.chat.auxiliaryStateV1?.pending?.turns?.length===1),'completed source is durable before the model request');
+}
+{
  const f=setup();await f.turn();const refs=context(f).turnRefs;
  const reordered=refs.map(ref=>Object.fromEntries(Object.entries(ref).reverse()));
  assert.equal(sourceRefsKey(refs,f.deps.fingerprint),sourceRefsKey(reordered,f.deps.fingerprint),'storage field ordering cannot create a new completed-turn identity');

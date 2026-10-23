@@ -71,8 +71,8 @@ import {buildInputKey, buildRecentContext, filterNonRpHistory, generationCycleSa
 import {buildVerificationQuestions, pendingPlanEffects, stableFingerprint, verificationSummary} from "../decision/policy.js";
 import {archiveCurrentEvent, commitObservedState, commitVerifiedPlan} from "../scene/state-effects.js";
 import {actionPlanSummary, selectActionPlan, nextDeferredRoutes} from "../decision/action-budget.js";
-import {activePendingCandidates, verifiedSecondaryCandidates} from "../continuity/candidates.js";
-import {applyContinuityVerdicts, buildContinuityInjection, normalizeContinuity} from "../continuity/engine.js";
+
+import {buildContinuityInjection, normalizeContinuity} from "../continuity/engine.js";
 import {listConnectionProfiles, createConnectionProfileClient} from "../adapters/connection-profile.js";
 import {sha256Hex} from "../shared/security.js";
 import {profileStatus, normalizeCharacterStore, selectActiveEntries, addCharacterNeedsQuestions, characterCategoryHints, buildLiveCharacterPlan, buildCharacterTurnQuestions, resolveLiveCharacterPlan, buildCharacterInjection} from "../character/index.js";
@@ -701,7 +701,7 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
     get window() { return window; },
 });
 
-let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandidates, sourceUserRpForOutput, registerSceneOpportunity, commitPriorVerification, commitContinuityCandidates, runJudge, executeJudge} = createSceneExecution({
+let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceUserRpForOutput, registerSceneOpportunity, commitPriorVerification, runJudge, executeJudge} = createSceneExecution({
     seasonalDate,
     checkVisibility:()=>visibility?.check(),
     get analysis() { return analysis; },
@@ -721,9 +721,9 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     get STATE_HISTORY_LIMIT() { return STATE_HISTORY_LIMIT; },
     get StaleRunError() { return StaleRunError; },
     get actionPlanSummary() { return actionPlanSummary; },
-    get activePendingCandidates() { return activePendingCandidates; },
+
     get applyCharacterPolicy() { return applyCharacterPolicy; },
-    get applyContinuityVerdicts() { return applyContinuityVerdicts; },
+
     get applyPolicy() { return applyPolicy; },
     get applyStoredInjection() { return applyStoredInjection; },
     get activeInjectionPayload() { return runtime.activeInjectionPayload; },
@@ -799,7 +799,7 @@ let {judgmentFailureState, sourceRevisionKey, stagedRecord, pendingExternalCandi
     get updateStatus() { return updateStatus; },
     get validateBackstage() { return validateBackstage; },
     get verificationSummary() { return verificationSummary; },
-    get verifiedSecondaryCandidates() { return verifiedSecondaryCandidates; },
+
     get verifyBackstageDelivery() { return verifyBackstageDelivery; },
     get window() { return window; },
 });
@@ -961,7 +961,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 
 hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
-const traceView=createTraceView({hub,document,clearDiagnostics,notify:message=>notifySceneReaderToast(window,'info',message,'씬판독기'),judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.31',copyText:value=>copyText(value)});
+const traceView=createTraceView({hub,document,clearDiagnostics,notify:message=>notifySceneReaderToast(window,'info',message,'씬판독기'),judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),copyText:value=>copyText(value)});
 const currentStatusView=createCurrentStatusView({hub,document,getContinuityEnabled:()=>Boolean(runtime.settings?.enabled && runtime.settings?.continuityEnabled),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.reasonerProfileId,Boolean(runtime.settings?.continuityEnabled),Boolean(runtime.settings?.enabled)])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
