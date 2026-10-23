@@ -58,7 +58,11 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
             set('execution',event,{state:'running'});return;
         }
         if(cycleId && event.cycleId && event.cycleId!==cycleId)return;
-        if(event.code==='INVALIDATED') {valid=false;finishPending('cancelled');return;}
+        if(event.code==='INVALIDATED') {
+            valid=false;settled=false;finishPending('cancelled');
+            for(const [key,row] of entries)if(['delivery','preparation','continuity'].includes(row.id)&&!['failed','partial'].includes(row.state))entries.delete(key);
+            return;
+        }
         if(event.code==='RUN_CANCELLED') {valid=false;finishPending('cancelled');set('execution',event,{state:'cancelled',sticky:false});return;}
         if(event.code==='RUN_SKIPPED') {valid=false;finishPending('skipped');set('execution',event,{state:'skipped',message:'이번 입력은 판독 대상이 아닙니다.',sticky:false});return;}
         if(event.code==='RUN_PREPARED') {

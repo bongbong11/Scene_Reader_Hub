@@ -177,7 +177,7 @@ async function prepareGeneration(type, data, dryRun, preparation) {
     }
     catch (error) {
         if(preparation && !preparation.valid())return;
-        console.error('[씬판독기] 자동 판독 실패', error);
+        deps.noteDiagnostic?.('generation_preparation',{module:'src/lifecycle/generation.js',status:'failed',errorKind:error.code || 'GENERATION_PREPARATION_FAILED'});
         if (!error.activityReported) deps.updateActivity(`자동 판독 실패 · ${error.message}`, { error: true });
     }
 }

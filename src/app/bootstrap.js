@@ -8,6 +8,7 @@ import {createEmbeddingMaintenance} from '../retrieval/maintenance.js';
 import {executionReport} from '../debug/execution-report.js';
 import {registerSlashCommands} from '../adapters/slash-commands.js';
 import {createDiagnostics} from '../debug/diagnostics.js';
+import {attachConsoleReporter} from '../debug/console-reporter.js';
 import {createEmotionRuntime} from '../character/emotion-runtime.js';
 import {createJobControl} from '../lifecycle/job-control.js';
 import {createStorageIdentity} from '../storage/identity.js';
@@ -84,6 +85,7 @@ const runtime = createRuntimeState(() => stateChatKey());
 let analysis;
 let visibility;
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
+attachConsoleReporter(hub,{console:window.console||console});
 let {noteDiagnostic, diagnosticSnapshot,clearDiagnostics} = createDiagnostics({
     get hub() { return hub; },
     get activeGenerationCycle() { return runtime.activeGenerationCycle; }, set activeGenerationCycle(value) { runtime.activeGenerationCycle = value; },
@@ -960,7 +962,7 @@ let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, charact
 
 hub.commands.register('judge',options=>{presetRequest.preview.clear();return runJudge(options);});
 const traceView=createTraceView({hub,document,clearDiagnostics,notify:message=>notifySceneReaderToast(window,'info',message,'씬판독기'),judgmentFailureState,getSettings:()=>runtime.settings,isDeveloperMode:()=>ownerUnlocked(),version:'0.2.31',copyText:value=>copyText(value)});
-const currentStatusView=createCurrentStatusView({hub,document,getContinuityEnabled:()=>Boolean(runtime.settings?.enabled && runtime.settings?.continuityEnabled),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider])});
+const currentStatusView=createCurrentStatusView({hub,document,getContinuityEnabled:()=>Boolean(runtime.settings?.enabled && runtime.settings?.continuityEnabled),getScope:()=>JSON.stringify([stateChatKey(),runtime.settings?.retrievalProvider,runtime.settings?.reasonerProfileId,Boolean(runtime.settings?.continuityEnabled),Boolean(runtime.settings?.enabled)])});
 let startupPromise;
 installGenerationInterceptor({window,prepareFallback,ready:()=>startupPromise||Promise.resolve()});
 const vaultNotice=message=>notifySceneReaderToast(window,'info',message,'씬판독기',{timeOut:1800});
@@ -974,6 +976,6 @@ jQuery(() => void (startupPromise=init().then(()=>{
     sharedStorageUi.watchDeletions(eventSource,event_types);
     registerSlashCommands({getContext,hub,document,openSceneReader,saveGlobal,setFormValues,invalidateReasonerJobs,clearInjection,updateStatus,diagnosticSnapshot,noteDiagnostic,get settings(){return runtime.settings;}});
 })).catch((error) => {
-    console.error('[씬판독기] 초기화 실패', error);
+    noteDiagnostic('startup',{module:'src/app/bootstrap.js',status:'failed',errorKind:error?.code||'STARTUP_FAILED'});
     notifySceneReaderToast(window, 'error', '씬판독기를 불러오지 못했습니다.', '씬판독기');
 }));

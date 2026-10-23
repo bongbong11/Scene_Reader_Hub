@@ -28,6 +28,8 @@ assert.equal(model.snapshot().tone,'error','a retry retains the failed face unti
 receipt('assembly');assert.equal(model.snapshot().tone,'error');
 receipt('request');assert.equal(model.snapshot().tone,'success');
 emit({code:'INVALIDATED'});assert.equal(model.snapshot().tone,'neutral','an invalidated injection cannot stay green');
+assert.equal(row('delivery').state,'idle','old request inclusion cannot be presented as the current request');
+assert.equal(row('continuity').state,'not_run');
 cycleId='hub-3';begin();
 emit({stage:'jev_request',requestKind:'decision',status:'failed',errorKind:'JEV_TIMEOUT'});
 emit({stage:'jev_request',requestKind:'decision',status:'succeeded',questionCount:1});

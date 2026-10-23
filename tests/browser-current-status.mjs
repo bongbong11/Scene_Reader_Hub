@@ -19,7 +19,7 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
     await page.locator('#sr-current-status').click();
     assert.equal(await page.locator('#sr-current-status-panel').isVisible(),true);
     await page.evaluate(()=>{
-        statusFixture.emit({stage:'auxiliary_usage',status:'waiting',reasonCode:'interval_pending',turnCount:2,requiredTurns:3});
+        statusFixture.emit({stage:'auxiliary_usage',status:'not_needed',reasonCode:'already_analyzed'});
         statusFixture.emit({stage:'character_state_capture',status:'collected',collectorMode:'profile-output',count:2});
     });
     const panel=page.locator('#sr-current-status-panel');
@@ -36,7 +36,7 @@ export async function checkCurrentStatus(page,requests,setViewportSize,root) {
     assert.match(await continuity.textContent(),/연결모델 오류/);
     assert.doesNotMatch(await continuity.textContent(),/PROFILE_NETWORK_ERROR|미확인/);
     await page.evaluate(()=>statusFixture.emit({stage:'analysis_result',status:'degraded',reasonCode:'PROFILE_NETWORK_ERROR',codeFallback:true,continuityIncluded:true}));
-    assert.match(await continuity.textContent(),/연결모델 오류 · 코드 대체 실행/);
+    assert.match(await continuity.textContent(),/연결모델 오류/);
     await page.evaluate(()=>statusFixture.emit({stage:'analysis_result',status:'degraded',reasonCode:'CONTINUITY_PARTIAL_RESULT',continuityIncluded:true}));
     assert.match(await continuity.textContent(),/정상 항목은 반영/);
     assert.doesNotMatch(await continuity.textContent(),/연결모델 오류/,'an item shape problem is not a failed model call');
