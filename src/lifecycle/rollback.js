@@ -2,6 +2,7 @@ import {invalidateProgressFrom} from '../scene/progress-tracking.js';
 import {hasRetiredCollection} from '../storage/retired-collection.js';
 import { notifySceneReaderToast } from "../ui/toasts.js";
 import { selectedStateSwipe } from "../character/state-contract.js";
+import {isSingleMessageDeletion,rebaseExcludedDeletion} from './message-rebase.js';
 
 export function createRollback(deps) {
 async function waitForOutputChanges() { await deps.outputChangePromise; }
@@ -21,19 +22,22 @@ async function rollbackChangedOutput(messageId, kind = 'changed') {
     const index = deletion ? (changedIndex < 0 ? Math.min(Number(messageId) || 0, currentMessages.length) : changedIndex) : Number(messageId);
     deps.messageSnapshots.set(chatKey, currentMessages);
     if (!Number.isInteger(index)) return;
+    if (kind === 'deleted' && rec.nonRpOutputIndices?.includes(index) && isSingleMessageDeletion(previousMessages,currentMessages,index)) {
+        rebaseExcludedDeletion(rec,history,index);
+        await deps.clearInjection({chatKey});
+        await deps.saveSession(chatKey,rec,history);
+        if(chatKey===deps.stateChatKey())deps.renderAll();
+        deps.noteDiagnostic?.('message_rebase',{module:'src/lifecycle/message-rebase.js',status:'succeeded',messageCount:1});
+        return;
+    }
     invalidateProgressFrom(rec,index);
     const previousStateCount = rec.characterStateEvents?.length || 0;
     if (!['swiped', 'regenerated'].includes(kind)) deps.dropStateEventsFrom(rec, index, kind === 'edited' ? selectedStateSwipe(deps.getContext().chat?.[index]) : null);
     const preservedSwipeStates = ['swiped', 'regenerated', 'edited'].includes(kind) ? (rec.characterStateEvents || []).filter(item => item.outputIndex === index) : [];
     if (rec.characterStateCapture?.outputIndex >= index) rec.characterStateCapture = null;
     const stateEventsChanged = (rec.characterStateEvents?.length || 0) !== previousStateCount;
-    if ((rec.nonRpOutputIndices || []).includes(index)) {
-        if (kind === 'deleted') {
-            rec.nonRpOutputIndices = rec.nonRpOutputIndices.filter((value) => value !== index).map((value) => value > index ? value - 1 : value);
-            await deps.saveSession(chatKey, rec, history);
-        }
-        return;
-    }
+    // An unverified deletion or an OOC-to-RP edit follows normal invalidation.
+    rec.nonRpOutputIndices = (rec.nonRpOutputIndices || []).filter(value=>value!==index);
     if (kind === 'deleted' && rec.nonRpOutputIndices?.length) {
         rec.nonRpOutputIndices = rec.nonRpOutputIndices.map((value) => value > index ? value - 1 : value);
     }

@@ -92,7 +92,16 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status:'save_failed',errorKind:error.code || error.name});
         }
     }).finally(()=>{ deps.pendingProfileStateRequests.delete(requestId); if (chatKey===deps.stateChatKey()) deps.renderCharacterTurnResults(); });
-    task.cancel=()=>controller.abort();
+    const closeCancelled = () => {
+        for (const rec of new Set([owner,deps.chatRecords?.get(chatKey)])) {
+            if (!rec) continue;
+            const event=rec.characterStateEvents?.find(item=>item.capture?.requestId===requestId);
+            if(event?.capture?.status==='collecting')event.capture={...event.capture,status:'cancelled'};
+            if(rec.characterStateCapture?.requestId===requestId && rec.characterStateCapture.status==='collecting')rec.characterStateCapture={...rec.characterStateCapture,status:'cancelled'};
+        }
+        deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status:'cancelled',errorKind:'ANALYSIS_CANCELLED'});
+    };
+    task.cancel=()=>{controller.abort();closeCancelled();};
     deps.pendingProfileStateCollection = task;
     deps.pendingProfileStateRequests.set(requestId,task);
     notifyEmotionCapture('collecting');
