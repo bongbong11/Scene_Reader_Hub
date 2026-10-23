@@ -31,5 +31,28 @@ export async function checkCompactContinuity(page,store,setViewportSize,root){
   assert.equal(await result.evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,'compact fields fit the mobile panel');
   await page.screenshot({path:`${root}/artifacts/compact-continuity-${size.width}.png`});
  }
+ // The partial result remains pending across room entry and an actual reload.
+ const savedChat=await page.evaluate(()=>mock.chat);
+ store.chat.auxiliaryStateV1.retryAfter=0;
+ const beforeEntry=await page.evaluate(()=>mock.compactRequests.length);
+ await page.evaluate(async()=>{await mock.emit('CHAT_CHANGED');await mock.emit('CHAT_CHANGED');});
+ await page.waitForFunction(()=>document.querySelector('#sr-continuity-results')?.textContent.includes('미처리 내용 대기'));
+ assert.equal(await page.evaluate(()=>mock.compactRequests.length),beforeEntry,'room entry does not retry pending work');
+ assert.equal(await page.locator('#sr-continuity-retry').count(),0,'no new retry button');
+ await page.locator('#sr-run').click();await page.waitForFunction(()=>!document.querySelector('#sr-run').disabled);
+ assert.equal(await page.evaluate(()=>mock.compactRequests.length),beforeEntry,'manual scene reading is not continuity retry');
+ await page.addInitScript(chat=>{Object.defineProperty(window,'mock',{configurable:true,get(){return this.__testMock;},set(value){value.chat=structuredClone(chat);this.__testMock=value;}});},savedChat);
+ await page.reload();await page.locator('#scene-reader-quick-button').waitFor();
+ await page.locator('#scene-reader-quick-button').click();
+ await page.locator('[data-sr-tab="flow"]').click();
+ await page.waitForFunction(()=>document.querySelector('#sr-continuity-results')?.textContent.includes('미처리 내용 대기'));
+ assert.equal(await page.evaluate(()=>mock.profileRequestCount||0),0,'reload does not invoke continuity or another profile request');
+ assert.ok(store.chat.auxiliaryStateV1.pending.turns.length>0,'pending source survives reload');
+ await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Continue.'});await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);mock.chat.push({is_user:false,mes:'Hunter answers the question.'});await mock.emit('MESSAGE_RECEIVED',5);await mock.emit('GENERATION_ENDED');});
+ await page.waitForFunction(()=>document.querySelector('#sr-continuity-results')?.textContent.includes('수집 완료'));
+ assert.equal(await page.evaluate(()=>mock.compactRequests.length),1,'next completed turn resumes collection once');
+ const resumed=await page.evaluate(()=>JSON.stringify(mock.compactRequests[0]));
+ assert.match(resumed,/Hunter puts the note down/,'unfinished turn is included in the resumed request');
+ assert.equal(store.chat.auxiliaryStateV1.pending.turns.length,0,'resumed collection clears only processed pending work');
  console.log('Compact continuity browser passed: real completion, first/next reply, duplicate suppression, persisted partial result, next-turn actual request, desktop/mobile fields.');
 }

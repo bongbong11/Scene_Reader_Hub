@@ -142,13 +142,20 @@ export function createAuxiliaryRuntime(deps){
     }
     function queue(index){return schedule(index).completion;}
     function observe(index){stopped=false;return schedule(index).registration;}
-    function resume(){
-        stopped=false;const rec=deps.record();
-        if(!deps.settings.continuityEnabled||(!rec?.auxiliaryStateV1?.pending&&!rec?.continuity?.context))return Promise.resolve();
-        const chat=deps.getContext().chat||[];let index=chat.length-1;
-        while(index>=0&&!completedTurn(chat,index,sourceOptions(deps.stateChatKey())))index--;
-        return index>=0?observe(index):Promise.resolve();
+    // Restoring a room is read-only: leave pending work for the next completed
+    // turn. Do not start the scheduler or the Vault bridge.
+    function restore(){
+        stopped=false;state=null;
+        if(!deps.settings.enabled||!deps.settings.continuityEnabled)return;
+        const rec=deps.record(),key=deps.stateChatKey();
+        if(!rec?.auxiliaryStateV1?.pending&&!rec?.continuity?.context)return;
+        const options=sourceOptions(key);let index=options.chat.length-1;
+        while(index>=0&&!completedTurn(options.chat,index,options))index--;
+        const turn=index>=0?completedTurn(options.chat,index,options):null;
+        const pending=turn?pendingTurns(rec,turn,options):[];
+        state={chatKey:key,status:pending.length?'deferred':'restored',outputIndex:index};
+        if(pending.length)report('auxiliary_usage',{status:'waiting',reasonCode:'awaiting_completed_turn',continuityIncluded:true,pendingCount:pending.length});
     }
     function cancel(reason){cancellationToken++;scheduler.cancel();inFlight.clear();if(state)state={...state,status:'cancelled'};if(reason==='generation_stopped')stopped=true;}
-    return {observe,queue,resume,cancel,get state(){return state?{...state}:null;},get busy(){return scheduler.pending;},get cancellationToken(){return cancellationToken;},get completion(){return scheduler.completion;}};
+    return {observe,queue,restore,cancel,get state(){return state?{...state}:null;},get busy(){return scheduler.pending;},get cancellationToken(){return cancellationToken;},get completion(){return scheduler.completion;}};
 }

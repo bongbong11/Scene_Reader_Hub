@@ -114,7 +114,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
             if(event.stage==='auxiliary_usage' && event.reasonCode==='profile_not_configured') {
                 set('continuity',event,{state:'failed',message:'연결모델 설정 필요'});return;
             }
-            if(event.stage==='auxiliary_usage'&&event.status==='waiting'){set('continuity',event,{state:'waiting',message:'재시도 대기 · 이전 자료 보존'});return;}
+            if(event.stage==='auxiliary_usage'&&event.status==='waiting'){set('continuity',event,{state:'waiting',sticky:event.reasonCode!=='awaiting_completed_turn',message:event.reasonCode==='awaiting_completed_turn'?'미처리 내용 대기 · 다음 답변 완료 시 수집':'재시도 대기 · 이전 자료 보존'});return;}
             // Duplicate notices do not replace an actual result.
             return;
         }

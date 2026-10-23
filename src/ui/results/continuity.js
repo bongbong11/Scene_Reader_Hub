@@ -25,11 +25,13 @@ function renderContinuity() {
     const waiting=pending.some(turn=>turn.outputIndex>=(trace.outputIndex??-1));
     const newer=pending.some(turn=>turn.outputIndex>(trace.outputIndex??-1));
     const invalidSource=Object.values(context?.fieldStatus||{}).includes('unavailable');
-    const status=active?.status==='running'?'수집 중':active?.status==='cancelled'?'수집 중단':invalidSource?'원문 변경 · 재수집 대기':waiting&&(active?.status==='waiting'||newer)?'수집 대기 · 이전 자료 보존':({verified:'수집 완료',partial:'일부 반영 · 미확인 값은 이전 자료 보존',error:'수집 오류 · 이전 자료 보존'})[trace.status]||'아직 수집 전';
+    const deferred=active?.status==='deferred';
+    const status=deferred?'미처리 내용 대기':active?.status==='running'?'수집 중':active?.status==='cancelled'?'수집 중단':invalidSource?'원문 변경 · 재수집 대기':waiting&&(active?.status==='waiting'||newer)?'수집 대기 · 이전 자료 보존':({verified:'수집 완료',partial:'일부 반영 · 미확인 값은 이전 자료 보존',error:'수집 오류 · 이전 자료 보존'})[trace.status]||'아직 수집 전';
     const escape=deps.escapeHtml,row=(label,value)=>`<div class="sr-decision-row"><span>${escape(label)}</span><strong>${escape(value)}</strong></div>`;
     const profile=reasonerProfiles.find(item=>item.id===settings.reasonerProfileId);
     const rows=[row('상태',status),row('선택한 연결 프로필',profile?.name||'미선택'),row('수집 주기','완성된 롤플 답변마다')];
-    if(trace.failure)rows.push(`<p class="sr-help">${escape(analysisFailureTitle(trace.failure))} · ${escape(analysisFailureReason(trace.failure))} (${escape(trace.failure.code)})</p>`);
+    if(deferred)rows.push('<p class="sr-help">다음 롤플 답변이 완성되면 함께 수집합니다.</p>');
+    if(trace.failure)rows.push(`<p class="sr-help">${deferred?'이전 수집 오류 · ':''}${escape(analysisFailureTitle(trace.failure))} · ${escape(analysisFailureReason(trace.failure))} (${escape(trace.failure.code)})</p>`);
     if(rec?.continuityDiagnosticsV1?.attempt?.persisted===false)rows.push('<p class="sr-help">오류 기록도 저장하지 못했습니다. 새로고침 전에 전체 로그를 복사해 주세요.</p>');
     if(pending.length)rows.push('<p class="sr-help">확인하지 못한 구간은 보존합니다. 새 답변 처리는 계속하며, 가능한 다음 수집에서 함께 확인합니다.</p>');
     for(const [field,label]of [['current_situation','현재 상황'],['remaining_effects','남은 여파']]){

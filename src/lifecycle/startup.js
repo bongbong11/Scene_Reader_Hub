@@ -69,7 +69,7 @@ async function init() {
     if (deps.event_types.GENERATION_ENDED) deps.eventSource.on(deps.event_types.GENERATION_ENDED, () => { (deps.finishPresetRequest||deps.resetPresetRequest)?.();deps.pendingGenerationType = '';deps.hub?.endCycle(); });
     await deps.clearInjection();
     deps.initVisibility?.();
-    if(deps.chatReadyKey===deps.stateChatKey())await deps.analysis?.resume?.();
+    if(deps.chatReadyKey===deps.stateChatKey())deps.analysis?.restore?.();
     deps.noteDiagnostic?.('startup_ready',{module:'src/lifecycle/startup.js',status:'succeeded',version:HUB_VERSION});
 }
 return {init};

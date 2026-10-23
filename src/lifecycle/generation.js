@@ -206,7 +206,7 @@ async function onChatChanged() {
         return;
     }
     deps.chatReadyKey = deps.stateChatKey();
-    await deps.analysis?.resume?.();
+    deps.analysis?.restore?.();
     await deps.checkVisibility?.();
     await deps.loadStateHistory();
     if(chatKey!==deps.stateChatKey())return;

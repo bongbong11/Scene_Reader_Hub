@@ -59,8 +59,14 @@ const context=f=>f.deps.record().continuity.context;
  f.deps.record().auxiliaryStateV1.retryAfter=0;
  const restarted=createAuxiliaryRuntime(f.deps);let input;
  f.deps.requestWithConnectionProfile=async(_a,_b,_c,value)=>{input=value;return reply('They discuss the objection.','Doubt remains.');};
- await restarted.resume();await restarted.completion;
- assert.equal(input.earlier_unprocessed_turns.length,1);assert.equal(f.deps.record().auxiliaryStateV1.pending.turns.length,0);
+ const beforeRestore=structuredClone(f.deps.record());
+ restarted.restore();restarted.restore();await restarted.completion;
+ assert.deepEqual(f.deps.record(),beforeRestore,'room restoration cannot change stored context or pending work');
+ assert.equal(restarted.state.status,'deferred');
+ assert.equal(input,undefined);
+ f.context.chat.push({is_user:true,mes:'What now?'},{is_user:false,mes:'They continue discussing the note.'});
+ await restarted.observe(f.context.chat.length-1);await restarted.completion;
+ assert.equal(input.earlier_unprocessed_turns.length,2);assert.equal(f.deps.record().auxiliaryStateV1.pending.turns.length,0);
  assert.equal(f.deps.record().lastContinuityTrace.status,'verified');
 }
 {

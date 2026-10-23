@@ -24,7 +24,7 @@ export function activitySummary(e){
  case 'ANALYSIS_STARTED':return e.continuityIncluded===false?null:row('분석','연속성 수집 시작');
  case 'ANALYSIS_RESULT':return e.continuityIncluded===false?null:row('분석',e.status==='degraded'?'연속성 일부 반영 · 미확인 값 보존':'연속성 수집 완료',{반영:count(e.acceptedCount),미확인:count(e.invalidCount)});
  case 'ANALYSIS_CANCELLED':return row('분석','연속성 수집 취소');
- case 'AUXILIARY_USAGE':return row('분석',({retry_backoff:'연속성 재시도 대기',already_analyzed:'이미 수집한 답변 · 재사용',analysis_disabled:'연속성 수집 꺼짐',no_rp_output:'연속성 수집 대상 없음'})[e.reasonCode]||'보조 분석 대기');
+ case 'AUXILIARY_USAGE':return row('분석',({awaiting_completed_turn:'미처리 내용 대기 · 다음 답변 완료 시 수집',retry_backoff:'연속성 재시도 대기',already_analyzed:'이미 수집한 답변 · 재사용',analysis_disabled:'연속성 수집 꺼짐',no_rp_output:'연속성 수집 대상 없음'})[e.reasonCode]||'보조 분석 대기');
  }
  if(e.stage==='character_state_capture'){
   const result=({collecting:'감정 수집 중',collected:'감정 수집 완료',empty:'감정 수집 대상 없음',cancelled:'감정 수집 취소',partial:'감정 일부 수집',incomplete:'감정 일부 미확인'})[e.status];
