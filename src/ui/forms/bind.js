@@ -1,4 +1,5 @@
 import {bindOpportunitySettings} from '../opportunity-settings.js';
+import {changeAnalysisProfile} from '../profile-settings.js';
 import {bindBehaviorToggle} from '../behavior-toggle.js';
 import {openMacroPreview} from '../macro-preview.js';
 import {normalizeChance} from '../../scene/opportunity-settings.js';
@@ -198,18 +199,8 @@ function bindForm() {
         if (enabled && !deps.settings.reasonerProfileId) notifySceneReaderToast(deps.window, 'warning', '연속성 추론에 사용할 연결 프로필을 선택하세요.', '씬판독기');
         deps.renderAll();
     })(), '연속성 추론 설정을 바꾸지 못했습니다.'));
-    deps.document.getElementById('sr-reasoner-profile')?.addEventListener('change', (event) => deps.runUiTask((async () => {
-        deps.invalidateReasonerJobs();
-        await deps.saveGlobal('reasonerProfileId', event.target.value);
-        const rec = deps.record(true);
-        rec.pendingContinuityCandidates = [];
-        rec.repetitionGuard = null;
-        rec.lastReasonerSource = null;
-        rec.lastJudgment = null;
-        await deps.persistChat();
-        await deps.clearInjection();
-        deps.renderReasonerProfiles();
-    })(), 'Reasoner 프로필을 변경하지 못했습니다.'));
+    deps.document.getElementById('sr-reasoner-profile')?.addEventListener('change', (event) => deps.runUiTask(
+        changeAnalysisProfile(deps, event.target.value), '확장 연결 프로필 설정 처리 중 오류가 발생했습니다.'));
     deps.document.getElementById('sr-reasoner-refresh')?.addEventListener('click', () => deps.runUiTask((async () => {
         await deps.loadReasonerProfiles();
         if (deps.reasonerProfileError) throw new Error(deps.reasonerProfileError);

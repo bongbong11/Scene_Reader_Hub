@@ -13,8 +13,9 @@ function settingsSnapshot() {
     };
 }
 
-async function saveServerSettings({retryUnavailable=false}={}) {
-    if (!deps.serverStoreAvailable && !retryUnavailable) throw new Error('서버 저장소 연결이 끊겨 저장하지 못했습니다. 다시 연결한 뒤 저장하세요.');
+async function saveServerSettings() {
+    // Availability is the last request's observation, not a permanent write lock.
+    // The transport owns timeouts and will report a still unavailable server.
     const snapshot = structuredClone(settingsSnapshot());
     await deps.queueWrite('settings', () => deps.storagePost('settings', { settings: snapshot }));
 }

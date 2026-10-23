@@ -1,6 +1,7 @@
 // Companion records share the session file, but never the scene rollback snapshot.
 // All writes use the existing per-chat queue and the most recent confirmed session.
 import {chatRef} from './shared-document.js';
+import {jsonValueEqual} from '../shared/json-value.js';
 export function createCompanionStorage(deps) {
     const sessions = new Map(), loaded = new Map(), revisions = new Map(), listeners = new Set();
     let epoch = 0;
@@ -77,7 +78,7 @@ export function createCompanionStorage(deps) {
         // Migration is read back before the original metadata can be marked migrated.
         if (verify) {
             const result = await deps.post('bootstrap',{chatKey});
-            if (JSON.stringify(result?.chat?.companionStores?.[namespace]) !== JSON.stringify(value)) throw failure('STORAGE_VERIFY_FAILED','서버 저장을 확인하지 못했습니다. 기존 데이터는 유지합니다.');
+            if (!jsonValueEqual(result?.chat?.companionStores?.[namespace], value)) throw failure('STORAGE_VERIFY_FAILED','서버 저장을 확인하지 못했습니다. 기존 데이터는 유지합니다.');
         }
         // A restore or chat switch cannot publish old data into the newly loaded chat.
         assert(namespace,metadata,chatKey,startedEpoch);
