@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
-import { parseAdvancedWorld, advancedWorldToStored, storedWorldToJson, worldCandidates, addWorldQuestions, worldPayload } from '../../src/world/advanced.js';
+import { parseAdvancedWorld, advancedWorldToStored, storedWorldToJson, worldCandidates, addWorldQuestions, worldPayload, WORLD_COMPILER_PROMPT, WORLD_CALENDAR_TOPICS } from '../../src/world/advanced.js';
 import { seasonalWorldNote } from '../../src/world/seasonal.js';
 import { allWorlds, INITIAL_CUSTOM_WORLDS, saveCustomWorlds, loadCustomWorlds } from '../../src/world/catalog.js';
 import { BUILTIN_WORLDS } from '../../src/world/advanced-library.js';
 const raw = {format:'scene-reader-world',version:1,name:'Garden',short_description:'A garden with a moonlit gate.',fixed_rules:'Physical limits apply.',franchise:false,calendar_topics:[],records:[{id:'W001',category:'mechanism',when:'Moonlight reaches the gate.',keywords:['moonlight'],rule:'The gate opens.',source_quote:'The gate opens.'}]};
 const parsed = parseAdvancedWorld('\uFEFF```json\n'+JSON.stringify(raw)+'\n```');
 const world = advancedWorldToStored(parsed,'garden');
+for(const topic of WORLD_CALENDAR_TOPICS){
+    const seasonal=parseAdvancedWorld({...raw,calendar_topics:[topic]});
+    assert.deepEqual(parseAdvancedWorld(storedWorldToJson(advancedWorldToStored(seasonal,'calendar'))).calendar_topics,[topic]);
+    assert.ok(WORLD_COMPILER_PROMPT.includes(`calendar_topics may contain only ${WORLD_CALENDAR_TOPICS.join(', ')}`),'all prompt instructions must accept the same country calendars as the parser');
+}
 assert.deepEqual(parseAdvancedWorld(storedWorldToJson(world)),parsed);
 for (const mutate of [r=>r.version=9,r=>r.records.push(r.records[0]),r=>r.records[0].category='unknown',r=>r.records[0].when='',r=>r.records[0].source_quote='',r=>r.calendar_topics=['unknown'],r=>r.records[0].rule='x'.repeat(2401)]) {
     const invalid=structuredClone(raw);mutate(invalid);assert.throws(()=>parseAdvancedWorld(invalid));
