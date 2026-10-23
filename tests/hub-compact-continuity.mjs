@@ -36,6 +36,7 @@ const context=f=>f.deps.record().continuity.context;
  assert.ok(!JSON.stringify(f.requests[0][3]).includes('new_items'));
  assert.equal(f.deps.record().characterState.knowledge.length,1);
  await f.analysis.queue(1);assert.equal(f.requests.length,1,'duplicate completion is reused');
+ assert.equal(f.analysis.state.status,'success','a duplicate notice cannot replace a completed result with waiting');
  await f.turn('Aster answers again.');assert.equal(f.requests.length,2);
  assert.equal(f.requests[1][3].previous_context.current_situation,'Aster is reading.');
  assert.equal(f.deps.record().auxiliaryStateV1.pending.turns.length,0);
@@ -109,6 +110,11 @@ const context=f=>f.deps.record().continuity.context;
  f.context.chat[1].mes='Edited RP.';assert.equal(compactContext(f.deps.record(),opts(f)).current_situation,'');
 }
 {
+ const f=setup();await f.turn();
+ f.deps.record().nonRpOutputIndices=[1];
+ assert.equal(compactContext(f.deps.record(),opts(f)).current_situation,'','an output excluded as OOC cannot survive as RP context');
+}
+{
  const f=setup({chat:[{is_user:false,is_system:true,mes:'OOC note.'}]});await f.turn();
  const rec=f.deps.record(),history=[{assistantIndex:4,before:{},after:{}}];
  rec.nonRpOutputIndices=[0];f.context.chat.shift();rebaseExcludedDeletion(rec,history,0,f.deps.fingerprint);
@@ -122,6 +128,8 @@ const context=f=>f.deps.record().continuity.context;
  rec.characterState={knowledge:[{character:'Aster',summary:'Aster was told the library closes at dusk.'}]};
  const selected=selectTurnContinuity({...rec.continuity,knowledge:rec.characterState.knowledge},opts(f),{enabled:true});
  assert.equal(selected.items.length,0);assert.equal(selected.followups.length,0);assert.equal(selected.knowledge.length,1);
+ const legacy=selectTurnContinuity({...rec.continuity,items:[null],followups:[null],knowledge:rec.characterState.knowledge},opts(f),{enabled:true});
+ assert.equal(legacy.knowledge.length,1,'retired task arrays are not traversed by current context selection');
  assert.equal(turnContinuityInput(selected).current_situation,'Aster is reading.');
  assert.ok(!JSON.stringify(buildVerificationQuestions({outputText:'Aster answers.',effects:['continuity'],eventFollowups:[{action:'Force action.'}]})).includes('continuity'));
  const normalized=normalizeContinuity(JSON.parse(JSON.stringify(rec.continuity)));assert.deepEqual(normalized.context,context(f));

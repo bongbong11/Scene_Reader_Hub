@@ -17,7 +17,7 @@ assert.equal(rec.characterState.knowledge.length,1);
 previous=rec.continuity.context;applyCompactContext(rec,readCompactResult({current_situation:'',remaining_effects:''}),{refs:[],key:'three',outputIndex:5},previous);
 assert.deepEqual(compactValues(rec.continuity.context),{current_situation:'',remaining_effects:''});
 assert.throws(()=>readCompactResult({new_items:[],affected:[],knowledge_updates:[],possible_followups:[]}),{code:'CONTINUITY_FIELDS_MISSING'});
-assert.ok(COMPACT_SYSTEM.length<4000);assert.match(COMPACT_SYSTEM,/Statements, suspicions and promises remain/);assert.match(COMPACT_SYSTEM,/Do not prescribe the next action/);
+assert.ok(COMPACT_SYSTEM.length<1400);assert.match(COMPACT_SYSTEM,/claims, suspicions and promises distinct from established facts/);assert.match(COMPACT_SYSTEM,/not invent.*prescribe the next response/);
 const roster=[{id:'mira',code:'C1',name:'Mira',trackArousal:false}];
 const moods=parseProfileStates([{code:'C1',anger:20,joy:0,fear:10.5,sadness:'invalid'}],roster,{completeMoods:true});
 assert.deepEqual(moods.states[0].values,{anger:20,joy:0,fear:11});assert.equal(moods.diagnostics.partial,1);

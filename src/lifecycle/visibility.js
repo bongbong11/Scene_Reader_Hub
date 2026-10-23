@@ -9,7 +9,7 @@ export function createVisibilityLifecycle(deps) {
   const key=deps.stateChatKey(),chat=deps.getContext().chat||[],next=visibilitySnapshot(chat),before=snapshots.get(key);
   const changes=visibilityChanges(before,next),record=deps.record(),stamp=visibilityKey(chat);
   const restored=!before&&record?.lastJudgment&&(record.lastJudgment.visibilityKeyV1??'visible')!==stamp;
-  if(!changes.length&&!restored){if(!before)snapshots.set(key,next);return pending;}
+  if(!changes.length&&!restored){snapshots.set(key,next);return pending;}
   if(scheduled.get(key)===stamp)return pending;
   scheduled.set(key,stamp);
   // Cancel before any asynchronous save, so late analysis cannot publish.

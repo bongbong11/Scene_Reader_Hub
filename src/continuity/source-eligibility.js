@@ -1,5 +1,5 @@
 import {validateSourceRefs} from './source-refs.js';
-export function sourceEligibility(refs,{record,chatRef,chat,fingerprint,inherited=false}) {
+export function sourceEligibility(refs,{record,chatRef,chat,fingerprint,inherited=false,excluded=record?.nonRpOutputIndices||[]}) {
  if(!refs?.length)return 'legacy_unverified';
  for(const ref of refs){
   if(ref.sourceKind&&ref.sourceKind!=='chat'){
@@ -7,6 +7,7 @@ export function sourceEligibility(refs,{record,chatRef,chat,fingerprint,inherite
   }
   const origin=ref.originChatRef??ref.chatKey;
   if(origin!==chatRef){if(inherited&&origin)continue;return 'source_unavailable';}
+  if(excluded.includes(ref.messageIndex??ref.assistantIndex))return 'source_excluded';
   if(ref.chatKey&&ref.assistantIndex!==undefined){
    const message=chat?.[ref.assistantIndex];
    if(message?.is_system||message?.is_hidden||message?.hidden||message?.extra?.hidden||message?.extra?.exclude_from_prompt)return 'source_hidden';

@@ -30,11 +30,12 @@ export function createAuxiliaryRuntime(deps){
         if(!turn){report('auxiliary_usage',{status:'not_needed',reasonCode:'no_rp_output'});return empty('no_source');}
         const stamp=visibilityKey(options.chat),scopeKey=JSON.stringify([key,profile,enabled,turn.key,stamp]);
         if(inFlight.has(scopeKey))return inFlight.get(scopeKey);
-        if(enabled)state={chatKey:key,status:'waiting',outputIndex:index,scopeKey};
+        const needsCollection=enabled&&pendingTurns(deps.record(),turn,options).some(item=>item.outputIndex<=index);
+        if(needsCollection)state={chatKey:key,status:'waiting',outputIndex:index,scopeKey};
         const valid=()=>epoch===cancellationToken&&!stopped&&deps.settings.enabled&&deps.stateChatKey()===key&&deps.settings.reasonerProfileId===profile&&Boolean(deps.settings.continuityEnabled)===enabled&&visibilityKey(deps.getContext().chat||[])===stamp&&validateSourceRefs(turn.refs,sourceOptions(key));
         // Register work before waiting for the model. New completed turns remain
         // distinct and survive reload even while an earlier request is running.
-        const registration=enabled?(async()=>{
+        const registration=needsCollection?(async()=>{
             for(let retry=0;retry<2&&valid();retry++){
                 const saved=await commitSession(key,({current:rec,history})=>{
                     rec.auxiliaryStateV1={...rec.auxiliaryStateV1,contract:COMPACT_CONTRACT,pending:{turns:pendingTurns(rec,turn,sourceOptions(key))}};

@@ -18,6 +18,16 @@ for(const afterSend of [false,true]){
  f.context.chat[1].is_system=false;await life.check();assert.equal(visible().items.length,1);assert.equal(notes.length,2);
  await life.check();assert.equal(notes.length,2,'unchanged visibility is free');
 }
+{
+ const f=auxiliaryFixture({chat:[{is_user:false,mes:'First reply.'}]}),notes=[];
+ const life=createVisibilityLifecycle({...f.deps,invalidateReasonerJobs(){},notify:note=>notes.push(note)});
+ await life.check();
+ f.context.chat.push({is_user:false,mes:'New reply.'});await life.check();
+ f.deps.record().lastJudgment={payload:'must clear'};
+ f.context.chat[1].is_hidden=true;await life.check();
+ assert.equal(f.deps.record().lastJudgment,null,'hiding a reply added after the first snapshot invalidates its injection');
+ assert.equal(notes.length,1);
+}
 for(const mode of ['failed-save','switch']){
  const f=auxiliaryFixture({chat:[{is_user:false,mes:'Visible'}]}),events=[];let release,writes=0;
  const life=createVisibilityLifecycle({...f.deps,stateChatKey:()=>f.deps.stateChatKey(),noteDiagnostic:(c,d)=>events.push(d),invalidateReasonerJobs(){},storagePost:async()=>{if(mode==='failed-save')throw new Error('synthetic');if(!writes++)await new Promise(r=>release=r);}});

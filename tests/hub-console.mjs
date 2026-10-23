@@ -21,4 +21,18 @@ assert.doesNotMatch(JSON.stringify(lines),/PRIVATE_|apiKey|payload|Error:/);
 const hub=createHub({jobs:createJobScope(()=> 'test'),getIdentity:()=> 'test',StaleRunError});
 const detach=attachConsoleReporter(hub,{console:output});hub.report('analysis_failed','ANALYSIS_FAILED',{...failure});
 assert.equal(lines.length,count+2);detach();hub.report('analysis_failed','ANALYSIS_FAILED',{...failure,errorKind:'PROFILE_TIMEOUT'});assert.equal(lines.length,count+2);
+{
+ let time=0;const retryLines=[],r=createConsoleReporter({now:()=>time,console:{error:(...args)=>retryLines.push(args)}});
+ r.accept({code:'RUN_STARTED',cycleId:'old-run'});r.accept(failure);
+ time=6000;r.accept(failure);
+ assert.equal(retryLines.length,2,'an old Hub run must not suppress later manual connection failures indefinitely');
+}
+{
+ const captures=[],r=createConsoleReporter({console:{error:(...args)=>captures.push(args),warn:(...args)=>captures.push(args)}});
+ r.accept({stage:'character_state_capture',status:'save_failed',errorKind:'STORAGE_WRITE_FAILED'});
+ r.accept({stage:'character_state_capture',status:'incomplete',errorKind:''});
+ assert.equal(captures.length,2,'emotion-specific failures and partial results must reach the grouped console');
+ assert.match(captures[0][0],/저장·설정/);assert.match(captures[1][0],/분석/);
+ r.accept({stage:'character_state_capture',status:'empty'});assert.equal(captures.length,2,'normal empty capture is not an error');
+}
 console.log('Console diagnostics passed: four groups, root deduplication, new attempts, normal cancellation filtering, privacy and Hub subscription.');
