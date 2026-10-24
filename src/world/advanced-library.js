@@ -270,7 +270,7 @@ export function buildAdvancedQuestions({ preferences, hasEvent = false, worldHin
     const hasAdvancedEvent = hasEvent && Boolean(ADVANCED_ELEMENTS[eventElement]);
     const routeCriteria = hasAdvancedEvent ? {
         none: 'Keep the stored advanced event without an advanced move this response.',
-        continue: 'The stored advanced event has a supported next step.',
+        continue: 'Continue relating to the stored event; choose its current movement separately, including a meaningful pause.',
     } : hasEvent ? {
         none: 'The stored ordinary event stays under ordinary progression; do not replace it with an advanced event.',
     } : {

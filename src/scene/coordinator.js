@@ -66,7 +66,6 @@ export function coordinateDecisions(rec, details, decisions, {presentNpc=false}=
             overrideDecision(details, decisions, 'advanced_move', 'quiet', '이번 응답 고급 전개 없음');
         }
         if (decisions.advanced_route === 'create' && decisions.advanced_move === 'quiet') overrideDecision(details, decisions, 'advanced_move', 'seed', '새 사건 후보는 첫 징후부터 시작');
-        if (decisions.advanced_route === 'continue' && decisions.advanced_move === 'quiet') overrideDecision(details, decisions, 'advanced_move', 'advance', '선택한 기존 사건을 한 단계 실행');
     }
     const relation = decisions.relationship_pacing || 'hold';
     if(relation==='closer_incremental'&&decisions.counterevidence==='clear')overrideDecision(details,decisions,'relationship_pacing','hold','같은 관계 변화에 대한 명시적 반대 근거 반영 · 행동과 화해 시도는 유지');
@@ -96,7 +95,6 @@ export function coordinateDecisions(rec, details, decisions, {presentNpc=false}=
     }
 
     if (decisions.event_route === 'create' && (rec.eventProfile || ['introduced', 'active', 'turning', 'resolution_ready'].includes(decisions.event_state))) overrideDecision(details, decisions, 'event_route', 'none', '기존 중심 사건이 진행 중이므로 새 중심 사건 제외');
-    if (decisions.event_route === 'continue' && decisions.progression_move === 'hold') overrideDecision(details, decisions, 'progression_move', 'advance', '선택한 기존 사건을 한 단계 실행');
     if (decisions.fight_sustain === 'yes' && decisions.conflict_state !== 'active') overrideDecision(details, decisions, 'fight_sustain', 'no', '실제 진행 중인 대치·싸움이 아님');
     if (rec.preferences.negativePriority && decisions.progression_move === 'positive' && (rec.preferences.worldHostility || rec.preferences.userMisfortune)) overrideDecision(details, decisions, 'progression_move', decisions.event_state === 'none' ? 'complication' : 'consequence', '부정 편향 최우선 적용');
 
@@ -157,7 +155,7 @@ export function coordinateActionBudget(rec, details, decisions, stagedRec = rec,
         clear('progression_move', 'hold', '고급 전개가 이번 사건 이동을 담당');
     }
     if (keepsEvent && (plan.secondary?.kind === 'event' || (plan.overlays||[]).some(candidate=>candidate.kind==='event'))) {
-        if (decisions.resolution_pacing === 'resolve') clear('resolution_pacing', 'partial', '보조 사건 진행은 한 단계의 부분 해결로 제한');
+        if (decisions.resolution_pacing === 'resolve' && decisions.resolution_readiness !== 'decisive') clear('resolution_pacing', 'partial', '보조 사건 진행은 한 단계의 부분 해결로 제한');
         if (decisions.progression_move === 'turning_point') clear('progression_move', 'advance', '보조 사건 진행을 한 단계로 제한');
         if (decisions.advanced_move === 'attack' && plan.secondary?.kind === 'event' && plan.secondary.isNew) clear('advanced_move', 'seed', '새 고급 사건의 보조 진입은 첫 징후로 제한');
     }

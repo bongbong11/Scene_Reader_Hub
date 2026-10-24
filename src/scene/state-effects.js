@@ -39,6 +39,13 @@ export function commitObservedState(rec, decisions, evidenceKey) {
     if (changed && evidenceKey && ['closer', 'distant'].includes(decisions.relationship_motion) && !(decisions.relationship_motion==='closer'&&decisions.counterevidence==='clear')) {
         addQualifiedEvidence(rec.pacingState.relationship, decisions.relationship_motion, evidenceKey, 1);
     }
+    // A mixed overall relationship can contain an explicit change in one facet.
+    // Bank only the observed signals, never infer a direction from "mixed" alone.
+    if (decisions.relationship_motion==='mixed' && evidenceKey) {
+        const signals=[decisions.trust_signal,decisions.intimacy_signal];
+        if(signals.includes('positive')&&decisions.counterevidence!=='clear')addQualifiedEvidence(rec.pacingState.relationship,'closer',evidenceKey,1);
+        if(signals.includes('negative'))addQualifiedEvidence(rec.pacingState.relationship,'distant',evidenceKey,1);
+    }
     if (rec.eventProfile) {
         const observedPhase = decisions.event_state === 'resolution_ready' ? 'turning' : decisions.event_state;
         const rank = { introduced: 0, active: 1, turning: 2, aftermath: 3 };

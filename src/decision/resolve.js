@@ -69,20 +69,8 @@ async function resolveDecision(run,frame) {
             if (['mentioned', 'present', 'entering', 'multiple'].includes(frame.decisions.npc_presence)) deps.overrideDecision(frame.details, frame.decisions, 'npc_route', 'reuse', '실제 RP에 존재하는 인물을 재사용');
             else deps.overrideDecision(frame.details, frame.decisions, 'npc_target', 'none', '기존 인물의 관찰 근거 없음');
         }
-        (frame.currentEventRelevant = Boolean(frame.rec.eventProfile && frame.rec.eventProfile.phase !== 'aftermath')
-            && (['active', 'turning', 'resolution_ready'].includes(frame.decisions.event_state)
-                || ((frame.rec.progressionState?.turnsSinceMeaningfulProgress || 0) > 0 && ['goal', 'information', 'danger', 'multiple'].includes(frame.decisions.unresolved))));
-        if (frame.currentEventRelevant && (frame.prefs.advancedEnabled || frame.prefs.progressionMode !== 'off') && (frame.prefs.judgmentStyle === 'active' || frame.prefs.resolutionPace === 'fast')) {
-            if (frame.rec.eventProfile?.source === 'advanced' && frame.prefs.advancedEnabled && frame.decisions.advanced_route === 'none') {
-                deps.overrideDecision(frame.details, frame.decisions, 'advanced_route', 'continue', '저장 사건과 실제 미해결 목표가 있어 실행 후보로 복귀');
-                if (frame.decisions.advanced_move === 'quiet') deps.overrideDecision(frame.details, frame.decisions, 'advanced_move', frame.decisions.event_blocker === 'information' ? 'reveal' : 'advance', '빠른 해결·적극 진행에서 저장 사건 한 단계 실행');
-                deps.overrideDecision(frame.details, frame.decisions, 'advanced_cause', 'existing', '저장 사건의 계속되는 원인');
-                deps.overrideDecision(frame.details, frame.decisions, 'advanced_element', frame.rec.eventProfile.element || 'objective', '저장 사건의 고정 요소 유지');
-            } else if (frame.prefs.progressionMode !== 'off' && frame.decisions.event_route === 'none') {
-                deps.overrideDecision(frame.details, frame.decisions, 'event_route', 'continue', '저장 사건과 실제 미해결 목표가 있어 실행 후보로 복귀');
-                if (frame.decisions.progression_move === 'hold') deps.overrideDecision(frame.details, frame.decisions, 'progression_move', frame.decisions.event_blocker === 'information' ? 'reveal' : 'advance', '빠른 해결·적극 진행에서 저장 사건 한 단계 실행');
-            }
-        }
+        // A valid background/quiet choice is not an absent model answer.
+        // Pace settings influence the question, not a second route selection here.
         if(!frame.opportunityOffers) {
         (frame.beforeBudgetDecisions = { ...frame.decisions });
         (frame.provisionalPlan = deps.selectActionPlan({

@@ -34,7 +34,7 @@ const opportunityChecks=spawnSync(process.execPath,['tests/hub-opportunity-upgra
 if(opportunityChecks.status!==0)process.exit(opportunityChecks.status||1);
 const negativeRoutingChecks=spawnSync(process.execPath,['tests/hub-negative-routing.mjs'],{cwd:root,stdio:'inherit'});
 if(negativeRoutingChecks.status!==0)process.exit(negativeRoutingChecks.status||1);
-for(const test of ['tests/hub-npc-delivery.mjs','tests/hub-request-ownership.mjs']){
+for(const test of ['tests/hub-npc-delivery.mjs','tests/hub-request-ownership.mjs','tests/hub-progression-flexibility.mjs']){
     const result=spawnSync(process.execPath,[test],{cwd:root,stdio:'inherit'});
     if(result.status!==0)process.exit(result.status||1);
 }

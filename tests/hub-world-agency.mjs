@@ -34,7 +34,7 @@ assert.ok(payload.indexOf(NPC_ACTIVITY)<payload.indexOf('</NPC_SCENE_EXECUTION>'
 assert.ok(payload.indexOf(PHYSICAL_OPPOSITION)<payload.indexOf('</CONFLICT_PROGRESSION>'));
 assert.ok(!payload.includes(LEGACY_PROMPTS.CONFLICT_EXECUTION),'physical guidance alone does not pull in the full legacy conflict prompt');
 assert.ok(!buildInjection({settings:{...settings,worldAgencyEnabled:false},decisions}).includes(INITIATIVE));
-assert.ok(!buildInjection({settings:{...settings,developmentStyle:'static'},decisions}).includes(PROGRESS_BOOST));
+assert.ok(buildInjection({settings:{...settings,developmentStyle:'static'},decisions}).includes(PROGRESS_BOOST),'static allows a different quiet response after semantic repetition');
 const conflict=buildInjection({settings:{...settings,socialEnabled:true},decisions:{...decisions,npc_autonomy:'yes',fight_sustain:'yes'}});
 assert.ok(conflict.includes(LEGACY_PROMPTS.AUTONOMOUS_NPC_DYNAMICS));
 assert.ok(conflict.includes(LEGACY_PROMPTS.SUSTAINED_INTERPERSONAL_CONFLICT));
@@ -62,7 +62,7 @@ for(let i=0;i<3;i++) {
  const status=observeProgress(rec,comp,'stalled',chat);
  assert.equal(status.count,i+1);assert.equal(status.boost,i===2);
  assert.equal(observeProgress(rec,comp,'stalled',chat).count,i+1,'same reply never counted twice');
- assert.equal(comp.turns.length,Math.min(3,i+2));
+ assert.equal(comp.turns.length,Math.min(6,i+2));
 }
 // Same text in different completed replies still counts; a swipe replaces a reply.
 chat.at(-1).swipe_id=1;chat.at(-1).mes='They hesitate once more.';
@@ -134,7 +134,13 @@ assert.equal(normalizeProgress(resolveRecord({},baseline,{},checkpoint,{}).progr
 assert.equal(normalizeProgress(saved.progressionState,'static').turnsSinceMeaningfulProgress,0);
 f.run("record().preferences.developmentStyle='static';");
 await f.run('runJudge({force:true})');
-assert.equal(f.run('record().progressionState.turnsSinceMeaningfulProgress'),0);
+assert.equal(f.run('record().progressionState.turnsSinceMeaningfulProgress'),1);
 assert.ok(!f.run('record().lastJudgment.payload').includes(PROGRESS_BOOST));
-assert.equal(requests.filter(r=>r.questions.world_npc_activity).length,5);
+for(let i=2;i<=3;i++) {
+ f.ctx.chat.push({is_user:true,mes:`A different proposal ${i}.`},{is_user:false,mes:`A differently worded dismissal ${i}.`});
+ await f.run('runJudge({force:true})');
+ assert.equal(f.run('record().progressionState.turnsSinceMeaningfulProgress'),i);
+ assert.equal(f.run('record().lastJudgment.payload').includes(PROGRESS_BOOST),i===3);
+}
+assert.equal(requests.filter(r=>r.questions.world_npc_activity).length,7);
 console.log('World agency passed: independent low-confidence selection, scoped injection, probability boundaries, groups, progress lifecycle, continuation, final-request receipts and full pipeline.');

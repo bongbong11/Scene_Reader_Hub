@@ -564,7 +564,8 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.equal(pausedLog.referenceCount,1);
     assert.match(await page.locator('#sr-hub-run-trace').textContent(),/NSFW 중단.*일반 시트 분석·매크로 생성 생략/);
     assert.match(pausedPrompt,/Active world:/,'the active world marker remains active');
-    assert.match(pausedPrompt,/directions govern scene developments, not writing style/,'fixed prompt coexistence remains');
+    assert.match(pausedPrompt,/The finished writing is roleplay and fiction/,'shared narrative interpretation remains in the paused route');
+    assert.match(pausedPrompt,/Preserve its genre, setting, world logic, pacing/,'fixed prompt coexistence remains');
     gateScenario={level:'0',phase:'ended'};
     const beforeResume=requests.length;
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'They finish and turn to a different conversation.'});await mock.emit('MESSAGE_SENT',7);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});

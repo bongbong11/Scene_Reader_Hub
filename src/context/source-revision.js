@@ -31,7 +31,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         decisionContract: DECISION_CONTRACT_VERSION,
         continuityContract: 6,continuityConfig:[deps.settings.continuityEnabled],
         characterSelectorContract: 8,
-        injectionAssemblyContract: 21,
+        injectionAssemblyContract: 23,
         seasonalContract: 2,
         seasonalDate: deps.seasonalDate?.revision() || null,
         characterBehaviorMode: normalizeBehaviorMode(deps.settings.characterBehaviorMode),

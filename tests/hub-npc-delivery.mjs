@@ -7,6 +7,8 @@ import {fixture} from './regression/audit-v012.mjs';
 import {finalRequestMatrix} from './fixtures/final-request.mjs';
 import {NPC_ACTIVITY} from '../src/injection/world-agency.js';
 import {createRecordBank} from '../src/character/records.js';
+import {pendingPlanEffects} from '../src/decision/policy.js';
+import {conflictExecutionEnabled} from '../src/injection/conflict-routing.js';
 
 const courier={id:'courier',role:'Synthetic Courier',aim:'Deliver the parcel.',access:'public street',mode:'ordinary',status:'active'};
 const settings={...CHAT_DEFAULTS};
@@ -27,7 +29,7 @@ assert.equal(npcDeliveryTarget({decisions:{npc_target:'none',npc_route:'reuse'},
 assert.equal(npcDeliveryTarget({decisions:{npc_target:'none',npc_route:'none'},profile:courier,presentNames:['Observer']}).name,'Observer','an unused old profile cannot override the ordinary fallback');
 assert.equal(npcDeliveryTarget({sheetName:'Selected Person',sheetId:'selected',presentNames:['Other Person']}).id,'selected');
 
-export async function pipeline({target='stored_generated',archived=false,eventActor=null,worldActivity=false}={}) {
+export async function pipeline({target='stored_generated',archived=false,eventActor=null,worldActivity=false,weight='supporting',role='information'}={}) {
     const f=fixture(),requests=[];
     f.ctx.name2='Morgan';f.ctx.chat=[{is_user:true,mes:'Morgan and Registered Observer discuss the parcel.'}];
     f.sandbox.courier=courier;
@@ -44,6 +46,7 @@ export async function pipeline({target='stored_generated',archived=false,eventAc
             if(q.type==='noul')return [key,{noul:0.9}];
             let choice=Object.hasOwn(q.criteria,FALLBACKS[key])?FALLBACKS[key]:Object.keys(q.criteria)[0];
             const choices={scene_status:'ordinary',npc_reference_0:'reference',primary_focus:eventActor?'event':'npc',npc_route:'reuse',npc_target:target,npc_role:'information',npc_knowledge:'direct',npc_weight:'supporting',npc_presence:'present',story_element:'objective',event_cast_0:eventActor||'none',event_cast_0_action:'obstruction',world_npc_activity:'active',advanced_route:eventActor?'continue':'none',advanced_move:eventActor?'advance':'quiet',event_state:eventActor?'active':'none'};
+            choices.npc_weight=weight;choices.npc_role=role;
             if(key.startsWith('scene_participant_')||key.endsWith('_participation'))choice='direct';
             if(Object.hasOwn(choices,key))choice=choices[key];
             return [key,{choice,confidence:0.7}];
@@ -104,4 +107,23 @@ for(const worldActivity of [false,true])for(const target of ['sheet_0','stored_g
         assert.ok(!text.includes('Let Registered Observer perform'));
     });
 }
-console.log('NPC delivery: selected current/archived generated identity, explicit registered identity, ordinary fallback, real two-call Hub pipeline and final macro/preset requests passed.');
+for(const target of ['sheet_0','stored_generated'])for(const role of ['gatekeeper','opposition']) {
+    const j=await pipeline({target,role,weight:'background'});
+    assert.equal(j.decisions.npc_weight,'background');
+    assert.ok(!pendingPlanEffects(j.decisions).includes('npc'),'background presence requires no separate NPC execution');
+    await finalRequestMatrix(j,text=>{
+        assert.ok(text.includes('<NPC_PRESENCE_SCOPE>'));
+        assert.ok(!text.includes('<SHEET_NPC_SCENE>'));
+        assert.ok(!text.includes('<NPC_CONFLICT_ACTION'));
+        assert.ok(!text.includes('<NPC_SCENE_EXECUTION role='));
+        assert.equal(text.split(NPC_KNOWLEDGE_PROMPTS.direct).length-1,1);
+    });
+}
+assert.ok(pendingPlanEffects({npc_route:'reuse',npc_weight:'background',villain_route:'continue'}).includes('npc'),'an independently selected antagonist still has an execution effect');
+assert.ok(pendingPlanEffects({npc_route:'create',npc_weight:'brief'}).includes('npc'),'new arrival is still verified');
+for(const weight of ['background','supporting']) {
+    const d={npc_route:'reuse',npc_role:'opposition',npc_weight:weight};
+    assert.equal(conflictExecutionEnabled({npcToUser:true},d),weight!=='background');
+    assert.equal(conflictExecutionEnabled({npcToUser:true},{...d,conflict_state:'active'}),true,'real conflict remains independently active');
+}
+console.log('NPC delivery: selected identities, background presence without role-action or verification, real two-call Hub pipeline and final macro/preset requests passed.');

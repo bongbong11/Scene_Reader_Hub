@@ -10,7 +10,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
     const relationshipDirectionRule = {
         hostile: 'The complete original CHARACTER_TO_USER_DEFAULT directive is fixed and active. Do not reinterpret, narrow, soften, summarize, or replace it. Judge only whether the current exchange supports an additional relationship change and how large that change may be.',
         positive: 'The fixed relationship directive establishes basic goodwill. Do not count that baseline as new progress; select movement toward closeness only when this exchange adds concrete reciprocal trust, openness, reliance, intimacy, or commitment. Real conflict or betrayal may still support movement away.',
-        dynamic: 'The fixed relationship directive has no preset positive or negative destination. Choose direction only from concrete reciprocal conduct and its likely effect on the established relationship.',
+        dynamic: 'The fixed relationship directive has no preset positive or negative destination. Choose a character-specific response to present conduct and what it means within the established relationship. A small change in one person does not establish mutual feelings.',
     }[preferences.relationshipDirection] || 'The fixed relationship directive has no preset positive or negative destination. Choose direction only from concrete reciprocal conduct and its likely effect on the established relationship.';
     const questions = {
         scene_state: {
@@ -26,7 +26,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
         },
         conflict_state: {
             type: 'choice',
-            instructions: `Classify actual interpersonal conflict in the recent exchange. Tension, refusal, distance, or sadness alone are not an active fight. ${posture}`,
+            instructions: `Classify the confrontation still happening at the end of the latest exchange. Read the user's contribution and the character's response together. An earlier fight, remaining resentment, refusal or controlling personality does not by itself mean they are still fighting now. They may pause, disengage, change approach or partly settle one issue while other grievances remain. ${posture}`,
             criteria: {
                 none: 'No material interpersonal conflict is active.',
                 tension: 'Friction or opposed interests exist but no actual confrontation is underway.',
@@ -37,7 +37,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
         },
         relationship_motion: {
             type: 'choice',
-            instructions: `Classify immediate relationship movement, not the overall relationship. If no earlier relationship state is available, select none rather than unclear. Do not infer closeness from proximity or genre alone. ${posture}`,
+            instructions: `Classify what this exchange changed, not whether the overall relationship is good or bad. Read how the person took the user's words and conduct: listening, revising a belief or accepting one repair can matter while anger remains. A new reservation can matter while affection remains. If no earlier relationship state is available, select none rather than unclear. Do not infer closeness from proximity or genre alone. ${posture}`,
             criteria: { none: 'There is no usable earlier relationship state or no relationship evidence to compare.', stable: 'The established relationship state is being maintained.', closer: 'Concrete voluntary conduct supports increased closeness.', distant: 'Concrete conduct supports increased distance, rejection, or rupture.', mixed: 'Closer and more distant signals are both materially present.', unclear: 'Relevant evidence exists but its direction genuinely cannot be distinguished.' },
         },
         trust_signal: {
@@ -177,12 +177,12 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
 
     const relationshipRule = {
         slow: `Require unusually clear, sustained, character-specific causes for relationship change; otherwise hold or choose only an incremental change. Prior qualified relationship causes: closer ${Number(pacingState?.relationship?.closer) || 0}, distant ${Number(pacingState?.relationship?.distant) || 0}.`,
-        medium: `Allow a proportionate relationship change when the current exchange contains concrete reciprocal causes. Prior qualified relationship causes: closer ${Number(pacingState?.relationship?.closer) || 0}, distant ${Number(pacingState?.relationship?.distant) || 0}.`,
+        medium: `Allow a proportionate response to character-specific causes in the current exchange. A first change in how one person understands or treats the other need not wait for completed mutual reconciliation. Prior qualified relationship causes: closer ${Number(pacingState?.relationship?.closer) || 0}, distant ${Number(pacingState?.relationship?.distant) || 0}.`,
         fast: 'Allow a clear relationship change from strong current reciprocal evidence, while never inventing reciprocity, consent, or romance. Speed lowers the accumulation required; it does not create evidence.',
     }[preferences.relationshipPace] || 'Allow a proportionate relationship change when the current exchange contains concrete reciprocal causes.';
     questions.relationship_pacing = {
         type: 'choice',
-        instructions: `Choose the direction and maximum amount of relationship movement permitted in the NEXT response. This is a plan, not proof that the movement has occurred. Base it on actual RP conduct, the established relationship, relevant counterevidence, and the selected relationship pace. When an event or NPC also moves, any relationship change must arise within that same interaction, not from a second invented exchange. The fixed relationship direction remains active. Do not create love, trust, consent, reconciliation, or rupture merely to satisfy a pace setting. Commit a change to stored state only after the following CHARACTER output actually enacts it and verification confirms it. ${relationshipDirectionRule} ${relationshipRule}`,
+        instructions: `Choose the direction and size of a possible relationship change in the next response. What might the current words or conduct mean to this person given their motives, fears and history? Distinguish accepting one explanation or changing one behavior from forgiveness, restored trust or love. Remaining grievances do not veto an unrelated small change. A changed approach can leave feelings unresolved. Keep it within the same interaction and the user's selected direction and pace; do not invent mutual feelings or a relationship outcome. This is a proposed response, not an accomplished change. ${relationshipDirectionRule} ${relationshipRule}`,
         criteria: {
             hold: 'Keep the current relationship state; this exchange adds no sufficient cause for change at the selected pace.',
             closer_incremental: 'One small increase in openness, trust, intimacy, cooperation, or favorable regard is supported.',
@@ -224,7 +224,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
 
     questions.primary_focus = {
         type: 'choice',
-        instructions: 'Choose the one function that should lead the next response. Finish an already-started action or answer the active interaction before adding optional material. A calm scene can still admit a causally available event or NPC; calmness alone is neither a reason to create one nor a reason to forbid one. If a proposed route is unavailable, preserve an executable direct response instead of treating the turn as empty.',
+        instructions: 'Choose what should lead the next response to the current USER input, given the people and selected settings. Read the recent exchanges for repeated response patterns: new wording, activities or demands need not change the story. An unresolved grievance can remain while the person changes approach, sets the topic aside or responds differently. Do not repeat the old focus merely because it is unfinished, or resolve it merely to escape repetition. An ongoing meaningful exchange may continue. A calm scene neither requires nor forbids a fitting event or NPC. If a route is unavailable, retain a direct response.',
         criteria: {
             direct: 'Respond to the user\'s immediate speech, choice, or already-started action.',
             relationship: 'The active relationship question or interpersonal change should receive the main development.',
@@ -239,7 +239,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
     if (progressionMode !== 'off' && !(preferences.advancedEnabled && hasEvent && eventSource === 'advanced')) {
         const eventCriteria = hasEvent ? {
             none: 'Keep the stored event in the background this response without erasing it.',
-            continue: 'The stored event should take one concrete step now.',
+            continue: 'The stored event remains part of this exchange; choose its movement separately, including a meaningful pause.',
             retire: 'The stored event is conclusively complete and only its consequences remain.',
             replace: 'The stored event is conclusively complete and a distinct new event has a plausible opening.',
         } : {
@@ -281,7 +281,7 @@ export function buildQuestions({ preferences, hasVillain, hasNpc, hasEvent = fal
     };
     questions.npc_role = {
         type: 'choice',
-        instructions: 'Independently choose the most plausible function IF the proposed NPC route is used. The extension ignores this answer if no NPC route survives. Do not assume another Jev question was already answered.',
+        instructions: 'Independently choose the most plausible function IF the NPC takes an active role. Read their current interest and access, not a job they must demonstrate every turn. Background presence need not produce an intervention. The extension ignores unused role guidance. Do not assume another Jev question was already answered.',
         criteria: {
             participant: 'The NPC is directly affected and has something concrete to gain, lose, decide, or protect.', witness: 'The NPC can contribute an observation from direct presence.', information: 'The NPC controls or carries relevant information.', support: 'The NPC can provide bounded help, access, labor, or resources.', gatekeeper: 'The NPC controls access, permission, procedure, or entry.', opposition: 'The NPC has a concrete opposed interest.', mediator: 'The NPC has reason to intervene between opposed participants.', authority: 'The NPC can exercise established institutional, social, or practical authority.', exploiter: 'The NPC can use the active conflict or uncertainty for a specific advantage.', consequence: 'The NPC carries a social, practical, institutional, or personal result of an earlier action.', protector: 'The NPC has a supported reason and ability to protect or rescue.', self_directed: 'The NPC should pursue an immediate objective independent of helping or opposing the main participants.',
         },

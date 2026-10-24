@@ -2,12 +2,12 @@ import {isVisibleRoleplayMessage, splitOocText} from '../context/messages.js';
 import {selectedStateSwipe} from '../character/state-contract.js';
 import {stableFingerprint} from '../decision/policy.js';
 
-const VERSION = 2;
+const VERSION = 3;
 const OUTCOMES = new Set(['flowing','holding','stalled','unclear']);
 export const PROGRESS_QUESTION = {
     type:'choice',
-    instructions:"Use progress_comparison only, resolving its references in recent_roleplay. Compare the latest completed reply with the preceding exchanges, using each reply's own preceding user input, not the new input awaiting a reply. Judge changes in the exchange, information, feeling, choice, action, or consequence. Quiet development counts. Reworded feelings, atmosphere, and repeated promises or hesitation do not. Use holding for a requested pause or a necessary user decision. Do not require an incident, agreement, reconciliation, or success. Use unclear when comparison is insufficient.",
-    criteria:{flowing:'The latest completed reply makes a meaningful development.',holding:'It appropriately stays with a requested moment or necessary user decision.',stalled:'It repeats, prepares or defers without a meaningful step.',unclear:'The comparison is unavailable or insufficient.'},
+    instructions:"Judge the latest completed CHARACTER reply against the preceding exchanges in progress_comparison, ordered oldest to newest. Resolve references in recent_roleplay and read each reply with its own preceding USER input, not the new input awaiting a reply. Has the person taken the input differently, learned something that matters, changed a feeling or choice, or left the situation different? Different wording, gestures, activities or topics are not progress when new user material is repeatedly absorbed into the same response and outcome. Repeated demands, reassurances, evasions, preparations or promises can stall despite new details. The same subject or unresolved conflict can progress through a changed understanding or response; quiet development counts. Holding means a user-requested stay or a genuinely necessary user decision, not merely an unresolved issue. Judge meaning, not a checklist of required changes. No reconciliation, success, escalation or scene change is required. Use unclear when comparison is insufficient.",
+    criteria:{flowing:'The reply leaves a meaningful difference in how the interaction is understood, felt, chosen or lived, even on the same subject.',holding:'Remaining in this moment serves the user request or a necessary user response; it is not another way of postponing available character conduct.',stalled:'Surface content changes or repeats, but the input is met with the same response pattern and the interaction returns to the same position.',unclear:'The available exchanges do not support a reliable comparison.'},
 };
 
 export function emptyProgress() { return {version:VERSION,turnsSinceMeaningfulProgress:0,lastOutputFingerprint:'',observations:[]}; }
@@ -36,7 +36,7 @@ function turnKey(chat,index,userIndex) {
 }
 
 // References avoid resending text already present in the ordinary scene context.
-export function progressComparison(chat=[], {excluded=[],selected=[],transcript='',blockedTurn=null,maxChars=12000}={}) {
+export function progressComparison(chat=[], {excluded=[],selected=[],transcript='',blockedTurn=null,maxChars=18000}={}) {
     const omit=new Set(excluded), turns=[];
     let bytes=0;
     const source=(index,role,text)=>{
@@ -44,7 +44,7 @@ export function progressComparison(chat=[], {excluded=[],selected=[],transcript=
         if(pos>=0&&transcript.includes(`[${pos+1}] ${role} (`)&&transcript.includes(text))return {reference:`recent_roleplay [${pos+1}] ${role}`};
         bytes+=text.length;return {text};
     };
-    for(let i=chat.length-1;i>=0&&turns.length<3;i--) {
+    for(let i=chat.length-1;i>=0&&turns.length<6;i--) {
         const message=chat[i];
         if(message?.is_user||!isVisibleRoleplayMessage(message))continue;
         // Do not bridge across OOC or a cancelled output.
@@ -62,7 +62,6 @@ export function progressComparison(chat=[], {excluded=[],selected=[],transcript=
 
 export function observeProgress(rec, comparison, outcome, chat=[]) {
     const state=normalizeProgress(rec.progressionState,rec.preferences?.developmentStyle);
-    if(rec.preferences?.developmentStyle==='static'){rec.progressionState=emptyProgress();return {outcome:'unclear',count:0,boost:false};}
     const target=comparison?.target;
     const value=comparison?.sufficient&&OUTCOMES.has(outcome)?outcome:'unclear';
     // A changed source invalidates that verdict and every later dependent count.

@@ -50,7 +50,7 @@ try {
   assert.equal(observed.judgment.inputKey,expected.judgment.inputKey);
   assert.equal(observed.judgment.contextKey,expected.judgment.contextKey);
   assert.equal(observed.requests.length,expected.requests.length);
-  assert.equal(observed.judgment.decisionContract,3);
+  assert.equal(observed.judgment.decisionContract,4);
   assert.ok(observed.requests[0].questions.scene_status);
   assert.ok(!observed.requests[0].questions.scene_level);
   for(const key of ['scene-reader-router','scene-reader-world'])if(observed.prompts[key])assert.equal(observed.prompts[key],key==='scene-reader-router'?observed.judgment.payload:observed.judgment.worldPayload);

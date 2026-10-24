@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import {characterBehaviorPrompt} from '../src/injection/character-behavior.js';
 import {createHash} from 'node:crypto';
-import {buildInjection,antagonistPrompt,genreNpcPrompt,RELATIONSHIP_PROMPTS,NPC_KNOWLEDGE_PROMPTS,NPC_DISCLOSURE_PROMPTS,AUXILIARY_EXECUTION_CORRECTIONS} from '../src/injection/assemble.js';
+import {buildInjection,antagonistPrompt,genreNpcPrompt,RELATIONSHIP_PROMPTS,NPC_KNOWLEDGE_PROMPTS,NPC_DISCLOSURE_PROMPTS,AUXILIARY_EXECUTION_CORRECTIONS,META_CLOSE} from '../src/injection/assemble.js';
 import {LEGACY_PROMPTS as L} from '../src/decision/legacy-prompts.js';
 import {INITIATIVE,NPC_ACTIVITY,PHYSICAL_OPPOSITION,PROGRESS_BOOST} from '../src/injection/world-agency.js';
-import {CHARACTER_MACRO,characterEnvelope,routeCharacterMacro} from '../src/injection/character-macro.js';
+import {CHARACTER_MACRO,CHARACTER_GUIDANCE,characterEnvelope,routeCharacterMacro} from '../src/injection/character-macro.js';
+import {buildPausedInjection} from '../src/injection/paused.js';
 import {createPresetRequest} from '../src/injection/preset-request.js';
 import {observePromptReceipt} from '../src/injection/receipt.js';
 import {CHAT_DEFAULTS} from '../src/storage/contract.js';
@@ -146,8 +147,12 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
     };
     for(const relationshipDirection of ['dynamic','positive','hostile'])for(const advancedEnabled of [false,true])for(const characters of ['',characterBlock]) {
         const fixture={...input,settings:{...CHAT_DEFAULTS,relationshipDirection,advancedEnabled},characterBlock:characters,characterContextBlock:''};
-        const withoutBehavior=buildInjection(fixture).replace(characterBehaviorPrompt('glm')+'\n\n','');
-        assert.equal(createHash('sha256').update(withoutBehavior).digest('hex'),hashes[relationshipDirection][characters?1:0],'unrelated assembly stays byte-identical after adding the behavior block');
+        // Normalize only the intentionally revised interpretation wrapper;
+        // keep the historical digest protecting every other assembled part.
+        const withoutBehavior=buildInjection(fixture).replace(characterBehaviorPrompt('glm')+'\n\n','')
+            .replace(META_CLOSE,"These directions govern scene developments, not writing style. Follow the main prompt's narrative voice, rhythm, imagery, and interiority, and each character's speech. Preserve its genre, setting, world logic, pacing, NSFW, and character-specific kink instructions.")
+            .replace('Do not rush time or cut the interaction short.','Do not turn these directions into a checklist, rush time, or cut the interaction short.');
+        assert.equal(createHash('sha256').update(withoutBehavior).digest('hex'),hashes[relationshipDirection][characters?1:0],'assembly outside the behavior and interpretation wrapper stays byte-identical');
     }
 }
 // Exercise the real request adapter, including its final transport hook.
@@ -273,4 +278,20 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
     preview.sent(preview.capture({messages:[]},owner));assert.equal(preview.read().status,'unconfirmed');
     preview.sent(preview.capture({messages:[{role:'system',content:wrapped+wrapped}]},owner));assert.equal(preview.read().status,'unconfirmed');
 }
-console.log('Character macro: original assembly parity, exact placement, all actor scopes, no Meta, missing/duplicate/off/legacy/empty fallback, final-request inclusion, retries, stale/hidden/chat invalidation and auxiliary isolation passed.');
+// Narrative interpretation stays in the scene; character interpretation stays
+// in the separate envelope across repeated passes and integrated fallbacks.
+for(const hasAdditions of [false,true])for(const enabled of [false,true])for(const anchor of [false,true]) {
+    const parts={};
+    const payload=buildInjection({...input,hasAdditions,delivery:parts});
+    const owner={payload,characterDelivery:parts};
+    const body={messages:[{role:'system',content:anchor?marker:'PRESET'},{role:'system',content:payload}]};
+    for(let pass=0;pass<2;pass++)routeCharacterMacro(body,owner,{marker,enabled});
+    const text=flatten(body),split=enabled&&anchor;
+    assert.equal(count(text,META_CLOSE),1,'shared narrative interpretation appears once');
+    assert.equal(count(text,CHARACTER_GUIDANCE),split?1:0,'character envelope is present only on the macro route');
+    assert.ok(!parts.text.includes(META_CLOSE),'macro does not copy the scene meta');
+    assert.equal(count(text,characterBlock),1,'record payload is retained exactly once');
+    assert.equal(count(text,characterBehaviorPrompt(input.settings.characterBehaviorMode)),1,'selected behavior source remains once');
+}
+assert.equal(count(buildPausedInjection({settings:input.settings}),META_CLOSE),1,'paused delivery keeps the same narrative interpretation');
+console.log('Character macro: original assembly parity, exact placement, all actor scopes, no Meta, missing/duplicate/off/legacy/empty fallback, final-request inclusion, retries, stale/hidden/chat invalidation, auxiliary isolation and separate interpretation guidance passed.');

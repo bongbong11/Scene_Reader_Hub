@@ -8,7 +8,7 @@ export function conflictExecutionEnabled(settings, decisions, {legacyConflict=fa
         || decisions.primary_focus === 'conflict' || decisions.secondary_focus === 'conflict'
         || Boolean(villainProfile && ['create','replace','continue'].includes(decisions.villain_route))
         || antagonistActors.length > 0
-        || decisions.npc_route === 'reuse' && ['opposition','exploiter'].includes(decisions.npc_role)
+        || decisions.npc_route === 'reuse' && decisions.npc_weight !== 'background' && ['opposition','exploiter'].includes(decisions.npc_role)
         || eventActors.some(actor => actor.kind !== 'unresolved' &&
             (actor.kind === 'new' && actor.antagonist || ['argument','threat','physical','obstruction'].includes(actor.action)));
 }

@@ -3,7 +3,7 @@ export const CHARACTER_MACRO = 'scene-reader-character';
 export const CHARACTER_OPEN = '[SCENE_READER_CHARACTER]';
 export const CHARACTER_CLOSE = '[/SCENE_READER_CHARACTER]';
 let nextSlot=0;
-export const CHARACTER_GUIDANCE = 'Apply each person\'s records and this turn\'s guidance within established characterization and the ongoing story. Treat the records as a starting point for change, not an immutable state. Characterization may evolve as established events and consequences accumulate in the story. Distinguish established facts, prior states, and proposed actions.';
+export const CHARACTER_GUIDANCE = 'Read these records and turn guidance as material for interpreting living characters, not a fixed script. Each person responds through their present feelings, desires, attention, and circumstances; a trait need not produce the same words or behavior every time. Characterization may evolve through established events and consequences. Do not display every trait or recite and explain the records in sequence. Preserve established facts and knowledge boundaries, and distinguish prior states from proposed actions.';
 export function characterEnvelope(text) {
     return String(text || '').trim() ? `${CHARACTER_OPEN}\n${CHARACTER_GUIDANCE}\n\n${text}\n${CHARACTER_CLOSE}` : '';
 }
