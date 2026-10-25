@@ -65,13 +65,14 @@ await shown[0].actions.accept(0);assert.deepEqual(runtime.read().date,date);
 chat[0].mes='<info>Date: 2026-11-02</info>';assert.equal(runtime.read().date.month,11);
 chat[0].mes='<info>No date.</info>';assert.equal(runtime.read().date,null,'missing field never retains yesterday');
 chat[0].mes='<info>Date: 2026-11-02</info>';assert.equal(runtime.read().date.day,2);
-preset='two';assert.equal(runtime.read().status,'awaiting_output');
+preset='two';assert.equal(runtime.read().status,'confirmed','preset changes do not invalidate the confirmed date format');
+runtime.refresh();assert.equal(shown.length,1);
 chat.push({is_user:false,mes:'Current date: 2026-12-25'});busy=true;runtime.refresh();assert.equal(shown.length,1);
 busy=false;runtime.refresh();assert.equal(shown.length,2);await shown[1].actions.accept(0);
 assert.equal(runtime.read().date.month,12);
-chat.at(-1).is_hidden=true;assert.equal(runtime.read().date,null,'hidden output cannot supply the configured field');
+chat.at(-1).is_hidden=true;assert.equal(runtime.read().date.day,2,'hidden output is skipped; the earlier confirmed format still works');
 chat.at(-1).is_hidden=false;assert.equal(runtime.read().date.month,12);
-chat.pop();assert.equal(runtime.read().date,null,'deleted output cannot supply date');
+chat.pop();assert.equal(runtime.read().date.day,2,'deleted output is skipped; the earlier confirmed date is retained');
 room='b';chat=[{is_user:false,mes:'Current date: 2027-01-01'}];assert.equal(runtime.read().date.year,2027);
 await runtime.recheck();const stale=shown.at(-1);chat[0].mes='Current date: 2027-01-02';await assert.rejects(stale.actions.accept(0),/바뀌/);
 runtime.refresh({manual:true});await shown.at(-1).actions.accept(0);
@@ -102,3 +103,51 @@ assert.deepEqual(readDateField('Date: 11/11/2026',dayFirst),{year:2026,month:11,
 const repeated=dateCandidates('Date: 2026-10-30\nDate: 2026-11-01');
 assert.deepEqual(readDateField('Date: 2026-10-31\nDate: 2026-11-02',repeated[1].profile),{year:2026,month:11,day:2});
 assert.equal(readDateField('Date: 2026-11-02',repeated[1].profile),null,'changed duplicate layout requires confirmation');
+
+// Date confirmation follows format changes, never preset/model changes or date-free turns.
+{
+ let settings={},chat=[{mes:'<Scene_Info>Date: 2026-10-30</Scene_Info>'}],preset={name:'one',prompts:['original']},room='first',shown=[];
+ const deps={getContext:()=>({chat}),record:()=>({nonRpOutputIndices:[]}),chatKey:()=>room,settings:()=>settings,
+  preset:()=>preset,fingerprint:JSON.stringify,enabled:()=>true,
+  save:async formats=>{settings.seasonalDateFormats=formats;},confirm:(state,actions)=>shown.push({state,actions})};
+ let reader=createSeasonalDate(deps);
+ reader.refresh();await shown.at(-1).actions.accept(0);
+ const saved=JSON.stringify(settings),revision=reader.revision();
+ preset={name:'other model profile',prompts:['unrelated changed prompt']};
+ reader.refresh();assert.deepEqual(reader.revision(),revision);assert.equal(shown.length,1);
+ chat.push({mes:'<Scene_Info>Date: 2026.11.01</Scene_Info>'});
+ assert.equal(reader.refresh().date.day,1);assert.equal(shown.length,1,'date and separator changes remain readable');
+ for(let i=0;i<30;i++)chat.push({mes:'The conversation continues without a date.'});
+ assert.equal(reader.refresh().date.day,1);assert.equal(reader.read().retained,true);assert.equal(shown.length,1);
+ assert.equal(JSON.stringify(settings),saved,'automatic reads do not rewrite settings');
+ reader=createSeasonalDate(deps);assert.equal(reader.refresh().date.day,1);assert.equal(shown.length,1,'reload preserves the format and last date from saved chat');
+ chat[1].is_hidden=true;assert.equal(reader.refresh().date.day,30,'hidden dates are not retained');
+ chat[1].is_hidden=false;chat[1].mes='<Scene_Info>Date: 2026-11-03</Scene_Info>';
+ assert.equal(reader.refresh().date.day,3,'edits and swipes replace the date');
+ chat.splice(1,1);assert.equal(reader.refresh().date.day,30,'deleted dates are not retained');
+ const firstChat=chat;room='second';chat=[{mes:'No date here.'}];
+ assert.equal(reader.refresh().date,null,'another room cannot inherit the previous room date');assert.equal(shown.length,1);
+ room='first';chat=firstChat;assert.equal(reader.refresh().date.day,30);
+ chat.push({mes:'<Scene_Info>Date: November 4, 2026</Scene_Info>'});
+ assert.equal(reader.refresh().status,'unconfirmed');assert.equal(shown.length,2,'changed format asks once');
+ const confirmationToken=reader.read().token;preset={name:'another preset',prompts:['different instructions']};
+ assert.equal(reader.refresh().token,confirmationToken,'unrelated preset changes cannot dismiss a pending format confirmation');
+ reader.refresh();assert.equal(shown.length,2);await shown.at(-1).actions.accept(0);
+ chat.push({mes:'<Scene_Info>Date: November 5, 2026</Scene_Info>'});
+ assert.equal(reader.refresh().date.day,5);assert.equal(shown.length,2);
+ chat.push({mes:'No date in this reply.'});assert.equal(reader.refresh().date.day,5);
+ chat.push({mes:'<Scene_Info>Date: 2026-11-06</Scene_Info>'});
+ assert.equal(reader.refresh().date.day,6);assert.equal(shown.length,2,'an already confirmed format works again without another dialog');
+ chat.push({mes:'<Status>Current date: 2026-11-07</Status>'});
+ assert.equal(reader.refresh().status,'unconfirmed');assert.equal(shown.length,3,'an unknown field still requires confirmation');
+}
+console.log('Date format lifecycle passed: preset drift, reload, missing dates, new dates, actual format breaks and history changes.');
+
+{
+ const settings={seasonalDateFormats:{'legacy-preset-hash':dateCandidates('Date: 2026-10-30')[0].profile}};
+ const before=JSON.stringify(settings);
+ const reader=createSeasonalDate({getContext:()=>({chat:[{mes:'Date: 2026-11-02'}]}),record:()=>({}),chatKey:()=> 'legacy-room',settings:()=>settings,
+  fingerprint:JSON.stringify,enabled:()=>true,confirm:()=>assert.fail('legacy confirmed formats must not prompt again')});
+ assert.equal(reader.refresh().date.day,2);
+ assert.equal(JSON.stringify(settings),before,'legacy storage keys remain untouched');
+}

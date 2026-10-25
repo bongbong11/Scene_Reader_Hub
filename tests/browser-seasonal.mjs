@@ -47,7 +47,11 @@ export async function checkSeasonal(page,store,requests,setViewportSize) {
     await page.evaluate(async()=>{mock.chat[0].mes='Current Date: 11/12/2026';await mock.emit('GENERATION_ENDED');});
     assert.match(await page.locator('#sr-season-date-status').textContent(),/2026-12-11/);
     await page.evaluate(async()=>{mock.presetSettings.prompts[0].content+=' New status format.';await mock.emit('OAI_PRESET_CHANGED_AFTER');});
-    assert.match(await page.locator('#sr-season-date-status').textContent(),/새 답변/);
+    assert.match(await page.locator('#sr-season-date-status').textContent(),/2026-12-11/);
+    assert.equal(await modal.count(),0,'unrelated preset changes do not reopen confirmation');
+    await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'The conversation continues.'});await mock.emit('GENERATION_ENDED');});
+    assert.match(await page.locator('#sr-season-date-status').textContent(),/2026-12-11.*마지막 확인 날짜 유지/);
+    assert.equal(await modal.count(),0,'date-free replies retain the date without confirmation');
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'<Status><date>2027-01-04</date></Status>'});await mock.emit('GENERATION_ENDED');});
     await modal.waitFor();await modal.locator('button').filter({hasText:'맞아요'}).click();
     await page.waitForFunction(()=>!document.querySelector('.sr-date-confirm'));

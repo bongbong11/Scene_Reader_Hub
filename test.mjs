@@ -41,7 +41,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.34');
+assert.equal(manifest.version, '0.2.35');
 assert.equal(manifest.version,HUB_VERSION,'manifest and runtime diagnostics identify the same release');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);

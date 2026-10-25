@@ -4,12 +4,11 @@ import {splitOocText} from '../context/messages.js';
 
 export function createSeasonalDate(deps) {
     const parsed=new WeakMap(),sources=new WeakMap(),attempted=new Set(),profilesLimit=16;
-    let previousPreset='',previousRoom='',previousMessage=null,previousText='',awaitOutput=null;
-    let presetText=null,presetHash='';
+    let rechecking=false;
     let state={status:'disabled',date:null,candidates:[],token:''};
-    function latest() {
+    function latest(before=Infinity) {
         const chat=deps.getContext().chat||[],excluded=new Set(deps.record()?.nonRpOutputIndices||[]);
-        for(let i=chat.length-1;i>=Math.max(0,chat.length-24);i--) {
+        for(let i=Math.min(before,chat.length)-1;i>=0;i--) {
             const message=chat[i];
             if(!message||isMessageHidden(message)||excluded.has(i))continue;
             const raw=String(message.mes||'');
@@ -21,48 +20,54 @@ export function createSeasonalDate(deps) {
             }
             const text=source.text;
             if(!text.trim())continue;
-            if(!message.is_user)return {message,text,textKey:source.textKey};
+            if(!message.is_user)return {message,text,textKey:source.textKey,index:i};
             // A current user-supplied scene date may supersede the previous output.
-            if(source.userDate)return {message,text,textKey:source.textKey};
+            if(source.userDate)return {message,text,textKey:source.textKey,index:i};
         }
         return null;
     }
-    function presetKey() {
-        const text=JSON.stringify(deps.preset());
-        if(text!==presetText){presetText=text;presetHash=deps.fingerprint(text);}
-        return presetHash;
-    }
     function read() {
-        const preset=presetKey(),room=deps.chatKey(),source=latest();
-        if(previousPreset&&previousPreset!==preset&&room===previousRoom&&source?.message===previousMessage&&source?.text===previousText)
-            awaitOutput={message:source.message,text:source.text,preset};
-        previousPreset=preset;previousRoom=room;previousMessage=source?.message;previousText=source?.text||'';
-        if(awaitOutput&&(awaitOutput.preset!==preset||source?.message!==awaitOutput.message||source?.text!==awaitOutput.text))awaitOutput=null;
+        const room=deps.chatKey();
+        let source=latest();
         const enabled=deps.enabled();
-        const profile=deps.settings().seasonalDateFormats?.[preset]||null;
-        let date=null,candidates=[],status=!enabled?'disabled':awaitOutput?'awaiting_output':!source?'missing':'unconfirmed';
-        if(enabled&&source&&!awaitOutput) {
-            const key=JSON.stringify(profile);
+        // Confirmation belongs to the date field, not the model or preset text.
+        // Reuse confirmed formats across presets, preferring the most recent choice.
+        const profiles=rechecking?[]:Object.values(deps.settings().seasonalDateFormats||{}).reverse();
+        let profile=profiles[0]||null;
+        const key=JSON.stringify(profiles);
+        let date=null,candidates=[],status=!enabled?'disabled':'missing',retained=false;
+        while(enabled&&source) {
             let entry=parsed.get(source.message);
             if(!entry||entry.text!==source.text||entry.profileKey!==key) {
-                date=readDateField(source.text,profile);
+                let matchedProfile=null;
+                for(const saved of profiles) {
+                    date=readDateField(source.text,saved);
+                    if(date){matchedProfile=saved;break;}
+                }
                 candidates=date?[]:dateCandidates(source.text);
-                entry={text:source.text,profileKey:key,date,candidates};
+                entry={text:source.text,profileKey:key,date,candidates,matchedProfile};
                 parsed.set(source.message,entry);
                 deps.report?.('seasonal_date_read',{module:'src/world/seasonal-date-runtime.js',status:date?'confirmed':candidates.length?'confirmation_needed':'missing',candidateCount:candidates.length});
             }
             ({date,candidates}=entry);
+            if(entry.matchedProfile)profile=entry.matchedProfile;
             status=date?'confirmed':candidates.length?'unconfirmed':'missing';
+            if(date||candidates.length||!profile)break;
+            // A date-free reply keeps the last readable date in this chat. Reading
+            // from live history also respects reloads, edits, swipes, hides and deletes.
+            source=latest(source.index);
+            retained=true;
         }
         // Tokens stay in memory, not diagnostic logs; stale dialogs cannot confirm a different source.
-        const token=deps.fingerprint([room,preset,source?.textKey||'',profile,status]);
-        state={status,date,candidates,token,preset,profile,room};
+        const token=deps.fingerprint([room,source?.textKey||'',profile,status]);
+        state={status,date,candidates,token,profile,room,retained:retained&&Boolean(date)};
         return state;
     }
     function refresh({manual=false}={}) {
         const value=read();
         deps.render?.(value);
-        const requestKey=value.room+':'+value.preset+':'+JSON.stringify(value.candidates.map(v=>v.profile));
+        if(value.status==='confirmed')attempted.clear();
+        const requestKey=value.room+':'+JSON.stringify(value.candidates.map(v=>v.profile));
         if(value.status!=='unconfirmed'||deps.busy?.())return value;
         if(!manual&&attempted.has(requestKey))return value;
         attempted.add(requestKey);
@@ -76,15 +81,15 @@ export function createSeasonalDate(deps) {
         const candidate=now.candidates[index];
         if(!candidate)throw new Error('현재 날짜 항목을 선택해 주세요.');
         const formats={...(deps.settings().seasonalDateFormats||{})};
-        delete formats[now.preset];formats[now.preset]=candidate.profile;
+        const formatKey='format:'+deps.fingerprint(candidate.profile);
+        delete formats[formatKey];formats[formatKey]=candidate.profile;
         const bounded=Object.fromEntries(Object.entries(formats).slice(-profilesLimit));
         await deps.save(bounded);
+        rechecking=false;
         refresh();
     }
     async function recheck() {
-        const preset=presetKey(),formats={...(deps.settings().seasonalDateFormats||{})};
-        delete formats[preset];
-        await deps.save(formats);
+        rechecking=true;
         return refresh({manual:true});
     }
     function init(events,types) {
@@ -94,7 +99,7 @@ export function createSeasonalDate(deps) {
     }
     return {read,refresh,recheck,init,revision:()=>{
         const value=read();
-        return value.status==='disabled'?[1,'disabled']:[1,value.preset,value.profile,value.status,value.date];
+        return value.status==='disabled'?[1,'disabled']:[1,value.profile,value.status,value.date];
     }};
 }
 

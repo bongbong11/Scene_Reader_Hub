@@ -12,7 +12,7 @@ export function createSeasonalDateUi({document}) {
     function close(){modal?.close();modal?.remove();modal=null;shownToken='';}
     function render(value) {
         const node=document.getElementById('sr-season-date-status');
-        if(node)node.textContent=value.status==='confirmed'?'시즌 기준: '+formatSceneDate(value.date)+' · 확인한 날짜 항목':
+        if(node)node.textContent=value.status==='confirmed'?'시즌 기준: '+formatSceneDate(value.date)+(value.retained?' · 마지막 확인 날짜 유지':' · 확인한 날짜 항목'):
             ({disabled:'시즌 참고를 선택하면 날짜를 확인합니다.',missing:'최신 RP에서 날짜를 찾지 못해 시즌 참고를 쉬고 있어요.',awaiting_output:'프리셋이 바뀌었어요. 새 답변에서 날짜를 확인합니다.',unconfirmed:'날짜 항목 확인이 필요해요. 판독은 계속할 수 있어요.'}[value.status]||'');
         if(modal&&shownToken!==value.token)close();
     }
