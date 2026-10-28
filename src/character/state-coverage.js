@@ -24,5 +24,5 @@ export function captureDiagnostic(capture) {
     return {status:capture.status,collectorMode:capture.source==='profile-output'?'profile-output':'main-output',count:capture.count || 0,participantCount:capture.participantIds?.length || 0,
         receivedCount:capture.diagnostics?.received || 0,acceptedCount:capture.diagnostics?.accepted || 0,
         partialCount:capture.diagnostics?.partial || 0,rejectedCount:capture.diagnostics?.rejected || 0,
-        skipReason:capture.skipReason || '',phase:capture.phase || '',errorKind:/^[A-Z][A-Z0-9_]{0,79}$/.test(capture.errorKind || '')?capture.errorKind:['timeout','request','format','save_failed','processing_failed','unavailable','too_long'].includes(capture.status)?capture.status:''};
+        skipReason:capture.skipReason || '',phase:capture.phase || '',requestMs:capture.requestMs||0,waitMs:capture.waitMs||0,durationMs:capture.durationMs||0,errorKind:/^[A-Z][A-Z0-9_]{0,79}$/.test(capture.errorKind || '')?capture.errorKind:['timeout','request','format','save_failed','processing_failed','unavailable','too_long'].includes(capture.status)?capture.status:''};
 }

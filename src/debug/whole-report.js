@@ -30,7 +30,7 @@ export function wholeDiagnosticReport({execution,judgment,record,chat,fingerprin
         continuityPriorFailure:record?.lastContinuityTrace?.modelFailure?safeAnalysisInfo(record.lastContinuityTrace.modelFailure):null,
         continuityDiagnosticWriteFailure:record?.lastContinuityTrace?.diagnosticWriteFailure?safeAnalysisInfo(record.lastContinuityTrace.diagnosticWriteFailure):null,
         visibility:{status:symbol(record?.visibilityStateV1?.status)},
-        characterStateCapture:capture?{status:symbol(capture.status),source:({'profile-output':'profile_output','main-output':'main_output'})[capture.source] || symbol(capture.source),skipReason:symbol(capture.skipReason),outputIndex:number(capture.outputIndex),count:number(capture.count),participantCount:capture.participantIds?.length || 0,
+        characterStateCapture:capture?{status:symbol(capture.status),phase:symbol(capture.phase),errorKind:typeof capture.errorKind==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(capture.errorKind)?capture.errorKind:null,requestMs:number(capture.requestMs),waitMs:number(capture.waitMs),durationMs:number(capture.durationMs),source:({'profile-output':'profile_output','main-output':'main_output'})[capture.source] || symbol(capture.source),skipReason:symbol(capture.skipReason),outputIndex:number(capture.outputIndex),count:number(capture.count),participantCount:capture.participantIds?.length || 0,
             receivedCount:capture.diagnostics?.received || 0,acceptedCount:capture.diagnostics?.accepted || 0,
             actors:(capture.participantIds || []).map((id,index)=>{
                 const state=event?.states?.find(person=>person.id===id);

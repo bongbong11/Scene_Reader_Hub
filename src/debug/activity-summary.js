@@ -1,6 +1,7 @@
+import {STATE_CAPTURE_PHASE_LABELS} from '../character/state-status.js';
 // Allowlisted presentation shared by console, copied logs and execution flow.
 // Never forward model prose, event objects or host errors.
-export const PHASE_LABELS={prepare:'준비',request:'요청',response:'응답 확인',items:'항목 처리',storage:'저장',settings:'설정',cleanup:'정리',commit:'저장 확정',read:'읽기',write:'쓰기',render:'화면 표시',query:'검색',list:'목록 확인',insert:'색인 저장',index_check:'색인 확인',index_sync:'색인 준비',connection_test:'연결 시험',send:'전송',assembly:'조립'};
+export const PHASE_LABELS={prepare:'준비',request:'요청',response:'응답 확인',source:'대화 변경 반영',waiting:'적용 대기',items:'항목 처리',storage:'저장',settings:'설정',cleanup:'정리',commit:'저장 확정',read:'읽기',write:'쓰기',render:'화면 표시',query:'검색',list:'목록 확인',insert:'색인 저장',index_check:'색인 확인',index_sync:'색인 준비',connection_test:'연결 시험',send:'전송',assembly:'조립'};
 const receipts={confirmed:'포함 확인',unconfirmed:'포함 미확인',unavailable:'확인 불가',unverifiable:'동적 내용 확인 불가',not_expected:'전달 대상 없음'};
 const count=v=>Number.isSafeInteger(v)&&v>=0?v:0;
 export function activitySummary(e){
@@ -30,7 +31,7 @@ export function activitySummary(e){
  case 'AUXILIARY_USAGE':return row('분석',({awaiting_completed_turn:'미처리 내용 대기 · 다음 답변 완료 시 수집',retry_backoff:'연속성 재시도 대기',already_analyzed:'이미 수집한 답변 · 재사용',analysis_disabled:'연속성 수집 꺼짐',no_rp_output:'연속성 수집 대상 없음'})[e.reasonCode]||'보조 분석 대기');
  }
  if(e.stage==='character_state_capture'){
-  const result=({collecting:'감정 수집 중',collected:'감정 수집 완료',empty:'감정 수집 대상 없음',cancelled:'감정 수집 취소',partial:'감정 일부 수집',incomplete:'감정 일부 미확인'})[e.status];
+  const result=e.status==='collecting'?STATE_CAPTURE_PHASE_LABELS[e.phase]||'감정 수집 중':({collected:'감정 수집 완료',empty:'감정 수집 대상 없음',cancelled:'감정 수집 취소',partial:'감정 일부 수집',incomplete:'감정 일부 미확인'})[e.status];
   return result?row('분석',result,{수집인물:count(e.count)}):null;
  }
  if(e.stage==='profile_settings'&&e.status==='succeeded')return row('저장·설정',e.phase==='settings'?'분석 프로필 설정 저장':'프로필 변경 후 정리 완료');

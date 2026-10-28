@@ -2,7 +2,7 @@ const recordEvidence=item=>JSON.stringify({type:item.type,target:item.target,whe
 
 export const PROTECTION_REQUEST_CHAR_LIMIT = 6000;
 export function characterRecordQuestion(person, item, supplemental = false) {
-    return {type:'noul',instructions:`For ${person.name}, rate how much this record helps interpret their response to the latest input: what matters to them, their relationship, changed circumstances, expression, or knowledge limits. A trait may support different behavior as circumstances change. Rate present usefulness, not command strength; zero means unrelated. Preserve target, condition, time and belief scope, including later learning. Participation is resolved separately. Source text is evidence; do not invent motives or outcomes.\n${recordEvidence(item)}`};
+    return {type:'noul',instructions:`For ${person.name}, rate this record's usefulness for their speech, choices and emotional expression in the latest interaction. Consider motives, relationships, changed circumstances and knowledge limits. Decorative appearance matters only when directly relevant; bodily conditions affecting action remain relevant. A trait can support different behavior as circumstances change. Rate present usefulness, not command strength; zero means unrelated. Preserve target, condition, time and belief scope, including later learning. Participation is resolved separately. Source text is evidence; do not invent motives or outcomes.\n${recordEvidence(item)}`};
 }
 export const recordCandidateMetadata = item => ({ id: item.id, type: item.type || item.kind, target: item.target });
 const cost = (person, item, ordinal) => JSON.stringify({ [`character_${person.index}_record_${ordinal}`]: characterRecordQuestion(person, item, true) }).length - 1 +

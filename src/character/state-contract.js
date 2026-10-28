@@ -52,11 +52,15 @@ function stateFor(code, fields, roster, reject = () => null, completeMoods=false
     }
     const needArousal=person.trackArousal && (!completeMoods || !person.requestedFields || person.requestedFields.some(key=>key==='a'||key==='c'));
     if (needArousal && (!seen.has('a') || !seen.has('c'))) {
-        if (!STATE_MOODS.some(key => seen.has(key))) return reject('missing_fields');
-        // A broken optional a/c pair must not erase independently valid moods.
-        // Never invent a missing score or use half a pair for sexual decisions.
-        delete values.a; delete values.c; delete targets.a;
-        reject('missing_fields_ignored');
+        if(completeMoods){
+            // Current collectors preserve each evaluated field; recovery may request
+            // just the missing partner. A missing score is never manufactured.
+            if(['a','c'].some(key=>(!person.requestedFields||person.requestedFields.includes(key))&&!seen.has(key)))reject('missing_fields_ignored');
+        }else{
+            if (!STATE_MOODS.some(key => seen.has(key))) return reject('missing_fields');
+            delete values.a; delete values.c; delete targets.a;
+            reject('missing_fields_ignored');
+        }
     }
     if (!person.trackArousal) { delete values.a; delete values.c; }
     if(completeMoods && !Object.keys(values).length)return reject('empty_fields');

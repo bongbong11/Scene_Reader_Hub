@@ -887,8 +887,9 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter pauses.\n[[SR_STATE]]C0|a38[[/SR_STATE]]\n<Scene_Info>Time: 14:09</Scene_Info>'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     if (!(await page.locator('.sr-character-turn-card').first().evaluate(card=>card.open))) await page.locator('.sr-character-turn-card > summary').first().click();
     await page.locator('.sr-character-card-tabs [data-character-card-view="emotion"]').first().click();
-    assert.match(await page.locator('.sr-character-card-body:visible').first().textContent(),/필수 수치 누락/,'failed metadata explains the cause on the emotion tab');
-    assert.deepEqual(store.chat.characterStateCapture.diagnostics.reasons,['missing_fields']);
+    assert.match(await page.locator('.sr-character-card-body:visible').first().textContent(),/충동\s*38%/,'one missing field cannot erase a valid main-output value');
+    assert.ok(store.chat.characterStateCapture.diagnostics.reasons.includes('missing_fields_ignored'));
+    assert.ok(store.chat.characterStateCapture.diagnostics.reasons.includes('missing_moods'));
     assert.equal(await page.evaluate(()=>mock.chat.at(-1).mes),'Hunter pauses.\n<Scene_Info>Time: 14:09</Scene_Info>','failed metadata does not erase the preset info block');
     // Exercise the actual background collector through UI, output hooks and storage.
     await page.locator('[data-sr-tab="characters"]').click();
@@ -900,7 +901,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{mock.chat.push({is_user:false,mes:'Hunter closes the door, angry about the delay.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),1);
     assert.ok(await page.evaluate(()=>mock.toasts.some(item=>item.message==='감정 수집 중…')),'automatic collection shows its start toast');
-    assert.match(await page.locator('#sr-character-turn-results').textContent(),/수집 중/,'output hook finishes and updates the UI before the profile model replies');
+    assert.match(await page.locator('#sr-character-turn-results').textContent(),/감정 응답 대기/,'output hook identifies the request stage before the profile model replies');
     const profileRequest=await page.evaluate(()=>{const {messages,maxTokens,options}=mock.profileStateRequests[0];return {messages,maxTokens,options}});
     assert.equal(profileRequest.messages.length,2);
     assert.equal(JSON.parse(profileRequest.messages[1].content).output,'Hunter closes the door, angry about the delay.');

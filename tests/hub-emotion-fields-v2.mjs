@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import {extractStateBlock,stateForEntry} from '../src/character/state-contract.js';
+import {extractStateBlock,stateForEntry,parseProfileStates} from '../src/character/state-contract.js';
+import {collectMainOutputState} from '../src/character/state-main-output.js';
+import {buildLiveCharacterPlan,buildCharacterTurnQuestions,resolveLiveCharacterPlan,buildCharacterInjection} from '../src/character/live.js';
 import {missingStateFields,mergeRecoveredStates} from '../src/character/state-coverage.js';
 const person={id:'a',code:'C0',name:'Morgan',trackArousal:false,coverageVersion:2};
 const read=fields=>extractStateBlock(`Reply.\n[[SR_STATE]]\nC0|${fields}\n[[/SR_STATE]]`,[person],{completeMoods:true});
@@ -11,4 +13,23 @@ assert.deepEqual(missingStateFields(old,person),[],'old four-mood states remain 
 const merged=mergeRecoveredStates([partial],[fresh])[0];assert.equal(merged.values.joy,12);assert.equal(merged.values.shame,22);
 assert.equal(stateForEntry(fresh,{id:'a',kind:'npc',trackArousal:false}).values.interest,31);
 assert.equal(fresh.values.a,undefined);
+const tracked={...person,trackArousal:true};
+for(const field of ['a','c']){
+    const values={anger:15,joy:0,fear:0,sadness:0,shame:0,interest:25,[field]:35};
+    const json=parseProfileStates([{code:'C0',...values}],[tracked],{completeMoods:true}).states[0];
+    const line=collectMainOutputState('Reply\n[[SR_STATE]]\nC0|'+Object.entries(values).map(([k,v])=>k+v).join('|')+'\n[[/SR_STATE]]',[tracked]).states[0];
+    assert.equal(json.values[field],35,'valid a/c value survives a missing partner');
+    assert.deepEqual(line.values,json.values,'main and profile collectors retain the same partial fields');
+    const missing=field==='a'?'c':'a';assert.deepEqual(missingStateFields(json,tracked),[missing]);
+    const fixed=parseProfileStates([{code:'C0',[missing]:65}],[{...tracked,requestedFields:[missing]}],{completeMoods:true}).states;
+    assert.equal(fixed[0]?.values[missing],65,'single-field a/c recovery is accepted');
+    assert.equal(mergeRecoveredStates([json],fixed)[0].values[field],35,'recovery never overwrites the original partner');
+}
+const plan=buildLiveCharacterPlan([{id:'a',kind:'character',name:'Morgan',source:'Morgan speaks softly.'}],{canonicalOnly:true});
+plan[0].priorState={id:'a',values:{anger:15,interest:25}};
+const questions=buildCharacterTurnQuestions(plan);
+assert.ok(questions.character_0_affect_anger&&questions.character_0_affect_interest,'other missing moods cannot suppress valid expression questions');
+const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active',character_0_affect_anger:'visible',character_0_affect_interest:'inward'});
+const injection=buildCharacterInjection(resolved).text;
+assert.match(injection,/anger 15%/);assert.match(injection,/interest 25%/);
 console.log('Emotion v2 passed: six-field parse, missing-only recovery, retained four-field historical coverage, NPC scope and no invented zeros.');

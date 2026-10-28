@@ -5,7 +5,7 @@ export const PROFILE_STATE_SYSTEM = `Read the finished RP reply and return compa
 
 // Optional background collector: reads completed RP with the saved connection
 // profile. The main-output collector remains the default and makes no extra call.
-export async function collectProfileOutputState({ request, service, profileId, output, roster, context = {messages:[]}, timeoutMs = 30000, signal }) {
+export async function collectProfileOutputState({ request, service, profileId, output, roster, context = {messages:[]}, timeoutMs = 60000, signal }) {
     if (!service || !profileId || !roster.length) return { states: [], error: 'unavailable' };
     if (String(output || '').length > 24000) return { states: [], error: 'too_long' };
     try {

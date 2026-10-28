@@ -1,6 +1,6 @@
 {
   "name": "sillytavern-scene-reader-hub",
-  "version": "0.2.37",
+  "version": "0.2.38",
   "private": true,
   "type": "module",
   "main": "index.js",

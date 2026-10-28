@@ -2,7 +2,8 @@ import { buildEmotionContext } from './state-context.js';
 import { isStateOutput, latestStateOutputIndex } from './state-message.js';
 import { missingStateFields, mergeRecoveredStates, captureDiagnostic } from './state-coverage.js';
 import {waitForIdle} from '../lifecycle/jobs.js';
-export function createEmotionRuntime(deps) {
+import {withRequestLifetime} from '../adapters/request-lifetime.js';
+export function createEmotionRuntime(deps,{applyTimeoutMs=120000}={}) {
 function notifyEmotionCapture(status, count=0, selected=true) {
     const messages={too_long:'답변이 감정 수집 길이 한도를 넘었습니다. 값을 임의로 잘라 수집하지 않았습니다.',incomplete:'요청한 인물의 감정값 일부가 반환되지 않았습니다. 기존 저장값은 유지했습니다.',timeout:'감정 수집 시간 초과 · 다시 판독해 주세요.',request:'감정 수집 실패 · 확장 연결모델의 응답을 확인하세요.',format:'감정값 형식 확인 필요 · 인물의 감정값 탭을 확인하세요.',unavailable:'감정 수집 실패 · 확장 연결모델 설정을 확인하세요.',save_failed:'감정값을 저장하지 못했습니다. 다시 판독해 주세요.',processing_failed:'감정 수집의 확장 처리에 실패했습니다. 전체 로그에서 단계를 확인해 주세요.'};
     const message=status==='collecting'?'감정 수집 중…':status==='collected'?`${selected?'감정 수집 완료':'다른 스와이프 감정 저장 완료'} · ${count}명`:status==='partial'?`감정 ${count}명 수집 · 일부 값은 형식 확인 필요`:status==='empty'?'감정 수집 완료 · 이번 답변에서 수집할 값 없음':messages[status];
@@ -35,11 +36,21 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const contextFingerprint = deps.stableFingerprint(context);
     const requestId = `${Date.now()}:${++deps.profileStateSequence}`;
     const participantIds=[...new Set([...(missingOnly ? existing?.capture?.participantIds || [] : []),...fullRoster.map(person=>person.id)])];
-    const capture = { outputIndex, swipeId, fingerprint, requestId, participantIds, status:'collecting', count:preserved.length, source:'profile-output' };
+    const started=Date.now();
+    const capture = { outputIndex, swipeId, fingerprint, requestId, participantIds, status:'collecting', phase:'request', count:preserved.length, source:'profile-output' };
     owner.characterStateCapture = capture;
     deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(capture)});
     deps.storeStateEvent(owner,{outputIndex,swipeId,fingerprint,states:preserved,source:'profile-output',capture},deps.STATE_HISTORY_LIMIT);
     const controller=new AbortController();
+    function progress(detail){
+        if(chatKey!==deps.stateChatKey())return;
+        const rec=deps.record(),event=rec?.characterStateEvents?.find(item=>item.capture?.requestId===requestId);
+        if(!event)return;
+        event.capture={...event.capture,...detail};
+        if(rec.characterStateCapture?.requestId===requestId)rec.characterStateCapture=event.capture;
+        deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(event.capture)});
+        deps.renderCharacterTurnResults();
+    }
     let phase='request';
     const task = (async () => {
         if (!deps.connectionRequestService) await deps.loadReasonerProfiles();
@@ -48,10 +59,23 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             profileId, output: text, roster, context, signal:controller.signal,
         });
         if(controller.signal.aborted)return;
+        const requestMs=Date.now()-started;
+        if(result.error&&!result.states.length){
+            progress({status:result.error,phase:'request',requestMs,durationMs:requestMs,errorKind:result.errorKind||'EMOTION_'+result.error.toUpperCase()});
+            if(chatKey===deps.stateChatKey())notifyEmotionCapture(result.error,preserved.length);
+            return;
+        }
+        progress({phase:'response',requestMs});
         phase='source';
-        await deps.waitForOutputChanges();
-        do { await waitForIdle({hub:deps.hub,signal:controller.signal,isBusy:deps.isGenerationBusy}); }
-        while(deps.hub?.snapshot().state.status==='running'||deps.isGenerationBusy?.());
+        const waiting=Date.now();
+        progress({phase:'waiting'});
+        await withRequestLifetime(async signal=>{
+            await deps.waitForOutputChanges();signal.throwIfAborted();
+            // The reply is already complete. Protect Hub writes, not the host's
+            // generation-ended flag, which may remain set through later hooks.
+            do { await waitForIdle({hub:deps.hub,signal}); }
+            while(deps.hub?.snapshot().state.status==='running');
+        },{signal:controller.signal,timeoutMs:applyTimeoutMs,timeoutMessage:'감정 결과 적용 대기 시간이 초과되었습니다.'});
         if (!deps.pendingProfileStateRequests.has(requestId) || chatKey !== deps.stateChatKey() || !deps.settings.enabled || !deps.characterStore.enabled || (!missingOnly && deps.stateCollectorMode(deps.record()?.preferences) !== 'profile-output') || deps.settings.reasonerProfileId !== profileId) return;
         const rec = deps.record();
         if (!rec?.characterStateEvents?.some(event=>event.capture?.requestId===requestId)) return;
@@ -70,13 +94,21 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         const absentIds=new Set((result.diagnostics?.absentIndices || []).map(index=>roster[index]?.id));
         const incomplete=roster.some(person=>!absentIds.has(person.id) && missingStateFields(states.find(state=>state.id===person.id),person).length);
         const malformed=diagnostics?.actors?.some(actor=>actor.reasons?.some(reason=>reason!=='not_participating' && reason!=='missing_moods'));
-        const completed = {outputIndex,swipeId,fingerprint,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics,...(result.errorKind?{errorKind:result.errorKind,phase:'request'}:{})};
-        if (selected) rec.characterStateCapture = completed;
-        deps.storeStateEvent(rec,{outputIndex,swipeId,fingerprint,states,source:'profile-output',capture:completed},deps.STATE_HISTORY_LIMIT,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
+        const waitMs=Date.now()-waiting;
+        progress({phase:'storage',waitMs});
+        const completed = {outputIndex,swipeId,fingerprint,requestId,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics,phase:'complete',requestMs,waitMs,...(result.errorKind?{errorKind:result.errorKind,phase:'request'}:{})};
+        const saving={...completed,status:'collecting',phase:'storage'};
+        if (selected) rec.characterStateCapture = saving;
+        deps.storeStateEvent(rec,{outputIndex,swipeId,fingerprint,states,source:'profile-output',capture:saving},deps.STATE_HISTORY_LIMIT,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
+        const snapshot=structuredClone(rec);
+        snapshot.characterStateEvents.find(event=>event.capture?.requestId===requestId).capture=completed;
+        if(snapshot.characterStateCapture?.requestId===requestId)snapshot.characterStateCapture=completed;
         phase='storage';
-        await deps.persistChat();
+        await deps.persistChat(chatKey,snapshot);
+        if(controller.signal.aborted)return;
+        completed.durationMs=Date.now()-started;
         phase='render';
-        deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(completed)});
+        progress(completed);
         if (chatKey === deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             deps.renderAll();
             notifyEmotionCapture(completed.status,completed.count,selected);
@@ -87,7 +119,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             const rec=deps.record();
             const event=rec?.characterStateEvents?.find(item=>item.outputIndex===outputIndex && item.swipeId===swipeId && item.fingerprint===fingerprint);
             const status=phase==='storage'&&!error.storageSaved?'save_failed':'processing_failed';
-            const errorKind=/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code||'')?error.code:'EMOTION_PROCESSING_FAILED';
+            const errorKind=phase==='source'&&error.code==='REQUEST_TIMEOUT'?'EMOTION_APPLY_TIMEOUT':/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code||'')?error.code:'EMOTION_PROCESSING_FAILED';
             if(event) {
                 if(!error.storageSaved)event.states=preserved;
                 event.capture={...capture,status,count:event.states.length,errorKind,phase:error.phase||phase};
@@ -96,9 +128,14 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
             notifyEmotionCapture(status);
             deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status,errorKind,phase:error.phase||phase});
         }
-    }).finally(()=>{ deps.pendingProfileStateRequests.delete(requestId); if (chatKey===deps.stateChatKey()) deps.renderCharacterTurnResults(); });
+    }).finally(()=>{
+        const rec=chatKey===deps.stateChatKey()?deps.record():null;
+        if(rec?.characterStateEvents?.some(event=>event.capture?.requestId===requestId&&event.capture.status==='collecting'))progress({status:'cancelled',phase,errorKind:'EMOTION_SOURCE_CHANGED'});
+        deps.pendingProfileStateRequests.delete(requestId);
+        if (chatKey===deps.stateChatKey()) deps.renderCharacterTurnResults();
+    });
     const closeCancelled = () => {
-        for (const rec of new Set([owner,deps.chatRecords?.get(chatKey)])) {
+        for (const rec of new Set([owner,chatKey===deps.stateChatKey()?deps.record():null,deps.chatRecords?.get(chatKey)])) {
             if (!rec) continue;
             const event=rec.characterStateEvents?.find(item=>item.capture?.requestId===requestId);
             if(event?.capture?.status==='collecting')event.capture={...event.capture,status:'cancelled'};

@@ -3,6 +3,7 @@ import { ITEM_LABELS, currentProfileItems, profileStatus } from "../../character
 import { renderRecordVersions } from "../character-transfer.js";
 import { latestStateForChat, latestStateEventForChat, stateForEntry, MOOD_LABELS } from "../../character/state-contract.js";
 import { latestStateOutputIndex } from '../../character/state-message.js';
+import {STATE_CAPTURE_PHASE_LABELS} from '../../character/state-status.js';
 
 export function createCharacterView(deps) {
 function characterTurnLabel(field, value) { return deps.CHARACTER_TURN_LABELS[field]?.[value] || '적용하지 않음'; }
@@ -77,8 +78,10 @@ function renderCharacterTurnResults() {
         const actorDiagnostics=captureCurrent?.diagnostics?.actors;
         const actorIndex=captureCurrent?.participantIds?.indexOf(person.id);
         const actorReasons=actorDiagnostics ? actorDiagnostics.filter(actor=>actor.rosterIndex===actorIndex).flatMap(actor=>actor.reasons).map(reason=>captureReasons[reason]).filter(Boolean).join(' · ') : captureReasonText;
-        const emotionMessage=actorReasons|| (captureCurrent?.status==='collecting'?'수집 중':['collected','empty','partial'].includes(captureCurrent?.status)?'이번 응답에서 이 인물의 감정값이 반환되지 않음':captureCurrent?.status?captureFailures[captureCurrent.status]||'수집 실패':'수집된 값 없음');
-        const emotion=bars ? bars+(actorReasons?`<p class="sr-help">${deps.escapeHtml(actorReasons)}</p>`:'') : `<p class="sr-empty-small">${deps.escapeHtml(emotionMessage)}</p>`;
+        const captureNote=captureCurrent?.status==='collecting'?STATE_CAPTURE_PHASE_LABELS[captureCurrent.phase]||'감정 수집 중':captureCurrent?.status==='incomplete'?'감정 일부 미반환 · 정상값 유지':captureFailures[captureCurrent?.status]||'';
+        const emotionMessage=actorReasons||captureNote||(['collected','empty','partial'].includes(captureCurrent?.status)?'이번 응답에서 이 인물의 감정값이 반환되지 않음':'수집된 값 없음');
+        const notes=[...new Set([actorReasons,captureNote].filter(Boolean))].join(' · ');
+        const emotion=bars ? bars+(notes?`<p class="sr-help">${deps.escapeHtml(notes)}</p>`:'') : `<p class="sr-empty-small">${deps.escapeHtml(emotionMessage)}</p>`;
         const tabs=`<div class="sr-character-card-tabs" role="tablist" aria-label="${deps.escapeHtml(person.name)} 결과"><button type="button" role="tab" data-character-id="${deps.escapeHtml(person.id)}" data-character-card-view="judgment" aria-selected="${view==='judgment'}" class="${view==='judgment'?'active':''}">판정</button><button type="button" role="tab" data-character-id="${deps.escapeHtml(person.id)}" data-character-card-view="emotion" aria-selected="${view==='emotion'}" class="${view==='emotion'?'active':''}">감정값</button></div>`;
         return `<details class="sr-character-turn-card" data-character-card-key="${deps.escapeHtml(cardKey)}" ${deps.characterCardOpen.get(cardKey)?'open':''}><summary class="sr-character-card-heading"><span>` + deps.escapeHtml(person.name) + ' <small>' + deps.escapeHtml(person.kind === 'npc' ? 'NPC' : person.kind === 'persona' ? '페르소나' : '캐릭터') + ' · ' + status + '</small></span></summary>' + tabs + `<div class="sr-character-card-body" role="tabpanel" ${view==='emotion'?'hidden':''}>` + (person.emotionOnly?'<p class="sr-empty-small">감정값만 판독했습니다. 인물 기록 선택은 다음 장면 판독에서 확인하세요.</p>':rows) + (person.excludedReason ? '<p class="sr-help">' + deps.escapeHtml(person.excludedReason) + '</p>' : '') + (settings.showConfidence ? '<details class="sr-trace"><summary>판정 경로·확신도</summary>' + audit + relevance + '</details>' : '') + `</div><div class="sr-character-card-body" role="tabpanel" ${view==='judgment'?'hidden':''}>${emotion}</div></details>`;
     }).join('');

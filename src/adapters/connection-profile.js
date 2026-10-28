@@ -53,7 +53,7 @@ export async function requestWithConnectionProfile(service, profileId, system, s
             failure.code='PROFILE_REQUEST_FAILED';failure.message='확장 연결 모델 요청에 실패했습니다. 호스트에서 구체적인 원인을 제공하지 않았습니다.';
         }
         failure.diagnostic=safeAnalysisInfo({...diagnostic,durationMs:Date.now()-started,httpStatus:failure.httpStatus});
-        report({...failure.diagnostic,status:signal?.aborted?'cancelled':'failed',errorKind:failure.code});
+        report({...failure.diagnostic,status:signal?.aborted&&!/TIMEOUT/.test(failure.code)?'cancelled':'failed',errorKind:failure.code});
         throw failure;
     }
     let result;
