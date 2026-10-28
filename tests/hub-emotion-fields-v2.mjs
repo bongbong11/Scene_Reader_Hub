@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {extractStateBlock,stateForEntry} from '../src/character/state-contract.js';
+import {missingStateFields,mergeRecoveredStates} from '../src/character/state-coverage.js';
+const person={id:'a',code:'C0',name:'Morgan',trackArousal:false,coverageVersion:2};
+const read=fields=>extractStateBlock(`Reply.\n[[SR_STATE]]\nC0|${fields}\n[[/SR_STATE]]`,[person],{completeMoods:true});
+const fresh=read('anger0|joy12|fear0|sadness0|shame22|interest31').states[0];
+assert.equal(fresh.coverageVersion,2);assert.equal(fresh.values.shame,22);assert.equal(fresh.values.interest,31);assert.deepEqual(missingStateFields(fresh,person),[]);
+const partial=read('anger0|joy12|fear0|sadness0').states[0];assert.deepEqual(missingStateFields(partial,person),['shame','interest']);
+const old={id:'a',coverageVersion:1,values:{anger:0,joy:12,fear:0,sadness:0},targets:{}};
+assert.deepEqual(missingStateFields(old,person),[],'old four-mood states remain complete, without backfill or re-collection');
+const merged=mergeRecoveredStates([partial],[fresh])[0];assert.equal(merged.values.joy,12);assert.equal(merged.values.shame,22);
+assert.equal(stateForEntry(fresh,{id:'a',kind:'npc',trackArousal:false}).values.interest,31);
+assert.equal(fresh.values.a,undefined);
+console.log('Emotion v2 passed: six-field parse, missing-only recovery, retained four-field historical coverage, NPC scope and no invented zeros.');

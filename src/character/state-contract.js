@@ -2,7 +2,8 @@ import { latestStateOutputIndex } from './state-message.js';
 
 export const STATE_OPEN = '[[SR_STATE]]';
 export const STATE_CLOSE = '[[/SR_STATE]]';
-export const STATE_MOODS = Object.freeze(['anger', 'joy', 'fear', 'sadness']);
+export const STATE_MOODS = Object.freeze(['anger', 'joy', 'fear', 'sadness', 'shame', 'interest']);
+export const MOOD_LABELS=Object.freeze({anger:'분노',joy:'기쁨',fear:'두려움',sadness:'슬픔',shame:'수치심',interest:'관심·흥미'});
 const FIELD_NAMES = new Set(['a', 'c', ...STATE_MOODS]);
 
 const FIELD_ALIASES = { a:'a', arousal:'a', sexualarousal:'a', c:'c', selfcontrol:'c' };
@@ -59,8 +60,9 @@ function stateFor(code, fields, roster, reject = () => null, completeMoods=false
     }
     if (!person.trackArousal) { delete values.a; delete values.c; }
     if(completeMoods && !Object.keys(values).length)return reject('empty_fields');
-    if(completeMoods && STATE_MOODS.filter(key=>!person.requestedFields || person.requestedFields.includes(key)).some(key=>!seen.has(key)))reject('missing_moods');
-    return { id: person.id, values, targets, ...(completeMoods?{coverageVersion:1}:{}) };
+    const version=person.coverageVersion===2?2:1,moods=version===2?STATE_MOODS:STATE_MOODS.slice(0,4);
+    if(completeMoods && moods.filter(key=>!person.requestedFields || person.requestedFields.includes(key)).some(key=>!seen.has(key)))reject('missing_moods');
+    return { id: person.id, values, targets, ...(completeMoods?{coverageVersion:version}:{}) };
 }
 function readRows(rows, roster, format, completeMoods=false) {
     const diagnostics = { format, received: rows.length, accepted: 0, rejected: 0, reasons: [], actors: [] };

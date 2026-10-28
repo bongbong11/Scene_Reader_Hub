@@ -1,7 +1,7 @@
 import { currentRecords, RECORD_LABELS, recordBankIsCurrent } from "../../character/records.js";
 import { ITEM_LABELS, currentProfileItems, profileStatus } from "../../character/index.js";
 import { renderRecordVersions } from "../character-transfer.js";
-import { latestStateForChat, latestStateEventForChat, stateForEntry } from "../../character/state-contract.js";
+import { latestStateForChat, latestStateEventForChat, stateForEntry, MOOD_LABELS } from "../../character/state-contract.js";
 import { latestStateOutputIndex } from '../../character/state-message.js';
 
 export function createCharacterView(deps) {
@@ -26,7 +26,7 @@ function renderCharacterTurnResults() {
     const captureReasonText=(captureCurrent?.diagnostics?.reasons||[]).map(reason=>captureReasons[reason]).filter(Boolean).join(' · ');
     const latestStates=latestStateForChat(currentRecord,chat,deps.stableFingerprint);
     const stateById=new Map(latestStates.map(state=>[state.id,state]));
-    const moodNames={a:'충동',c:'자제',anger:'분노',joy:'기쁨',fear:'두려움',sadness:'슬픔'};
+    const moodNames={a:'충동',c:'자제',...MOOD_LABELS};
     root.onclick=event=>{
         const button=event.target.closest?.('[data-character-card-view]');
         if(!button||!root.contains(button))return;
@@ -52,18 +52,18 @@ function renderCharacterTurnResults() {
         const sexual = person.sexualConduct || judgment.sexualTrace?.find(item => item.id === person.id) || null;
         const rows = [
             ['이번 역할', person.presenceUncertain?'참여 불확실 · 부재로 확정하지 않음':characterTurnLabel('presence',person.presence)],
-            ...(person.recordMode ? [['판독 기록 상태', ({ current:'새 인물 기록 사용', stale:'기록이 오래됨 · 다시 추출 필요', legacy:'이전 방식만 저장됨 · 새 기록 추출 필요', missing:'저장된 인물 기록 없음' })[person.recordStatus] || '기록 상태 확인 필요'], ['검색 상태', ({ready:'임베딩 검색',cached:'검색 결과 재사용',fallback:'글자 검색으로 대체',lexical:'글자 검색',plain:'검색 대상 없음'})[person.prefilterStats?.retrievalStatus] || person.prefilterStats?.retrievalStatus || '확인 필요'], ['저장 → 후보 → Jev 선택 → 주입문 포함', `${person.storedRecordCount || 0} → ${person.candidateCount || 0} → ${(person.jevSelectedRuleIds || person.profileIds).length} → ${(person.injectedRuleIds || []).length}개`],['인물별 주입 길이',`${person.blockChars || 0}자`],...(person.zeroReason?[['선택 0개 이유',person.zeroReason]]:[])] : []),
+            ...(person.recordMode ? [['판독 기록 상태', ({ current:'새 인물 기록 사용', stale:'기록이 오래됨 · 다시 추출 필요', legacy:'이전 방식만 저장됨 · 새 기록 추출 필요', missing:'저장된 인물 기록 없음' })[person.recordStatus] || '기록 상태 확인 필요'], ['검색 상태', ({ready:'임베딩 검색',cached:'검색 결과 재사용',fallback:'글자 검색으로 대체',lexical:'글자 검색',plain:'검색 대상 없음',failed:'기록 본문 읽기 실패'})[person.prefilterStats?.retrievalStatus] || person.prefilterStats?.retrievalStatus || '확인 필요'], ['저장 → 후보 → Jev 선택 → 주입문 포함', `${person.storedRecordCount || 0} → ${person.candidateCount || 0} → ${(person.jevSelectedRuleIds || person.profileIds).length} → ${(person.injectedRuleIds || []).length}개`],['기록 판독',person.reviewStatus==='failed'?'응답 확인 실패':person.reviewStatus==='partial'?`일부 미판독 ${person.unreviewedRecordCount}개`:person.reviewStatus==='not_requested'?'검토할 기록 없음':'검토 완료'],['인물별 주입 길이',`${person.blockChars || 0}자`],...(person.zeroReason?[['선택 0개 이유',person.zeroReason]]:[])] : []),
             ...((person.prefilterStats?.excludedByChars || person.prefilterStats?.excludedByLimit) ? [['후보에서 제외',`개수 한도 ${person.prefilterStats.excludedByLimit || 0}개 · 후보 길이 한도 ${person.prefilterStats.excludedByChars || 0}개`]]:[]),
-            ...(person.protection ? [['경계·지식 제한 보강',`추가 판독 ${person.protection.candidates}개 · 주입문에 포함 ${person.protection.injected}개`],
+            ...(person.protection ? [['인물 근거 보강',`추가 판독 ${person.protection.candidates}개 · 주입문에 포함 ${person.protection.injected}개`],
                 ['보강 미판독',`후보 개수 ${person.protection.omittedByCandidateLimit}개 · 후보 길이 ${person.protection.omittedByCandidateChars}개 · 전체 판독 길이 ${person.protection.omittedByRequest}개`],
-                ['보강 미적용',`Jev 미선택·응답 누락 ${person.protection.notApproved}개${person.protection.invalidAnswers ? ` (응답 오류 ${person.protection.invalidAnswers}개)` : ''} · 참여 제외 ${person.protection.excludedByPresence}개 · 선택 칸 부족 ${person.protection.omittedBySlots}개 · 주입 길이 ${person.protection.omittedByInjectionChars}개`],
+                ['보강 미적용',`Jev 미선택 ${person.protection.notApproved}개${person.protection.invalidAnswers ? ` (응답 오류 ${person.protection.invalidAnswers}개)` : ''} · 참여 제외 ${person.protection.excludedByPresence}개 · 선택 칸 부족 ${person.protection.omittedBySlots}개 · 주입 길이 ${person.protection.omittedByInjectionChars}개`],
                 ...(person.protection.fallback ? [['보강 상태','보강 준비 실패 · 기존 판독 유지']] : [])] : []),
             ['사용한 시트 기준', profileNames.join(' / ') || '특별히 강조한 항목 없음'],
-            ...((person.omittedBySlotRuleIds || []).length ? [['선택 개수 한도로 제외', `${person.omittedBySlotRuleIds.length}개 규칙 · 기존 선택 유지, 보강은 남은 칸에 적용`]] : []),
+            ...((person.omittedBySlotRuleIds || []).length ? [['선택 개수 한도로 제외', `${person.omittedBySlotRuleIds.length}개 규칙 · 관련성 순위와 주입 한도에 따라 배분`]] : []),
             ...((person.excludedByPresenceRuleIds || []).length ? [['참여 판정으로 제외', `${person.excludedByPresenceRuleIds.length}개 규칙 · 이번 응답에 참여하지 않아 미적용`]] : []),
             ...((person.omittedRuleIds || []).length ? [['길이 제한으로 제외', `${person.omittedRuleIds.length}개 규칙 · 문장 중간을 자르지 않고 항목 전체 제외`]] : []),
             ['이번 정보 참고', (person.contextIds || []).length ? person.contextIds.length + '개 후보 중 접근이 확인된 항목만 사용' : '별도 정보 선택 없음'],
-            ...(person.priorAffect?[['상태 표현 판정',(person.affectSelections||[]).map(item=>`${({a:'충동',anger:'분노',joy:'기쁨',fear:'두려움',sadness:'슬픔'})[item.field]} · ${({inward:'속마음·억제',visible:'대사·작은 행동',active:'인물에 맞는 직접 행동'})[item.expression]}`).join(' / ')||'이번 응답에 별도 반영 없음']]:[]),
+            ...(person.priorAffect?[['상태 표현 판정',(person.affectSelections||[]).map(item=>`${({a:'충동',...MOOD_LABELS})[item.field]} · ${({inward:'속마음·억제',visible:'대사·작은 행동',active:'인물에 맞는 직접 행동'})[item.expression]}`).join(' / ')||'이번 응답에 별도 반영 없음']]:[]),
             ...(sexual ? [['육체적 진행 단계',deps.SEXUAL_TURN_LABELS.pace[sexual.pace]||sexual.pace],['성적 자제력',deps.SEXUAL_TURN_LABELS.restraint[sexual.restraint]||'응답 확인 필요'],['행동 경로',deps.SEXUAL_TURN_LABELS.route[sexual.route]||'기존 프리셋에 맡김'],['행동 대상',deps.SEXUAL_TURN_LABELS.target[sexual.target]||'판정 없음'],['육체 판정 주입',sexual.valid?'별도 주입문 준비':sexual.presence!=='active'?'이번 응답 참여 없음':'응답 누락·형식 오류로 기존 프리셋에 맡김']]:[]),
             ['지식 접근 제외', (person.deniedIds || []).length ? person.deniedIds.length + '개 · 해당 정보만 제외' : '없음'],
             ...(!person.recordMode ? [['반응 방향', characterTurnLabel('direction',person.direction)]] : []),
@@ -72,7 +72,7 @@ function renderCharacterTurnResults() {
         const cardKey=String(deps.getContext().chatId || '')+':'+person.id;
         const view=deps.characterCardViews.get(person.id) || (person.emotionOnly?'emotion':'judgment');
         const saved=stateForEntry(stateById.get(person.id),entry)?.values || {};
-        const neutral=stateById.get(person.id)?.coverageVersion===1 || (Object.keys(saved).length>0&&!Object.values(saved).some(value=>value>0));
+        const neutral=stateById.get(person.id)?.coverageVersion>=1 || (Object.keys(saved).length>0&&!Object.values(saved).some(value=>value>0));
         const bars=Object.entries(moodNames).filter(([key])=>Number.isInteger(saved[key])&&(neutral||['a','c'].includes(key)||saved[key]>0)).map(([key,name])=>`<div class="sr-emotion-row"><span>${name}</span><div class="sr-emotion-track"><span style="width:${Math.max(0,Math.min(100,saved[key]))}%"></span></div><strong>${saved[key]}%</strong></div>`).join('');
         const actorDiagnostics=captureCurrent?.diagnostics?.actors;
         const actorIndex=captureCurrent?.participantIds?.indexOf(person.id);

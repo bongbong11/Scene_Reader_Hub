@@ -22,13 +22,13 @@ export async function checkRecordProtection(page, store, requests, setReview) {
         await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
         assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length-before,2,'supplements stay inside the existing gate and decision calls');
         const decision=requests.filter(r=>r.url.endsWith('/systemone')).at(-1).body;
-        const guardKeys=Object.keys(decision.questions).filter(key=>decision.questions[key].instructions?.startsWith('Should this stored constraint'));
+        const guardKeys=Object.keys(decision.questions).filter(key=>/character_\d+_record_/.test(key)&&/Does not know the sealed archive password|Never discloses a sealed archive seal/.test(decision.questions[key].instructions||''));
         const supplementalCount=store.chat.lastJudgment.characterTrace.reduce((sum,p)=>sum+p.protection.candidates,0);
         assert.ok(supplementalCount>=2&&supplementalCount<=4,'supplement only guards omitted by the real lexical/vector baseline');
-        assert.equal(guardKeys.length,supplementalCount);
+        assert.equal(guardKeys.length,decision.state.character_profiles.people.reduce((sum,p)=>sum+p.profileCandidates.filter(r=>['knowledge','boundary'].includes(r.type)).length,0),'baseline and supplemental records use the same relevance question');
         for(const p of decision.state.character_profiles.people)for(const [i,item] of p.profileCandidates.entries())assert.ok(decision.questions[`character_${p.index}_record_${i}`]);
         assert.ok(store.chat.lastJudgment.characterTrace.every(p=>p.protection.candidates>=1 && p.protection.injected===p.protection.candidates));
-        assert.match(await page.locator('#sr-character-turn-results').textContent(),/경계·지식 제한 보강/);
+        assert.match(await page.locator('#sr-character-turn-results').textContent(),/인물 근거 보강/);
         assert.match(await page.locator('#sr-character-turn-results').textContent(),/주입문 준비됨/,'assembled character records do not claim actual delivery');
         assert.doesNotMatch(await page.locator('#sr-character-turn-results').textContent(),/이번 응답에 주입/);
         const outbound=await page.evaluate(()=>mock.outbound());

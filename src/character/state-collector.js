@@ -13,6 +13,7 @@ export function stateRoster(store, preferences, judgment, {recheckOutput=false} 
     const selected = entries.filter(entry => recheckOutput || active.has(entry.id) || possible.has(entry.id)).sort((a,b)=>Number(active.has(b.id))-Number(active.has(a.id)));
     return selected.slice(0, 6).map((entry, index) => ({
         code: `C${index}`,
+        coverageVersion:2,
         id: entry.id,
         kind: entry.kind,
         name: String(entry.name || '').replace(/[|\r\n<>]/g, ' ').trim().slice(0, 80),

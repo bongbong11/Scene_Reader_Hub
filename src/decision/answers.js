@@ -85,8 +85,8 @@ export function applyCharacterPolicy(key, answer, judgmentStyle, allowedChoices)
 export function applyRecordRelevance(answer) {
     const value = Number(answer?.noul);
     const valid = answer?.type === 'noul' && validNoul(answer.noul);
-    const selected = valid && value >= 0.5 ? 'yes' : 'no';
+    const selected = valid ? value>0?'yes':'no' : 'unavailable';
     return { selected, effective: selected, policyEffective: selected, coordinatorFinal: selected,
-        certainty: valid ? value : 0, threshold: 0.5, adjusted: false,
+        certainty: valid ? value : 0, relevance:valid?value:null, threshold: 0, adjusted: false,
         policy: 'record_relevance', fallbackApplied: !valid, rule: valid ? '' : 'Jev 관련성 판정 누락·형식 오류' };
 }

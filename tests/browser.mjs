@@ -54,7 +54,7 @@ mock.promptManager={saveServiceSettings(){},render(){},serviceSettings:mock.pres
 mock.outbound=async()=>{
     await mock.emit('GENERATION_STARTED','normal',{},false);
     const hostText=mock.promptManager.getPromptOrderForCharacter().filter(e=>e.enabled).map(e=>mock.presetSettings.prompts.find(p=>p.identifier===e.identifier)).filter(Boolean).map(p=>mock.promptManager.preparePrompt(p).content).join('\\n');
-    const messages=[{role:'system',content:hostText},...Object.values(mock.prompts).filter(p=>typeof p==='string' && p).map(p=>({role:'system',content:p})),...mock.chat.map(m=>({role:m.is_user?'user':'assistant',content:m.mes}))];
+    const messages=[{role:'system',content:hostText},...Object.values(mock.prompts).filter(p=>typeof p==='string' && p).map(p=>({role:'system',content:mock.promptManager.preparePrompt({content:p}).content})),...mock.chat.map(m=>({role:m.is_user?'user':'assistant',content:m.mes}))];
     await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
     const body={type:'normal',messages};await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);
     await fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});
@@ -64,7 +64,7 @@ mock.slotText=async kind=>{
     const body=await mock.outbound(),full=body.messages.map(m=>typeof m.content==='string'?m.content:'').join('\\n');
     const marker='<SCENE_READER_OUTPUT data-source="scene_reader_hub" data-kind="'+kind+'">',start=full.indexOf(marker);
     if(start>=0)return full.slice(start+marker.length,full.indexOf('</SCENE_READER_OUTPUT>',start));
-    return mock.prompts[kind==='scene'?'scene-reader-router':'scene-reader-world']||'';
+    return Object.values(mock.prompts).filter(p=>typeof p==='string'&&p).join('\\n');
 };
 
 window.toastr=Object.fromEntries(['info','success','error','warning'].map(name=>[name,(message,title='',options={})=>{
@@ -502,12 +502,12 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Open the door.'});await mock.emit('MESSAGE_SENT',0);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     await page.locator('#scene-reader-quick-button').click();
     assert.doesNotMatch(await page.locator('#sr-turn-summary').textContent(),/아직 판독 결과가 없습니다/,'opening the panel after automatic generation preserves the result');
-    assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-router']),store.chat.lastJudgment.payload,'automatic injection equals the server judgment after opening the panel');
+    assert.ok((await page.evaluate(()=>mock.prompts['scene-reader-router'])).startsWith(store.chat.lastJudgment.payload),'automatic default injection preserves the server judgment before combined metadata');
     assert.ok(!requests.some(r=>r.body.state?.memory_reference?.entries?.length),'reserved memory must not reach Jev even with old enabled settings');
     assert.ok(!requests.some(r=>r.body.state?.memory_reference?.entries?.some(e=>e.sourceId==='Hunter Extra:3')),'reserved auxiliary lore stays off');
     assert.ok(!requests.some(r=>r.body.state?.memory_reference?.entries?.some(e=>e.sourceId==='Hunter Lore:2')),'irrelevant lore must not reach Jev');
     assert.ok(await page.evaluate(()=>mock.prompts['scene-reader-router']?.length>0),'prompt slot receives injection');
-    assert.match(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']||''),/Hunter/,'main-model state request reaches the same generation');
+    assert.match(await page.evaluate(()=>Object.values(mock.prompts).join('\n')),/C0=Hunter/,'main-model state request reaches the same combined generation');
     await page.context().grantPermissions(['clipboard-read','clipboard-write']);
     await page.locator('#sr-copy-debug').click();
     const debugReport=JSON.parse(await page.evaluate(()=>navigator.clipboard.readText()));
@@ -553,7 +553,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.ok(!charmRequest?.body.state.memory_reference.entries.some(e=>e.sourceKind==='lorebook'),'disabled character lore is not sent');
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Wade enters the room.'});await mock.emit('MESSAGE_SENT',5);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.ok(requests.some(r=>r.body.state?.character_profiles?.people?.some(person=>person.name==='Wade' && person.profileCandidates.length)),'stored Wade rules reach live Jev selection');
-    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/Wade[^\n]*Wade tends to control his son on family matters\./,'the selected rule reaches the final injection');
+    assert.match(await page.evaluate(async()=>(await mock.outbound()).messages.map(m=>m.content).join('\n')),/Wade[^\n]*Wade tends to control his son on family matters\./,'the selected rule reaches its independent person/default position');
     gateScenario={level:'3',phase:'active'};
     const beforePause=requests.length;
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Wade and Hunter begin an explicit sexual interaction.'});await mock.emit('MESSAGE_SENT',6);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
@@ -702,7 +702,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(()=>{mock.chat.push({is_user:true,name:'User',mes:'Hunter examines the invitation. Is it a trap?'});document.getElementById('send_textarea').value='';});
     const slashJudge=JSON.parse(await page.evaluate(()=>mock.slashCommands['srh-judge'].callback({},'')));
     assert.equal(slashJudge.status,'prepared');
-    await page.waitForFunction(async()=>(await mock.slotText('scene')).includes('Hunter suspects the invitation is a trap.'));
+    await page.waitForFunction(async()=>(await mock.outbound()).messages.some(m=>m.content.includes('Hunter suspects the invitation is a trap.')));
     assert.ok(!Object.keys(requests.filter(r=>r.url.endsWith('/systemone')).at(-1).body.questions).some(key=>/response_direction|response_basis/.test(key)));
     assert.ok(store.chat.lastJudgment?.characterInjectionChars<=5000,'character budget is tracked separately from other prompt blocks');
     await page.locator('[data-sr-tab="characters"]').click();
@@ -790,7 +790,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'At the moonlit garden gate, Hunter waits.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     await page.waitForFunction(async()=>(await mock.slotText('world')).includes('Moonlight opens the garden gate.'));
     assert.match(await page.evaluate(async()=>await mock.slotText('world')),/ordinary place.*Moonlight opens the garden gate/s,'chosen world record reaches the world macro');
-    assert.doesNotMatch(await page.evaluate(async()=>await mock.slotText('scene')),/Moonlight opens the garden gate/,'scene instructions do not duplicate the world-rule category');
+    assert.equal((await page.evaluate(async()=>(await mock.outbound()).messages.map(m=>m.content).join('\n'))).split('Moonlight opens the garden gate.').length-1,1,'final composition does not duplicate world rules');
     assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/Active world: Moonlit Garden/,'scene routing retains only a short world reference');
     const worldGate=requests.filter(request=>request.url.endsWith('/systemone')).findLast(request=>request.body.state?.world_record_candidates?.length);
     assert.equal(worldGate.body.state.world_record_candidates[0].id,'W001','the scene gate judges bounded world candidates');
@@ -907,7 +907,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.equal(profileRequest.options.includePreset,false);
     assert.equal(profileRequest.maxTokens,1200);
     const profileOutputIndex=await page.evaluate(()=>mock.chat.length-1);
-    await page.evaluate(()=>mock.profileStateRequests[0].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:45,joy:0,fear:0,sadness:0}]})}));
+    await page.evaluate(()=>mock.profileStateRequests[0].resolve({content:JSON.stringify({states:[{code:'C0',a:20,c:80,anger:45,joy:0,fear:0,sadness:0,shame:0,interest:0}]})}));
     await page.waitForFunction(()=>document.querySelector('#sr-character-turn-results')?.textContent.includes('45%'));
     assert.equal(store.chat.characterStateCapture.status,'incomplete','unreturned registered actors remain visible as incomplete');
     assert.ok(await page.evaluate(()=>mock.toasts.some(item=>item.level==='warning' && item.message.includes('일부가 반환되지'))),'partial actor response does not announce full completion');
@@ -924,7 +924,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.ok(!manualRequest.people.some(person=>person.code==='C0'),'the saved actor is not recollected');
     await page.locator('#sr-emotion-now').evaluate(button=>button.click());
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),2,'double clicks never duplicate collection');
-    await page.evaluate(()=>{const people=JSON.parse(mock.profileStateRequests[1].messages[1].content).people;mock.profileStateRequests[1].resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,anger:0,joy:0,fear:0,sadness:0,...(person.trackArousal?{a:0,c:90}:{})}))})});});
+    await page.evaluate(()=>{const people=JSON.parse(mock.profileStateRequests[1].messages[1].content).people;mock.profileStateRequests[1].resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,anger:0,joy:0,fear:0,sadness:0,shame:0,interest:0,...(person.trackArousal?{a:0,c:90}:{})}))})});});
     await page.waitForFunction(()=>!document.querySelector('#sr-emotion-now').disabled);
     assert.match(await page.locator('#sr-character-turn-results').textContent(),/45%/,'the original saved emotion is unchanged');
     assert.equal(requests.filter(request=>request.url.endsWith('/systemone')).length,jevBeforeEmotion,'manual emotion collection makes no Jev call');
@@ -937,7 +937,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     const neutralCard=page.locator('.sr-character-turn-card').filter({has:page.locator('summary', {hasText:neutralNpc.name})}).first();
     if(!(await neutralCard.evaluate(card=>card.open)))await neutralCard.locator(':scope > summary').click();
     await neutralCard.locator('[data-character-card-view=emotion]').click();
-    assert.equal(await neutralCard.locator('.sr-emotion-row').count(),4,'neutral NPC displays all four zero mood bars');
+    assert.equal(await neutralCard.locator('.sr-emotion-row').count(),6,'neutral NPC displays all six evaluated zero mood bars');
     assert.ok((await neutralCard.locator('.sr-emotion-row strong').allTextContents()).every(text=>text==='0%'));
     await neutralCard.locator(':scope > summary').click();
     await page.locator('.sr-emotion-controls').screenshot({path:path.join(root,'artifacts','emotion-manual-mobile.png')});
@@ -972,7 +972,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.ok(!store.chat.characterStateEvents.some(event=>event.states.some(state=>state.values?.anger===99)),'late stopped collection cannot save');
     await page.evaluate(async()=>{await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);mock.chat.push({is_user:false,mes:'Hunter sits beside the window.'});await mock.emit('MESSAGE_RECEIVED',mock.chat.length-1);});
     assert.equal(await page.evaluate(()=>mock.profileStateRequests.length),stoppedRequestCount+1,'next intentional generation can collect normally');
-    await page.evaluate(()=>{const request=mock.profileStateRequests.at(-1),people=JSON.parse(request.messages[1].content).people;request.resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,anger:0,joy:0,fear:0,sadness:0,...(person.trackArousal?{a:0,c:90}:{})}))})});});
+    await page.evaluate(()=>{const request=mock.profileStateRequests.at(-1),people=JSON.parse(request.messages[1].content).people;request.resolve({content:JSON.stringify({states:people.map(person=>({code:person.code,anger:0,joy:0,fear:0,sadness:0,shame:0,interest:0,...(person.trackArousal?{a:0,c:90}:{})}))})});});
     await page.waitForFunction(()=>!document.querySelector('#sr-emotion-now').disabled);
     await page.locator('[data-sr-tab="characters"]').click();
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').uncheck()]);
@@ -1019,10 +1019,10 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{await mock.emit('GENERATION_ENDED');mock.chat.push({is_user:true,mes:'Hub fallback test: I ask Hunter to explain the next step.'});await window.SceneReaderHubBeforeGenerate([],4096,()=>{},'normal');});
     assert.ok(requests.filter(r=>r.url.endsWith('/systemone')).length>primaryRequestCount,'missing primary event is prepared through interceptor');
     const receipt=await page.evaluate(async()=>{
-        const prompt=Object.values(mock.prompts).map(value=>typeof value==='string'?value:value.value||'').join('\n')+'\n'+document.getElementById('sr-prompt-preview').textContent;
-        await mock.emit('GENERATE_AFTER_DATA',{prompt},false);
+        await mock.outbound();
         return SceneReaderHub.diagnostics().events.findLast(e=>e.code==='PROMPT_OBSERVED');
     });
+    if(!receipt)console.log('Missing receipt diagnostics',JSON.stringify(await page.evaluate(()=>({state:SceneReaderHub.diagnostics().state,lastFailure:SceneReaderHub.diagnostics().lastFailure?.event,events:SceneReaderHub.diagnostics().events.slice(-12)}))));
     assert.equal(receipt.scene,'confirmed','final prompt observer confirms the prepared scene payload');
     assert.ok(receipt.promptHash&&receipt.promptChars>0,'evidence retains counts and hash without prompt text');
     assert.equal('prompt' in receipt,false);
@@ -1030,7 +1030,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>mock.errors),[]);
     const requestAudit=await page.evaluate(async()=>{
         await mock.emit('GENERATION_STARTED','normal',{},false);
-        const messages=[{role:'system',content:mock.promptManager.getPromptOrderForCharacter().filter(r=>r.enabled).map(r=>mock.presetSettings.prompts.find(p=>p.identifier===r.identifier)).filter(Boolean).map(p=>mock.promptManager.preparePrompt(p).content).join('\\n')},...Object.values(mock.prompts).filter(Boolean).map(content=>({role:'system',content}))];
+        const messages=[{role:'system',content:mock.promptManager.getPromptOrderForCharacter().filter(r=>r.enabled).map(r=>mock.presetSettings.prompts.find(p=>p.identifier===r.identifier)).filter(Boolean).map(p=>mock.promptManager.preparePrompt(p).content).join('\n')},...Object.values(mock.prompts).filter(Boolean).map(content=>({role:'system',content:mock.promptManager.preparePrompt({content}).content}))];
         await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
         const body={messages};
         await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);

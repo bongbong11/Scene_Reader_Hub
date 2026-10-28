@@ -1,4 +1,4 @@
-import {latestStateEventForChat} from '../character/state-contract.js';
+import {latestStateEventForChat,STATE_MOODS} from '../character/state-contract.js';
 import {continuityValidationCounts} from '../continuity/engine.js';
 import {safeOpportunityPlan, safeOpportunityVerification} from './opportunity-events.js';
 import {analysisDiagnosticReport,safeAnalysisInfo} from '../continuity/failure.js';
@@ -9,7 +9,7 @@ export function wholeDiagnosticReport({execution,judgment,record,chat,fingerprin
     const details=Object.entries(judgment?.details || {}).filter(([key])=>symbol(key));
     const event=Array.isArray(chat)?latestStateEventForChat(record,chat,fingerprint):null;
     const capture=event?.capture || (Array.isArray(chat)?null:record?.characterStateCapture);
-    const fields=['a','c','anger','joy','fear','sadness'];
+    const fields=['a','c',...STATE_MOODS];
     const direction=record?.pendingPlan?.inputKey===judgment?.inputKey ? record?.pendingPlan?.storyDirection||judgment?.storyDirection : judgment?.storyDirection;
     return {...execution,opportunities:safeOpportunityPlan(judgment?.opportunityPlan),opportunityVerification:safeOpportunityVerification(record?.lastOpportunityVerification),status:judgment?'judgment_available':'no_judgment',
         judgedAt:judgment?.judgedAt || null,
@@ -20,7 +20,7 @@ export function wholeDiagnosticReport({execution,judgment,record,chat,fingerprin
         sceneDelivery:judgment?.sceneDelivery?{route:symbol(judgment.sceneDelivery.route),transition:symbol(judgment.sceneDelivery.transition),previousRoute:symbol(judgment.sceneDelivery.previousRoute),gateFailed:Boolean(judgment.sceneDelivery.gateFailed),referenceCount:number(judgment.sceneDelivery.referenceCount),characterAnalysisSkipped:judgment.sceneDelivery.characterAnalysisSkipped===true,characterMacroSkipped:judgment.sceneDelivery.characterMacroSkipped===true,fixedGuidancePrepared:judgment.sceneDelivery.fixedGuidancePrepared===true,delivery:'see_injection_consume_events'}:null,
         jevOriginalChoices:Object.fromEntries([...new Set([...details.map(([key])=>key),...Object.keys(judgment?.rawChoices||{}).filter(symbol)])].map(key=>{const answer=judgment.rawChoices?.[key] || {};return [key,{choice:symbol(answer.choice),noul:number(answer.noul),confidence:number(answer.confidence)}];})),
         decisions:Object.fromEntries(details.map(([key,value])=>[key,{original:symbol(value.selected),confidence:number(value.certainty),final:symbol(value.effective),policyFinal:symbol(value.policyEffective),threshold:number(value.threshold),fallbackApplied:Boolean(value.fallbackApplied),...(key.endsWith('_presence')?{uncertain:Boolean(value.presenceUncertain),evidence:symbol(value.participationEvidence),resolution:symbol(value.presenceResolution)}:{})}])),
-        characters:(judgment?.characterTrace || []).map((person,index)=>({index,kind:symbol(person.kind),presence:symbol(person.presence),storedRecordCount:number(person.storedRecordCount),candidateCount:number(person.candidateCount),appliedCount:person.injectedRuleIds?.length || 0,omittedCount:person.omittedRuleIds?.length || 0})),
+        characters:(judgment?.characterTrace || []).map((person,index)=>({index,kind:symbol(person.kind),presence:symbol(person.presence),storedRecordCount:number(person.storedRecordCount),candidateCount:number(person.candidateCount),reviewStatus:symbol(person.reviewStatus),unreviewedCount:number(person.unreviewedRecordCount),retrievalStatus:symbol(person.prefilterStats?.retrievalStatus),retrievalCode:symbol(person.prefilterStats?.retrievalCode),appliedCount:person.injectedRuleIds?.length || 0,omittedCount:person.omittedRuleIds?.length || 0})),
         eventCastVerification:(record?.lastVerification?.cast||[]).slice(0,4).map(({kind,action,delivery,verification})=>({kind:symbol(kind),action:symbol(action),delivery:symbol(delivery),verification:symbol(verification)})),
         eventCast:(record?.pendingPlan?.inputKey===judgment?.inputKey?record?.pendingPlan?.cast||judgment?.cast||[]:judgment?.cast||[]).slice(0,4).map((actor,index)=>({index,kind:symbol(actor.kind),action:symbol(actor.action),reason:symbol(actor.reason),delivery:symbol(actor.delivery),verification:symbol(actor.verification),recordCount:judgment?.castRecordCounts?.find(item=>item.id===actor.actorId)?.injected||0})),
         injection:{sceneChars:judgment?.payload?.length || 0,worldChars:judgment?.worldPayload?.length || 0,delivery:'see_injection_consume_events'},

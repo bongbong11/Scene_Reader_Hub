@@ -22,7 +22,7 @@ export function renderStorylineRp(reference,{people=[]}={}) {
     for(const state of reference.character_states||[]) {
         const name=text(state.name)||people.find(person=>person.id===state.id)?.name;
         if(!name)continue;
-        const moods=['anger','joy','fear','sadness'].filter(key=>Number.isFinite((state.values||state)[key])).map(key=>`${key}: ${(state.values||state)[key]}`).join('; ');
+        const moods=['anger','joy','fear','sadness','shame','interest'].filter(key=>Number.isFinite((state.values||state)[key])).map(key=>`${key}: ${(state.values||state)[key]}`).join('; ');
         add(character,line(`${name} — prior feelings`,moods));
     }
     const render=(title,lines)=>lines.length?`${title}\n${lines.join('\n')}\nCurrent RP takes priority; preserve each person's knowledge boundary. Prior states do not establish current participation or unseen actions.`:'';

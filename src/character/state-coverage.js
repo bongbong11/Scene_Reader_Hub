@@ -1,17 +1,17 @@
-const MOODS=['anger','joy','fear','sadness'];
-export const expectedStateFields=person=>person.trackArousal?['a','c',...MOODS]:MOODS;
+import {STATE_MOODS} from './state-contract.js';
+export const expectedStateFields=(person,version=person.coverageVersion)=>{const moods=version===2?STATE_MOODS:STATE_MOODS.slice(0,4);return person.trackArousal?['a','c',...moods]:[...moods];};
 export function missingStateFields(state,person) {
     if(!state)return expectedStateFields(person);
     // Legacy collectors omitted zero moods by contract; do not recollect old saved states.
-    if(state.coverageVersion!==1)return Object.keys(state.values || {}).length?[]:expectedStateFields(person);
-    return expectedStateFields(person).filter(field=>!Number.isInteger(state.values?.[field]));
+    if(![1,2].includes(state.coverageVersion))return Object.keys(state.values || {}).length?[]:expectedStateFields(person);
+    return expectedStateFields(person,state.coverageVersion).filter(field=>!Number.isInteger(state.values?.[field]));
 }
 export function mergeRecoveredStates(preserved,received) {
     const merged=structuredClone(preserved);
     for(const state of received) {
         const old=merged.find(item=>item.id===state.id);
         if(!old){merged.push(state);continue;}
-        if(old.coverageVersion!==1)continue;
+        if(![1,2].includes(old.coverageVersion))continue;
         for(const [field,value] of Object.entries(state.values || {})) {
             if(Object.hasOwn(old.values,field))continue;
             old.values[field]=value;

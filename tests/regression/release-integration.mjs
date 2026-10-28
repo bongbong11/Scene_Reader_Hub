@@ -45,7 +45,7 @@ for(const style of ['static','dynamic']) for(const focus of ['event','npc','conf
     assert.match(result.payload,/<DIRECT_SCENE_EXECUTION>/);
     assert.match(result.payload,/<RELATIONSHIP_BEAT type="vulnerability">/);
     assert.match(result.payload,/Rowan suspects the invitation is a trap/);
-    assert.match(result.payload,/knowledge=suspects/);
+    assert.match(result.payload,/Suspicion/);
     assert.ok(result.payload.indexOf('<FIXED_SCENE_SETTINGS>')<result.payload.indexOf('<SCENE_FOCUS>'));
     assert.ok(result.payload.indexOf('<SCENE_FOCUS>')<result.payload.indexOf('<CHARACTER_EXECUTION>'));
     assert.doesNotMatch(result.payload,/WORLD_FIXED_SENTINEL|WORLD_SELECTED_SENTINEL|RAW_SHEET_NOT_FOR_JEV|undefined|\[object Object\]/);

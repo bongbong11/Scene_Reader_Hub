@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     store.settings.global.ownerUnlocked=false;
     store.settings.global.characterMacroEnabled=false;
-    if(store.settings.global.injectionPlacementsV1)for(const profile of Object.values(store.settings.global.injectionPlacementsV1.profiles))profile.characterMacroEnabled=false;
+    if(store.settings.global.injectionPlacementsV1)for(const profile of Object.values(store.settings.global.injectionPlacementsV1.profiles)){profile.characterMacroEnabled=false;profile.character='depth';}
     await page.evaluate(()=>localStorage.removeItem('scene-reader-owner-unlocked-v1'));
     await page.reload();
     await page.locator('#sr-extension-open').evaluate(e=>e.closest('details').open=true);
@@ -13,8 +13,8 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     assert.equal(await page.locator('#sr-character-macro-panel').count(),1);
     assert.equal(await page.locator('#sr-character-macro-panel').evaluate(e=>Boolean(e.closest('.sr-developer-lock'))),false);
     assert.equal(await page.locator('#sr-owner-card').isVisible(),false,'other developer features remain locked');
-    await page.locator('#sr-character-macro').evaluate(e=>e.closest('details').open=true);
-    await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-macro').check()]);
+    await page.locator('#sr-character-mode').evaluate(e=>e.closest('details').open=true);
+    await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-mode').selectOption('weave')]);
     assert.equal(store.settings.global.injectionPlacementsV1.profiles['openai:Synthetic A'].characterMacroEnabled,true);
     async function previewText() {
         await page.locator('#sr-character-macro-preview').click();
@@ -105,7 +105,7 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     assert.ok(!full(absent.body).includes('[SCENE_READER_CHARACTER]'));
     assert.equal(absent.receipt.reasonCode,'missing');
     await page.locator('#sr-settings-button').click();
-    await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-macro').uncheck()]);
+    await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-mode').selectOption('depth')]);
     await page.locator('#sr-settings-button').click();
     const off=await outbound();
     assert.ok(full(off.body).includes(integrated));

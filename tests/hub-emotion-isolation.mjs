@@ -13,7 +13,7 @@ function emotionFixture(){
     const {f,calls}=emotionFixture();
     f.run(`storeStateEvent(record(),{outputIndex:0,swipeId:0,fingerprint:stableFingerprint(getContext().chat[0].mes),states:[],capture:{participantIds:['a'],status:'empty',diagnostics:{actors:[{rosterIndex:0,accepted:false,reasons:['not_participating']}]}}});`);
     const task=f.run('collectCurrentEmotion()');await tick();assert.equal(calls.length,1);
-    calls[0].resolve({result:{states:[{code:'C0',a:0,c:90,anger:0,joy:20,fear:0,sadness:0}]}});await task;
+    calls[0].resolve({result:{states:[{code:'C0',a:0,c:90,anger:0,joy:20,fear:0,sadness:0,shame:0,interest:0}]}});await task;
     assert.equal(f.run('record().characterStateCapture.status'),'collected');
 }
 {
@@ -25,7 +25,7 @@ function emotionFixture(){
     const {f,calls,start}=emotionFixture();let saves=0;f.sandbox.syntheticPersist=async()=>saves++;
     const task=start();await tick();
     f.run(`persistChat=syntheticPersist;waitForOutputChanges=async()=>{throw Object.assign(new Error('Synthetic queue failure'),{code:'OUTPUT_QUEUE_FAILED'});}`);
-    calls[0].resolve({result:{states:[{code:'C0',anger:0,joy:20,fear:0,sadness:0}]}});await task;
+    calls[0].resolve({result:{states:[{code:'C0',anger:0,joy:20,fear:0,sadness:0,shame:0,interest:0}]}});await task;
     assert.equal(saves,0);assert.equal(f.run('record().characterStateCapture.status'),'processing_failed');
     assert.equal(f.run('record().characterStateCapture.phase'),'source');
 }

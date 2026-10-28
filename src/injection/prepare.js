@@ -44,6 +44,7 @@ frame.details.world_direction = deps.fixedDecision(frame.prefs.worldDirection);
             if (item.recordMode) {
                 const extras = new Set(frame.liveCharacters[item.index]?.protectedCandidateIds || []);
                 item.protection.invalidAnswers = item.relevance.filter(record=>extras.has(record.id)&&!record.valid).length;
+                item.protection.notApproved = item.relevance.filter(record=>extras.has(record.id)&&record.valid&&!record.selected).length;
             }
             if(item.profileIds.length || !item.candidateCount)continue;
             const prefix=`character_${item.index}_`;

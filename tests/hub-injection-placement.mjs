@@ -35,3 +35,14 @@ const deps={settings:{injectionPlacementsV1:retained},DEFAULTS:{enabled:true,cha
 await createHydration(deps).hydrateServerState({migrate:false});
 assert.deepEqual(deps.settings.injectionPlacementsV1,retained);assert.equal(deps.settings.enabled,false,'other restored settings still apply');assert.equal(deps.settings.characterMacroEnabled,undefined);assert.equal(deps.settings.commonPreferences.injectionMode,undefined);assert.deepEqual(savedSettings.at(-1).global.injectionPlacementsV1,retained);
 console.log('Old-backup restoration preserves current placement and removes retired routing fields while restoring unrelated settings.');
+
+key='openai:A';settings={characterMacroEnabled:true};
+const modes=createInjectionPlacement({host,getSettings:()=>settings,getPreferences:()=>({}),saveSettings:async()=>{}});
+assert.equal(modes.read().character,'weave');
+await modes.place('character',0,'stamp');assert.equal(modes.read().character,'entry');assert.equal(modes.read().characterMacroEnabled,false);
+await modes.character('depth');assert.equal(modes.read().character,'depth');
+key='openai:B';assert.equal(modes.read().character,'weave','other preset retains legacy macro choice');
+await modes.character('weave');settings[PLACEMENT_KEY].profiles[key].pendingKind='character';
+await modes.character('depth');assert.equal(modes.read().pendingKind,undefined,'choosing depth abandons incomplete character placement');
+await assert.rejects(modes.place('unknown',0,'stamp'),/주입 종류/);
+console.log('Three character modes passed: old boolean migration, per-preset choice, native separation and abandoned placement cleanup.');

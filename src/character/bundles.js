@@ -2,6 +2,7 @@ import { COMPILER_PROMPT, validateImport } from '../vendor/character-reasoner/in
 import { compilerRequest } from './records.js';
 import { importRecordVersion } from './versions.js';
 import { compilerSourceGuide, compilerSources } from './compiler-prompt.js';
+import {adaptCompilerRules,RECORD_SELECTION_GUIDE,compilerRoleGuide} from './compiler-policy.js';
 
 const normalized = name => String(name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 export function castNames(value) {
@@ -50,7 +51,7 @@ export function castCompilerPrompt(form) {
     const {draft} = compilerRequest(form);
     const outputMarker='Return exactly one JSON object shaped as follows.';
     if(!COMPILER_PROMPT.includes(outputMarker))throw new Error('다인 분석 명령문의 형식 기준을 확인하지 못했습니다. 확장을 업데이트해 주세요.');
-    const rules = COMPILER_PROMPT.split(outputMarker)[0];
+    const rules = adaptCompilerRules(COMPILER_PROMPT.split(outputMarker)[0]);
     const recordExample={type:'core',target:'',when:['quiet conversation'],rule:'FORMAT EXAMPLE ONLY: replace this with a source-supported proposition about this person.',modality:'tendency',basis:'explicit',source_ids:[draft.sources[0]?.id || 'S001'],knowledge_domain:'none',knowledge_state:'none'};
     const skeleton = {entities:(names.length?names:['ACTUAL_PERSON_1','ACTUAL_PERSON_2']).map(name=>({entity_type:'character',entity_name:name,intimacy_reference:{text:'',source_ids:[]},records:[recordExample]}))};
     const rosterGuide=names.length ? `Only these people are output entities, in this order: ${JSON.stringify(names)}. Keep their names exactly as supplied.` : 'The actual cast is not supplied yet. Ask for the 2–6 intended main characters with the source, or use an explicitly designated main cast in that source. Never count relatives or mentioned NPCs as additional main characters. ACTUAL_PERSON_1/2 are layout placeholders, not actual names or a two-person limit. Replace them with the confirmed cast and include everyone; ask when ambiguous.';
@@ -64,6 +65,8 @@ ${compilerSourceGuide(draft.sources)}
 ${JSON_FILE_DELIVERY}
 
 ${rules}
+${RECORD_SELECTION_GUIDE}
+${compilerRoleGuide('character')}
 ## MULTI-PERSON OWNERSHIP
 Apply the rules above independently to EACH named person. ${rosterGuide}
 The shared card title is not another person. Referenced relatives, friends and bystanders are not additional entities.
@@ -71,13 +74,13 @@ Each object's records and intimacy_reference belong ONLY to its entity_name. Nev
 If a sentence's owner is ambiguous, do not guess. Preserve only what is explicitly scoped. A relationship record may name another person as target, but its subject remains this entity.
 
 ## ONE COMPLETE OUTPUT FILE
-Return this exact outer shape with ALL ${countGuide} in order. Keep entity_type as character and use actual confirmed names as described above. The one record in EACH object is a FORMAT EXAMPLE, never source evidence or a one-record limit. Replace it with every source-supported retrieval record for that person; use [] only when no records are supported. Never copy the example rule. Each record needs exactly the nine fields shown, using the allowed values above. Use the source IDs assigned under the source instructions. Do not add section headings, per-person files, comments, placeholders, fences or text outside the JSON.
+Return this exact outer shape with ALL ${countGuide} in order. Keep entity_type as character and use actual confirmed names as described above. The one record in EACH object is a FORMAT EXAMPLE, never source evidence or a one-record limit. Replace it with every qualifying source-supported retrieval record for that person under HUB RECORD SELECTION; use [] only when no records are supported. Never copy the example rule. Each record needs exactly the nine fields shown, using the allowed values above. Use the source IDs assigned under the source instructions. Do not add section headings, per-person files, comments, placeholders, fences or text outside the JSON.
 ${JSON.stringify(skeleton,null,2)}
 
 ## INVALID OUTPUT AND HOW TO FIX IT
 - The sole root field is an entities array. Do not rename it to characters, people, character_1, or character_2, or output separate JSON files for each person.
 - Each person requires entity_type: "character", the designated entity_name, an intimacy_reference object, and a records array. Match the supplied name list exactly, or use the actual main character names confirmed with the source.
-- Sheet category objects such as appearance_details, personality, origin, speech, and sexuality are not retrieval records. Convert each proposition into one of the nine record types above instead of repackaging the source under those headings. overview, source_file, and world_setting are not root fields either.
+- Sheet category objects such as appearance_details, personality, origin, speech, and sexuality are not retrieval records. Convert each qualifying proposition into one of the nine record types above instead of repackaging the source under those headings. overview, source_file, and world_setting are not root fields either.
 - records is an array of objects, not a list of strings or category objects. Every object requires type, target, when, rule, modality, basis, source_ids, knowledge_domain, knowledge_state. Do not translate field names or invent new fields.
 - type must be fact/core/value/relationship/knowledge/reaction/expression/boundary/capability. preference/habit are modality values, not types.
 - target is a string, or "" when there is no target. when is an array of 1–5 strings describing specific retrieval situations, each at most six words. rule is a self-contained English proposition about this person.
@@ -85,7 +88,7 @@ ${JSON.stringify(skeleton,null,2)}
 - For knowledge records, knowledge_domain and knowledge_state must use allowed values other than none from KNOWLEDGE/FIELDS above. For other record types, both must be "none". Do not assume knowledge without evidence.
 - intimacy_reference is an object with a text string and a source_ids array. Without content, leave it as {"text":"","source_ids":[]}. When content exists, include the actual IDs supporting it.
 - JSON does not allow single-quoted strings, comments, trailing commas, ellipses, or omissions. Escape quotes and newlines inside strings according to JSON syntax and close all arrays and objects.
-- Do not omit later people or replace their records with empty arrays because the output is long. Reduce explanations and unnecessary whitespace without silently deleting source information. If the result cannot be completed in one response, explain that the task needs splitting into manageable outputs instead of presenting an incomplete result as complete.
+- Do not omit later people or replace their records with empty arrays because the output is long. Reduce explanations and unnecessary whitespace without silently deleting qualifying records. If the result cannot be completed in one response, explain that the task needs splitting into manageable outputs instead of presenting an incomplete result as complete.
 
 ## FINAL SELF-CHECK
 Before answering, check the result parses as one JSON object; its only root field is entities; ALL ${countGuide} appear once and in order; every record's subject is its enclosing person; knowledge and intimacy references never leak between people; every record has all nine required fields and valid enum values; source IDs exist; every when remains nonempty and within length limits; no example rule, source-sheet layout, missing later person, placeholder, trailing comma or unclosed string remains. If a code execution tool is available, parse the actual finished file and check these conditions before delivering it; do not claim a tool check unless it ran. Correct any errors before returning the complete file. Do not report the checklist or include it in the JSON.

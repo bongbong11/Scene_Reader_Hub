@@ -5,6 +5,7 @@ import {continuityActors} from '../continuity/actors.js';
 import {makeOpportunities} from '../scene/opportunities.js';
 import {addOpportunityQuestions} from '../scene/opportunity-policy.js';
 import {searchCharacterRecords} from '../retrieval/character-search.js';
+import {characterTurnContext} from '../character/turn-context.js';
 import {drawOpportunityKey} from '../scene/draw-opportunity.js';
 import {generatedActorCandidates} from '../scene/generated-cast.js';
 
@@ -87,9 +88,10 @@ if (frame.prefs.settingsContract >= 3) {
         .filter((item,index,all)=>item&&item.status!=='retired'&&all.findIndex(other=>other?.id===item.id)===index).slice(0,8)
         .map(item=>villainIds.has(item.id)?{...item,antagonist:true}:item);
     (frame.categoryHints = deps.characterCategoryHints(frame.worldRecordAnswers));
+    frame.characterTurn=characterTurnContext({transcript:frame.retrievalTranscript||frame.transcript,pendingUserText:frame.pendingUserText,selected:frame.context.selected,categoryHints:frame.categoryHints});
     frame.retrievalResults = await searchCharacterRecords({entries:deps.characterStore.enabled ? [...frame.activeCharacters,...future] : [],
-        transcripts:new Map(frame.castSheets.map(entry=>[entry.id,`${frame.retrievalTranscript||frame.transcript}\n${castQuery}`])),
-        shared:Boolean(frame.rec.sharedSource),recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.retrievalTranscript || frame.transcript,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
+        transcripts:new Map(frame.castSheets.map(entry=>[entry.id,`${frame.characterTurn.query}\n${castQuery}`])),
+        shared:Boolean(frame.rec.sharedSource),recovery:frame.recoveryAttempt,priorStates:frame.priorStates,transcript:frame.characterTurn.query,identity:run.identity,retrieval:deps.vectorRetrieval,signal:run.controller.signal});
     run.assert();
     (frame.liveCharacters = deps.characterStore.enabled ? deps.buildLiveCharacterPlan(frame.activeCharacters, {
         selected: frame.context.selected.map((message) => ({ ...message, _sceneReaderIndex: deps.getContext().chat?.indexOf(message) ?? -1 })),

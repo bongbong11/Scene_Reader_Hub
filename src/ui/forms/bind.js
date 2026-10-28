@@ -103,13 +103,7 @@ function bindForm() {
         const selected = Object.keys(deps.ADVANCED_ELEMENTS).filter((item) => deps.document.getElementById(`sr-advanced-${item}`)?.checked);
         deps.runUiTask(deps.savePreference('advancedElements', selected));
     });
-    deps.document.getElementById('sr-character-macro')?.addEventListener('change',event=>deps.runUiTask((async()=>{
-        deps.macroTransmissionPreview.clear();
-        try{if(deps.placement)await deps.placement.character(event.target.checked);
-        else await deps.saveGlobal('characterMacroEnabled',event.target.checked);}
-        finally{deps.renderAll();}
-    })(),'인물 매크로 설정을 저장하지 못했습니다.'));
-    deps.document.getElementById('sr-character-macro-copy')?.addEventListener('click',()=>deps.runUiTask(deps.copyText('{{scene-reader-character}}')));
+    deps.document.getElementById('sr-character-macro-copy')?.addEventListener('click',()=>deps.runUiTask(deps.copyText(deps.placement?.read().character==='entry'?'{{scene-reader-hub-character}}':'{{scene-reader-character}}')));
     deps.document.getElementById('sr-character-macro-preview')?.addEventListener('click',()=>deps.runUiTask(Promise.resolve().then(()=>openMacroPreview({document:deps.document,preview:deps.macroTransmissionPreview})).catch(error=>{
         deps.noteDiagnostic?.('macro_preview',{module:'src/ui/macro-preview.js',status:'failed',phase:'render',errorKind:'MACRO_PREVIEW_FAILED'});
         throw error;
@@ -139,8 +133,6 @@ function bindForm() {
         await deps.saveGlobal('ownerUnlocked', true);
         if (input) input.value = '';
         deps.renderOwnerMode();
-        const macroInput=deps.document.getElementById('sr-character-macro');
-        if(macroInput)macroInput.checked=deps.placement?.read().characterMacroEnabled ?? deps.settings.characterMacroEnabled===true;
         notifySceneReaderToast(deps.window, 'success', '개발자 모드를 열었습니다.', '씬판독기');
     };
     deps.document.getElementById('sr-owner-unlock')?.addEventListener('click', () => deps.runUiTask(unlockOwner(), '잠금을 해제하지 못했습니다.'));

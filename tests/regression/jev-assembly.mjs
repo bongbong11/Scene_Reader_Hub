@@ -73,7 +73,7 @@ const questions=buildCharacterTurnQuestions(plan);assert.ok(!questions.character
 const recordIndex=plan[0].profileCandidates.findIndex(r=>r.rule===atom.rule), contextId=plan[0].contextCandidates[0].id;
 const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active',[`character_0_record_${recordIndex}`]:'yes',character_0_context_slot_1:contextId,character_0_context_access_0:'none'});
 const injection=buildCharacterInjection(resolved);
-assert.match(injection.text,/knowledge=suspects/);assert.match(injection.text,/before confirmation/);assert.match(injection.text,/Do not treat unshared/);assert.doesNotMatch(injection.text,/Direction:/);assert.equal(resolved[0].profileIds.length,1);
+assert.match(injection.text,/Suspicion/);assert.match(injection.text,/before confirmation/);assert.match(injection.text,/Do not treat unshared/);assert.doesNotMatch(injection.text,/Direction:/);assert.equal(resolved[0].profileIds.length,1);
 assert.equal(buildLiveCharacterPlan([{...entry,source:'changed'}],{canonicalOnly:true})[0].profileCandidates.length,0);
 assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS,sheetCastNames:['Rowan']}),/Do not recreate them as new NPCs, even when absent or their record analysis is disabled, stale, or empty/);
 // Prompt categories: ongoing policies and evidence precede this-turn execution;
@@ -127,7 +127,7 @@ assert.match(buildInjection({settings:record({}).preferences,decisions:FALLBACKS
     const fullRequest=seen.find(request=>request.state.appearance_offer);
     assert.ok(fullRequest?.state.appearance_offer.passed);
     assert.ok(!fullRequest.questions.npc_route.criteria.create);
-    assert.match(f.run('record().lastJudgment.payload'),/knowledge=suspects/);
+    assert.match(f.run('record().lastJudgment.payload'),/Suspicion/);
     assert.equal(f.run('record().npcProfile') ?? null,null,'new actor remains a plan');
     const offered=f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id');
     await f.run('runJudge({force:true})');assert.equal(f.run('record().pendingPlan.additions.find(x=>x.feature==="person").profile.id'),offered,'rerun reuses offer');

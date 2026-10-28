@@ -1,10 +1,8 @@
-import { isProtectiveRecord } from './record-protection.js';
-
 export function allocateRecordIds(person, decisions, details = {}) {
     const approved = person.profileCandidates.map((item, ordinal) => ({ item, ordinal,
         score: details[`character_${person.index}_record_${ordinal}`]?.certainty || 0 }))
         .filter(({ ordinal }) => decisions[`character_${person.index}_record_${ordinal}`] === 'yes');
-    const compare = (a, b) => Number(isProtectiveRecord(b.item)) - Number(isProtectiveRecord(a.item)) || b.score - a.score || a.ordinal - b.ordinal;
+    const compare = (a, b) => b.score - a.score || a.ordinal - b.ordinal;
     const limit = person.profileSlotLimit || 6;
     return approved.sort(compare).slice(0, limit).map(({ item }) => item.id);
 }

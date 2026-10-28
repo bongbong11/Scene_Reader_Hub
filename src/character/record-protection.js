@@ -5,12 +5,13 @@ export const isProtectiveRecord = record => record.type === 'boundary' ||
 const words = text => new Set(String(text || '').toLocaleLowerCase().match(/[\p{L}\p{N}_]{2,}/gu) || []);
 
 // Supplement only: baseline identity, order, text and budgets are never rewritten.
-export function supplementRecordCandidates(entry, baseline, transcript, { limit, maxChars, categoryHints = [], stats = {} }) {
+export function supplementRecordCandidates(entry, baseline, transcript, { limit, maxChars, categoryHints = [], stats = {}, contextual=false }) {
     const query = words(transcript), own = words([entry.name, ...(entry.aliases || [])].join(' '));
     const seen = new Set(baseline.map(item => item.id));
+    const representedTypes=new Set(baseline.map(item=>item.type));
     const overlap = text => [...words(text)].filter(term => query.has(term) && !own.has(term)).length;
     const ranked = currentRecords(entry).map((record, localIndex) => {const index=entry.recordBank?.recordIndices?.[localIndex] ?? localIndex;return {record,index,id:`record:${entry.id}:${index}`};})
-        .filter(item => isProtectiveRecord(item.record) && !seen.has(item.id))
+        .filter(item => (isProtectiveRecord(item.record)||contextual&&!representedTypes.has(item.record.type)&&['value','relationship','reaction','expression'].includes(item.record.type)) && !seen.has(item.id))
         .map(item => ({ ...item, score: overlap(item.record.target) * 4 + overlap(item.record.when) * 3 +
             overlap([item.record.rule, item.record.knowledge_domain].join(' ')) + (categoryHints.includes(item.record.type) ? 3 : 0) }))
         .sort((a, b) => b.score - a.score || a.index - b.index);

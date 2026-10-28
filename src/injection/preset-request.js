@@ -6,6 +6,8 @@ import {slotBlock} from './output-block.js';
 import {createHubMacros,applyEntryMacros} from './hub-macro.js';
 import {injectionSourceCurrent, captureOwnedBlocks, stripOwnedBlocks} from './source-validity.js';
 import {createRequestOwnership} from './request-ownership.js';
+import {routeIndependentCharacter} from './delivery-routing.js';
+import {PRESET_ENTRIES} from './preset-entry-contract.js';
 
 const CHAIN=Symbol.for('hyedam.request-injection.hook-chain.v1');
 const TYPES=new Set(['normal','regenerate','swipe','continue']);
@@ -39,12 +41,13 @@ export function createPresetRequest(deps) {
     }
     function expected(){const value=cycle()?.injection;return deps.isEnabled() && current(value) ? value : null;}
     function names(text){const c=deps.getContext();return String(text||'').replace(/\{\{user\}\}/gi,()=>c.name1||'{{user}}').replace(/\{\{char\}\}/gi,()=>c.name2||'{{char}}');}
-    function track(body,value){owned=captureOwnedBlocks(body,[names(value.characterPayload||''),characterMacro.marker,...Object.values(hubMacros.markers),...blocks(value).map(b=>b.content),...(!value.scenePreset?[names(value.deliveryPayload??value.payload),names(value.capturePayload)]:[]),...(!value.worldPreset?[names(value.worldPayload)]:[])]);}
+    function track(body,value){owned=captureOwnedBlocks(body,[names(value.characterPayload||''),names(value.independentCharacter||''),names(value.routedBase??value.basePayload??''),characterMacro.marker,...Object.values(hubMacros.markers),...blocks(value).map(b=>b.content),...(!value.scenePreset?[names(value.deliveryPayload??value.payload),names(value.capturePayload)]:[]),...(!value.worldPreset?[names(value.worldPayload)]:[])]);}
     function blocks(value) {
         const context=deps.getContext();
         const names=text=>String(text || '').replace(/\{\{user\}\}/gi,()=>context.name1 || '{{user}}').replace(/\{\{char\}\}/gi,()=>context.name2 || '{{char}}');
         return [value.scenePreset?{kind:'scene',slot:value.sceneSlot,content:slotBlock('scene',names([value.deliveryPayload??value.payload,value.capturePayload].filter(Boolean).join('\n\n')))}:null,
-            value.worldPreset?{kind:'world',slot:value.worldSlot,content:slotBlock('world',names(value.worldPayload))}:null].filter(Boolean);
+            value.worldPreset?{kind:'world',slot:value.worldSlot,content:slotBlock('world',names(value.worldPayload))}:null,
+            value.characterNative?{kind:'character',content:names(value.independentCharacter)}:null].filter(Boolean);
     }
     function remember(body){ownership.remember(fingerprint(body),ready,owned);}
     function apply(body,phase) {
@@ -53,9 +56,9 @@ export function createPresetRequest(deps) {
         const all=blocks(value),legacy=all.filter(b=>!value[b.kind+'Native']),native=all.filter(b=>value[b.kind+'Native']);
         const report=legacy.length?applyPresetSlots(body,legacy,{prompts:activePresetPrompts(host,deps.getContext()),prepared}):{changed:false,results:[]};
         if(native.length){const result=applyEntryMacros(body,native,{markers:hubMacros.markers,preset:preset()});report.changed ||= result.changed;report.results.push(...result.results);}
-        for(const kind of ['scene','world'])value[kind+'Suppressed']=report.results.some(r=>r.kind===kind&&r.status==='disabled');
+        for(const kind of ['scene','world','character'])value[kind+'Suppressed']=report.results.some(r=>r.kind===kind&&r.status==='disabled');
         if(value.sceneSuppressed){cycle().stateRoster=[];cycle().stateCaptureEnabled=false;}
-        const character=routeCharacterMacro(body,value,{marker:characterMacro.marker,enabled:characterMacro.enabled&&!value.sceneSuppressed,render:names});
+        const character=value.independentDelivery?routeIndependentCharacter(body,value,{marker:characterMacro.marker,render:names}):routeCharacterMacro(body,value,{marker:characterMacro.marker,enabled:characterMacro.enabled&&!value.sceneSuppressed,render:names});
         report.changed ||= character.changed;
         if(phase==='send'||character.status!=='disabled'||character.changed)deps.report('injection.character','CHARACTER_MACRO_ROUTE',{module:'src/injection/character-macro.js',phase,resultStatus:character.status,count:character.occurrences,characterChars:character.characterChars,sceneSuppressed:value.sceneSuppressed,scenePaused:!value.characterDelivery&&cycle()?.stateCollectionPaused===true});
         value.slotResults=report.results;
@@ -95,7 +98,7 @@ export function createPresetRequest(deps) {
                         }
                         if(active && requestOwner && ready===requestOwner && (!body.type || TYPES.has(body.type)) && (ticket?.epoch===requestEpoch && !ticket.cancelled || mainPath)) {
                             if(requestOwner!==expected()){
-                                const removed=stripOwnedBlocks(body,owned);
+                                const removed=stripOwnedBlocks(body,ticket?.owned||requestOwned);
                                 deps.report('injection.consume','INJECTION_INVALIDATED',{module:'src/injection/source-validity.js',status:'info',removedCount:removed});
                                 if(typeof input?.clone==='function' && options?.body===undefined)request=new deps.window.Request(input,{body:JSON.stringify(body)});else init={...options,body:JSON.stringify(body)};
                                 return previous.call(this,request,init,...rest);
@@ -120,7 +123,11 @@ export function createPresetRequest(deps) {
     function start(type,options={},dryRun=false) {
         const main=!dryRun && !options?.dryRun && !options?.quiet_prompt && TYPES.has(String(type || 'normal'));
         reset({keepPreview:!main});active=main;
-        if(active){characterMacro.start();hubMacros.start();capture();installFetch();}
+        if(active){
+            const value=expected();
+            if(value?.independentDelivery){delete value.routedBase;delete value.characterRoute;delete value.characterPayload;delete value.slotResults;value.deliveryPayload=!value.scenePreset&&value.characterMode!=='entry'?value.payload:value.independentScene;}
+            characterMacro.start();hubMacros.start();capture();installFetch();
+        }
     }
     function observeAssembly(data,dryRun=false) {
         const messages=Array.isArray(data?.prompt)?data.prompt:Array.isArray(data?.messages)?data.messages:null;
@@ -134,7 +141,7 @@ export function createPresetRequest(deps) {
         const sameMessages=body?.messages===pending?.messages || Array.isArray(body?.messages) && (original?.length===body.messages.length && body.messages.every((message,index)=>message===original[index]) || body.messages.some(message=>['user','assistant','tool'].includes(message?.role) && original?.includes(message)));
         const auxiliary=/custom-request\.js|\b(?:generateRaw|generateRawData|generateQuietPrompt)\b/.test(String(new Error().stack || ''));
         if(!active || !pending || !sameMessages || auxiliary || (body.type && !TYPES.has(body.type)))return;
-        if(!pending.expected){const cleaned=routeCharacterMacro(body,null,{marker:characterMacro.marker});const removed=applyEntryMacros(body,['scene','world'].map(kind=>({kind,content:''})),{markers:hubMacros.markers,preset:{prompts:[]}});pending=null;return cleaned.changed||removed.changed?true:undefined;}
+        if(!pending.expected){const cleaned=routeCharacterMacro(body,null,{marker:characterMacro.marker});const removed=applyEntryMacros(body,Object.keys(PRESET_ENTRIES).map(kind=>({kind,content:''})),{markers:hubMacros.markers,preset:{prompts:[]}});pending=null;return cleaned.changed||removed.changed?true:undefined;}
         if(!value||pending.expected!==value){if(pending.expected!==invalidated)return;ready=pending.expected;track(body,ready);remember(body);pending=null;return true;}
         pending=null;
         apply(body,'prepare');ready=value;track(body,value);remember(body);return true;

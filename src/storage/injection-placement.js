@@ -10,8 +10,9 @@ export function createInjectionPlacement({host,getSettings,getPreferences,saveSe
         const preset=host.read(),settings=getSettings(),root=settings[PLACEMENT_KEY];
         const fallback=root?.retired?{scene:'depth',world:'depth',characterMacroEnabled:false}:legacy(settings,getPreferences());
         const profile=root?.profiles?.[preset.key]||fallback;
+        const character=['weave','entry','depth'].includes(profile.character)?profile.character:profile.characterMacroEnabled===true?'weave':'depth';
         return {...profile,key:preset.key,available:preset.available,preset,
-            scene:profile.scene||'depth',world:profile.world||'depth',characterMacroEnabled:profile.characterMacroEnabled===true};
+            scene:profile.scene||'depth',world:profile.world||'depth',character,characterMacroEnabled:character==='weave'};
     }
     async function task(callback){if(active)throw Error('주입 위치를 저장 중입니다.');if(isBusy())throw Error('생성이 끝난 뒤 주입 위치를 변경해 주세요.');const run=callback();active=run;try{return await run;}finally{if(active===run)active=null;refresh();}}
     function draft(){
@@ -48,16 +49,22 @@ export function createInjectionPlacement({host,getSettings,getPreferences,saveSe
     });}
     async function place(kind,index,stamp){return task(async()=>{
         const current=read(),target=getSettings();if(!current.available)throw Error('현재 Chat Completion 프리셋을 선택해 주세요.');
+        if(!Object.hasOwn(PRESET_ENTRIES,kind))throw Error('주입 종류를 확인해 주세요.');
         const pending=draft();pending.profiles[current.key].pendingKind=kind;
         await store(pending,target,current.key);
         await host.place(kind,index,stamp);
         if(isBusy())throw Error('프리셋 항목은 저장됐지만 생성이 시작되어 이전 전달 방식을 유지합니다. 생성이 끝난 뒤 위치를 다시 선택해 주세요.');
         const next=structuredClone(pending);delete next.profiles[current.key].pendingKind;next.profiles[current.key][kind]='entry';
+        if(kind==='character')next.profiles[current.key].characterMacroEnabled=false;
         await commit(next,target,current.key);report('preset_entry_saved',{kind,status:'succeeded'});
     });}
     async function character(enabled){return task(async()=>{
         const current=read(),target=getSettings();if(!current.available)throw Error('현재 프리셋을 선택해 주세요.');
-        const next=draft();next.profiles[current.key].characterMacroEnabled=enabled===true;await commit(next,target,current.key);
+        const mode=typeof enabled==='boolean'?(enabled?'weave':'depth'):enabled;
+        if(!['weave','depth'].includes(mode))throw Error('인물 주입 방식을 확인해 주세요.');
+        const next=draft();Object.assign(next.profiles[current.key],{character:mode,characterMacroEnabled:mode==='weave'});
+        if(next.profiles[current.key].pendingKind==='character')delete next.profiles[current.key].pendingKind;
+        await commit(next,target,current.key);
     });}
     async function cleanup(){return task(async()=>{
         const current=read(),target=getSettings(),root=target[PLACEMENT_KEY];

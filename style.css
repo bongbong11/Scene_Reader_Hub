@@ -59,6 +59,18 @@
 #scene-reader-dialog .sr-details { box-sizing: border-box; min-width: 0; margin: 0 0 10px; padding: 12px; border: 1px solid var(--SmartThemeBorderColor); border-radius: 11px; background: color-mix(in srgb, var(--SmartThemeBodyColor) 5%, transparent); }
 #scene-reader-dialog .sr-control-card > label:not(.checkbox_label),
 #scene-reader-dialog .sr-settings-card > label:not(.checkbox_label) { display: block; margin-bottom: 7px; font-weight: 700; }
+.sr-position-dialog { color:var(--SmartThemeBodyColor); background:var(--SmartThemeBlurTintColor,#222); border:1px solid var(--SmartThemeBorderColor,#666); border-radius:12px; width:min(560px,92vw); max-height:85dvh; padding:16px; }
+.sr-position-dialog::backdrop { background:#0008; }
+.sr-position-dialog[open] { display:flex; flex-direction:column; overflow:hidden; }
+.sr-position-dialog h3 { margin:0 0 8px; font-size:1rem; }
+.sr-position-dialog .sr-help { font-size:.8rem; line-height:1.45; overflow-wrap:anywhere; }
+.sr-position-list { max-height:55dvh; min-height:0; flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain; padding:4px; }
+.sr-position-list .menu_button { width:100%; min-height:40px; }
+.sr-position-dialog .menu_button { color:inherit; background:color-mix(in srgb,var(--SmartThemeQuoteColor,#9cbfff) 12%,var(--SmartThemeBlurTintColor,#25252b)); border:1px solid var(--SmartThemeBorderColor,#666); border-radius:7px; font-size:.82rem; padding:7px 10px; }
+.sr-position-dialog .menu_button:hover { background:color-mix(in srgb,var(--SmartThemeQuoteColor,#9cbfff) 24%,var(--SmartThemeBlurTintColor,#25252b)); }
+.sr-position-list p { padding:6px 10px; margin:4px 0; }
+#scene-reader-dialog .sr-placement-help > summary { cursor:pointer; font-size:inherit; font-weight:400; }
+#scene-reader-dialog .sr-placement-help p { font-size:inherit; }
 #scene-reader-dialog .sr-settings-card h3 { margin: 0 0 9px; font-size: 1rem; }
 #scene-reader-dialog .sr-help { margin: 7px 0 0; opacity: .72; font-size: .84rem; line-height: 1.45; }
 #scene-reader-dialog .sr-run-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; }

@@ -38,7 +38,7 @@ export async function checkBehaviorToggle(page,store,requests,setViewportSize) {
     for(const macro of [false,true]) {
     if(Boolean(store.settings.global.injectionPlacementsV1?.profiles?.['openai:Synthetic A']?.characterMacroEnabled??store.settings.global.characterMacroEnabled)!==macro)await Promise.all([
         page.waitForResponse(r=>r.url().endsWith('/storage/settings')),
-        page.locator('#sr-character-macro').evaluate((el,checked)=>{el.checked=checked;el.dispatchEvent(new Event('change',{bubbles:true}));},macro),
+        page.locator('#sr-character-mode').evaluate((el,checked)=>{el.value=checked?'weave':'depth';el.dispatchEvent(new Event('change',{bubbles:true}));},macro),
     ]);
     for(const mode of ['gemini','glm','gemini']) {
         if(await button(mode).getAttribute('aria-pressed')!=='true') {
@@ -78,7 +78,7 @@ export async function checkBehaviorToggle(page,store,requests,setViewportSize) {
         await page.evaluate(()=>mock.emit('GENERATION_ENDED'));
     }
     }
-    if(!originalMacro)await Promise.all([page.waitForResponse(r=>r.url().endsWith('/storage/settings')),page.locator('#sr-character-macro').evaluate(el=>{el.checked=false;el.dispatchEvent(new Event('change',{bubbles:true}));})]);
+    if(!originalMacro)await Promise.all([page.waitForResponse(r=>r.url().endsWith('/storage/settings')),page.locator('#sr-character-mode').evaluate(el=>{el.value='depth';el.dispatchEvent(new Event('change',{bubbles:true}));})]);
     if(initial!=='gemini') {await button(initial).click();await page.waitForFunction(()=>!document.querySelector('[data-sr-behavior="glm"]').disabled);}
     console.log('Behavior browser passed: small header toggle, mobile fit, reload persistence, save rollback, real preparation and transmitted variants.');
 }

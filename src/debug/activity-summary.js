@@ -6,9 +6,9 @@ const count=v=>Number.isSafeInteger(v)&&v>=0?v:0;
 export function activitySummary(e){
  const row=(category,result,detail={})=>({category,result,detail:{...(Number.isSafeInteger(e.outputIndex)&&e.outputIndex>=0?{대상답변:e.outputIndex}:{}),...detail}});
  switch(e.code){
- case 'PRESET_ENTRY_SAVED':return row('저장·설정','프리셋 주입 항목 저장 완료',{종류:e.kind==='world'?'세계관·시즌':'기본 판정·전개'});
+ case 'PRESET_ENTRY_SAVED':return row('저장·설정','프리셋 주입 항목 저장 완료',{종류:e.kind==='world'?'세계관·시즌':e.kind==='character'?'인물 판독':'기본 판정·전개'});
  case 'PRESET_LEGACY_CLEANED':return row('저장·설정','이전 주입 위치 설정 정리 완료');
- case 'PRESET_SLOT_RESULT':if(e.side!=='inside'||e.phase!=='send')return null;return row('주입',({inserted:'전용 항목에 포함',present:'전용 항목에 포함',disabled:'전용 항목 꺼짐',empty:'전달 내용 없음',missing:'전용 항목·매크로 확인 필요'})[e.resultStatus]||'주입 위치 확인 필요',{종류:e.kind==='world'?'세계관·시즌':'기본 판정·전개'});
+ case 'PRESET_SLOT_RESULT':if(e.side!=='inside'||e.phase!=='send')return null;return row('주입',({inserted:'전용 항목에 포함',present:'전용 항목에 포함',disabled:'전용 항목 꺼짐',empty:'전달 내용 없음',missing:'전용 항목·매크로 확인 필요'})[e.resultStatus]||'주입 위치 확인 필요',{종류:e.kind==='world'?'세계관·시즌':e.kind==='character'?'인물 판독':'기본 판정·전개'});
  case 'STARTUP_READY':return row('시작','초기화 완료',{버전:/^\d+\.\d+\.\d+$/.test(e.version)?e.version:'확인 불가'});
  case 'RUN_STARTED':return row('분석','판독 시작',{방식:e.trigger==='manual'?'수동':'자동'});
  case 'RUN_PREPARED':return row('분석','판독 완료 · 주입 준비');

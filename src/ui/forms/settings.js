@@ -48,7 +48,6 @@ function setFormValues() {
     setChecked('sr-private-prompt-enabled', prefs.privatePromptEnabled && deps.ownerUnlocked());
     setChecked('sr-npc-user', prefs.npcToUser);
     setChecked('sr-user-misfortune', prefs.userMisfortune);
-    setChecked('sr-character-macro', deps.placement?.read().characterMacroEnabled ?? deps.settings.characterMacroEnabled);
     setChecked('sr-enabled', deps.settings.enabled);
     setChecked('sr-extension-enabled', deps.settings.enabled);
     setChecked('sr-extension-icon', deps.settings.showChatIcon);

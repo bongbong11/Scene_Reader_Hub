@@ -9,6 +9,7 @@ import {supplementRecordCandidates} from './record-protection.js';
 import {prepareProtectionQuestions, characterRecordQuestion} from './record-questions.js';
 import {allocateRecordIds, protectionTrace} from './record-allocation.js';
 import {participationQuestion} from './presence.js';
+import {STATE_MOODS} from './state-contract.js';
 
 const DIRECTIONS = { none: 'No separate direction is needed.', speak: 'Let a direct line lead.', act: 'Let concrete conduct lead.', selective: 'Respond only to what matters to this person.', withhold: 'Withhold information for an established motive.', evade: 'Evade for an established motive.', deceive: 'Deceive only if the person has an established motive and knows what is being concealed.', withdraw: 'Withdraw when the person can actually do so.', confront: 'Confront a supported live issue.' };
 const ACCESS_LABELS = { observed: 'Directly perceived', reported: 'Was told', public: 'Publicly available', stored_knowledge: 'Previously established for this person', profile_supported: 'Within supported lived or role knowledge', private_access: 'Has established private access' };
@@ -21,12 +22,12 @@ const AFFECT_CHOICES = {
 };
 function affectSummary(state, selectedFields = null) {
     if (!state?.values) return '';
-    const labels = { a: 'sexual arousal', c: 'self-control', anger: 'anger', joy: 'joy', fear: 'fear', sadness: 'sadness' };
+    const labels = { a: 'sexual arousal', c: 'self-control', ...Object.fromEntries(STATE_MOODS.map(mood=>[mood,mood])) };
     return Object.entries(labels).filter(([key]) => (!selectedFields || selectedFields.includes(key) || (key === 'c' && selectedFields.includes('a'))) && Number.isFinite(state.values[key]) && (['a','c'].includes(key) || state.values[key] > 0))
         .map(([key, label]) => `${label} ${state.values[key]}%${state.targets?.[key] ? ` toward ${state.targets[key]}` : ''}`).join(', ');
 }
 function affectFields(state, { includeArousal = true } = {}) {
-    return ['a', 'anger', 'joy', 'fear', 'sadness'].filter(key => (includeArousal || key !== 'a') && Number.isFinite(state?.values?.[key]) && (key === 'a' || state.values[key] > 0));
+    return ['a',...STATE_MOODS].filter(key => (includeArousal || key !== 'a') && Number.isFinite(state?.values?.[key]) && (key === 'a' || state.values[key] > 0));
 }
 const NEED_GROUPS = {
     identity: ['fact','core','value','boundary','capability'],
@@ -39,7 +40,7 @@ export function addCharacterNeedsQuestions(request, people = []) {
     request.state.scope += ' Character category needs only help rank stored record retrieval; they do not establish a fact, knowledge, action, or a requirement to inject a record.';
     for (const [group, types] of Object.entries(NEED_GROUPS)) request.questions[`character_need_${group}`] = {
         type: 'noul',
-        instructions: `Would a stored ${types.join('/')} character constraint plausibly matter for the next response by a registered active person? Judge from current interaction and its established continuity. A quiet dialogue can make a relationship or expression relevant. Answer independently of other groups; this only guides retrieval, and no new fact or action may be invented.`,
+            instructions: `How useful could stored ${types.join('/')} records be for understanding what matters to an active person in the latest interaction, how the new input changes their response, or how they express it? Use current RP and established continuity. This is a retrieval hint, not a requirement to act or inject a record. Judge independently.`,
     };
 }
 export function characterCategoryHints(answers = {}) {
@@ -96,14 +97,15 @@ export function buildLiveCharacterPlan(entries = [], { selected = [], transcript
         let protectedCandidateIds = [];
         if (recordMode && protection) {
             try {
-                const extras = supplementRecordCandidates(entry, profileCandidates, transcript, { limit: Math.min(bounds.candidates, slots+8), maxChars: bounds.candidateChars, categoryHints, stats: prefilterStats });
+                const extras = supplementRecordCandidates(entry, profileCandidates, selectionText, { limit: Math.min(bounds.candidates, slots+8), maxChars: bounds.candidateChars, categoryHints, stats: prefilterStats,contextual:true });
                 protectedCandidateIds = extras.map(item => item.id);
                 profileCandidates.push(...extras);
             } catch { prefilterStats.protectionFallback = 'candidate'; }
         }
         prefilterStats.retrievalStatus = retrieved.status;
+        prefilterStats.retrievalCode = retrieved.code || '';
         if (retrieved.error) prefilterStats.retrievalError = retrieved.error;
-        return { index, id: entry.id, name: entry.name, kind: entry.kind, ...(entry.cardCast ? {cardCast:entry.cardCast} : {}), volume, profileSlotLimit:slots, storedRecordCount:entry.recordBank?.records?.length || 0, prefilterStats, npcRole: entry.kind === 'npc' ? entry.npcRole || (entry.antagonist ? 'villain' : 'mixed') : '', antagonist: Boolean(entry.antagonist), trackArousal: entry.trackArousal === true, sourceVisibleToMain: entry.sourceVisibleToMain,
+        return { index, id: entry.id, name: entry.name, kind: entry.kind, ...(entry.cardCast ? {cardCast:entry.cardCast} : {}), volume, profileSlotLimit:slots, storedRecordCount:entry.recordBank?.pagedRecords?.count || entry.recordBank?.records?.length || 0, prefilterStats, npcRole: entry.kind === 'npc' ? entry.npcRole || (entry.antagonist ? 'villain' : 'mixed') : '', antagonist: Boolean(entry.antagonist), trackArousal: entry.trackArousal === true, sourceVisibleToMain: entry.sourceVisibleToMain,
             intimacyReference: recordBankIsCurrent(entry) ? String(entry.recordBank?.intimacy_reference?.text || '').trim() : '',
             core: recordMode ? { name:entry.name, aliases:entry.aliases || [], excerpts:[] } : buildCore(entry), coreEnglish: recordMode ? '' : entry.coreEnglish || '',
             recordStatus: recordMode ? (recordBankIsCurrent(entry) ? 'current' : entry.recordBank ? 'stale' : entry.profile || entry.legacyProfile ? 'legacy' : 'missing') : 'legacy',
@@ -157,6 +159,8 @@ export function resolveLiveCharacterPlan(plan, decisions, details = {}) {
         const conditional = presence === 'background' && Boolean(details[`${prefix}_presence`]?.presenceUncertain);
         const profileIds = presence === 'active' || conditional ? selectedIds(person, decisions, 'profile', details) : [];
         const jevSelectedRuleIds = person.recordMode ? person.profileCandidates.filter((item,ordinal)=>decisions[`${prefix}_record_${ordinal}`]==='yes').map(item=>item.id) : profileIds;
+        const recordScores=Object.fromEntries(person.profileCandidates.map((item,ordinal)=>[item.id,details[`${prefix}_record_${ordinal}`]?.certainty||0]));
+        const unreviewedRecordCount=person.recordMode?person.profileCandidates.filter((_,ordinal)=>!['yes','no'].includes(decisions[`${prefix}_record_${ordinal}`])).length:0;
         const contextIds = presence === 'active' ? selectedIds(person, decisions, 'context') : [];
         const denied = [], accepted = [];
         for (const id of contextIds) {
@@ -175,7 +179,7 @@ export function resolveLiveCharacterPlan(plan, decisions, details = {}) {
             (basisItem && !accepted.some(item => item.id === basis)) ||
             (denied.length && !accepted.length && ['deceive', 'withhold'].includes(direction))) direction = 'none';
         return { ...person, presence, presenceUncertain:Boolean(details[`${prefix}_presence`]?.presenceUncertain), participationEvidence:details[`${prefix}_presence`]?.participationEvidence || 'unknown', presenceResolution:details[`${prefix}_presence`]?.presenceResolution || 'policy', profileIds, jevSelectedRuleIds, profileItems: profileIds.map(id => person.profileCandidates.find(item => item.id === id)), contextIds,
-            contextItems: accepted, denied, direction, affectSelections, excludedReason: denied.length ? '접근 근거 없는 정보는 제외 · 독립적인 직접 반응은 유지' : '' };
+            contextItems: accepted, denied, direction, affectSelections,recordScores,unreviewedRecordCount, excludedReason: denied.length ? '접근 근거 없는 정보는 제외 · 독립적인 직접 반응은 유지' : '' };
     });
 }
 function contextLine(person, item) {
@@ -213,7 +217,7 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         }
         if (person.kind === 'npc' && person.antagonist && conflictActive) chosen.push({ priority: 85, mandatory: true, text: `${person.name}: Opposition follows established motives and limits.` });
         if (person.denied.length) chosen.push({ priority: 90, mandatory: true, text: `${person.name}: Do not treat unshared scene or reference material as this person's knowledge.` });
-        for (const item of person.profileItems) chosen.push({ supplemental: person.protectedCandidateIds?.includes(item.id) === true, priority: item.type === 'boundary' || (item.type === 'knowledge' && ['does_not_know','misunderstands'].includes(item.knowledge_state)) ? 80 : 70, personIndex: person.index, ruleId: item.id, text: person.recordMode ? scopedRecordLine(person.name,item) : `${person.name}: ${item.rule}` });
+        for (const item of person.profileItems) chosen.push({ supplemental: person.protectedCandidateIds?.includes(item.id) === true, priority:70+(person.recordScores?.[item.id]||0)*10, personIndex: person.index, ruleId: item.id, text: person.recordMode ? scopedRecordLine(person.name,item) : `${person.name}: ${item.rule}` });
         for (const expression of ['inward', 'visible', 'active']) {
             const fields = (person.affectSelections || []).filter(item => item.expression === expression).map(item => item.field);
             if (!fields.length) continue;
@@ -272,7 +276,9 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         trace.excludedByPresenceRuleIds = trace.presence === 'active' ? [] : trace.jevSelectedRuleIds;
         trace.protection = protectionTrace(person, trace);
         trace.omittedReason = trace.omittedRuleIds.length ? '인물 주입 길이 한도' : '';
-        trace.zeroReason = trace.profileIds.length ? '' : trace.presence !== 'active' ? `참여 판정: ${trace.presence}` : trace.candidateCount ? 'Jev가 관련 기록을 선택하지 않음' : trace.recordStatus !== 'current' ? `저장 기록 상태: ${trace.recordStatus}` : '관련 후보 없음';
+        trace.unreviewedRecordCount=person.unreviewedRecordCount||0;
+        trace.reviewStatus=trace.unreviewedRecordCount?(trace.unreviewedRecordCount===trace.candidateCount?'failed':'partial'):trace.candidateCount?'completed':trace.prefilterStats.retrievalStatus==='failed'?'failed':'not_requested';
+        trace.zeroReason = trace.profileIds.length ? '' : trace.presence !== 'active' ? `참여 판정: ${trace.presence}` : trace.unreviewedRecordCount?'인물 기록 판정 누락·형식 오류':trace.candidateCount ? '검토 완료 · 관련 기록 없음' : trace.prefilterStats.retrievalStatus==='failed'?'기록 본문 읽기 실패':trace.recordStatus !== 'current' ? `저장 기록 상태: ${trace.recordStatus}` : '관련 후보 없음';
         trace.blockChars = includedItems.filter(item=>item.personIndex===trace.index).map(item=>item.text).join('\n').length;
         trace.identityFallback = includedItems.some(item=>item.personIndex===trace.index && item.identityFallback);
         trace.omittedMandatoryCount = mandatory.filter(item=>item.personIndex===trace.index && !includedItems.includes(item)).length;

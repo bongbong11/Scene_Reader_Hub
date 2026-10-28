@@ -37,7 +37,8 @@ for(const confidence of [undefined,null,'',0,.1,1]) {
 for(const value of [null,'',false,true,{},[],NaN,Infinity,-1,1.1])assert.equal(normalizeJevAnswer({noul:value},{type:'noul'}).responseState,'invalid');
 assert.equal(normalizeJevAnswer({noul:'.8'},{type:'noul'}).noul,.8);
 assert.equal(applyRecordRelevance(normalizeJevAnswer({noul:.8},{type:'noul'})).effective,'yes');
-assert.equal(applyRecordRelevance({type:'noul',noul:.1}).effective,'no','unrelated records are still excluded');
+assert.equal(applyRecordRelevance({type:'noul',noul:0}).effective,'no','explicitly unrelated records are still excluded');
+assert.equal(applyRecordRelevance({type:'noul',noul:.1}).effective,'yes','valid low usefulness is ranked without a second pass threshold');
 const client=createJevClient({JEV_API_URL:'/api/plugins/scene-reader-jev/systemone',settings:{jevConnection:'typesafe'},getSavedKey:()=> 'synthetic',getRequestHeaders:()=>({}),StaleRunError:Error,fetch:async()=>({ok:true,json:async()=>({answers:{a:{choice:'direct'}}})})});
 const partial=await client.callJev({questions:{a:{type:'choice',criteria:choices},b:{type:'choice',criteria:choices}}});
 assert.equal(partial.answers.a.choice,'direct');assert.equal(partial.answers.a.confidence,null);assert.deepEqual(partial.answerDiagnostics.invalidKeys,['b']);

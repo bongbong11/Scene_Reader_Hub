@@ -23,7 +23,7 @@ function setup({style='balanced',advanced=false,impersonate=false}={}) {
         if(Object.hasOwn(body.state,'character_profiles'))seen.push(body);
         const answers={};
         for(const [key,q] of Object.entries(body.questions)) {
-            if(q.type==='noul') { answers[key]={type:'noul',noul:f.sandbox.replyMode==='none'?0.1:f.sandbox.replyMode==='unknown'?'invalid':0.85};continue; }
+            if(q.type==='noul') { answers[key]={type:'noul',noul:f.sandbox.replyMode==='none'?0:f.sandbox.replyMode==='unknown'?'invalid':0.85};continue; }
             let choice=Object.hasOwn(q.criteria,FALLBACKS[key])?FALLBACKS[key]:Object.keys(q.criteria)[0];
             if(key==='progress_need')choice='stalled';
             if(key==='basic_move')choice=style==='dynamic'?'action':'emotion';
@@ -37,6 +37,17 @@ function setup({style='balanced',advanced=false,impersonate=false}={}) {
     return {f,seen};
 }
 let runs=0;
+{
+    const {f}=setup({advanced:true}),queries=[];
+    f.sandbox.captureSearch=async options=>{queries.push(options);return {status:'ready',indices:[0]};};
+    f.run('vectorRetrieval.search=captureSearch');
+    await f.run('runJudge({force:true})');
+    const npcQuery=queries.find(query=>query.items?.some(item=>item.rule.includes('Rowan')));
+    assert.ok(npcQuery,'registered NPC uses the actual retrieval path');
+    assert.match(npcQuery.transcript,/Latest interaction input:/,'NPC-specific query retains the new turn context');
+    assert.match(npcQuery.transcript,/Interpretive context:/,'NPC-specific query retains completed scene hints');
+    assert.ok(npcQuery.transcript.includes(npcQuery.sharedTranscript),'per-person proposal extends the shared interaction context');
+}
 for(const style of ['static','balanced','dynamic']) for(const advanced of [false,true]) for(const impersonate of [false,true]) {
     const {f,seen}=setup({style,advanced,impersonate});
     await f.run('runJudge({force:true})');
@@ -61,7 +72,7 @@ for(const style of ['static','balanced','dynamic']) for(const advanced of [false
         assert.equal(trace.presence,'active','scene action budget must not clamp the third character');
         assert.equal(trace.injectedRuleIds.length,1);
     }
-    assert.match(judgment.payload,/knowledge=suspects/);
+    assert.match(judgment.payload,/suspects the invitation is a trap/);
     assert.doesNotMatch(judgment.payload,/RAW_SOURCE_SENTINEL|OLD_CORE_SENTINEL|OLD_PROFILE_SENTINEL|Direction:/);
     runs++;
 }

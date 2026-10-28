@@ -50,15 +50,19 @@ for(const volume of ['basic','generous','detailed'])for(const npcSlots of [2,3,4
 }
 assert.equal(npcRecordLimit(undefined),3);assert.equal(npcRecordLimit(99),3);assert.equal(npcRecordLimit('2'),2);
 
-// A selected boundary or explicit ignorance cannot lose a record slot to expression.
+// Record type cannot override Jev usefulness; useful knowledge limits still win by relevance.
 const plan=buildLiveCharacterPlan([entries[0]],{canonicalOnly:true,volume:'basic'});
 plan[0].profileCandidates.at(-1).type='boundary';
 plan[0].profileCandidates.at(-2).type='knowledge';plan[0].profileCandidates.at(-2).knowledge_state='does_not_know';
 const decisions={character_0_presence:'active'},details={};
 plan[0].profileCandidates.forEach((_,i)=>{decisions[`character_0_record_${i}`]='yes';details[`character_0_record_${i}`]={certainty:i<4?0.99:0.6};});
 const resolved=resolveLiveCharacterPlan(plan,decisions);
-assert.ok(resolved[0].profileIds.includes(plan[0].profileCandidates.at(-1).id));
-assert.ok(resolved[0].profileIds.includes(plan[0].profileCandidates.at(-2).id));
+assert.ok(!resolved[0].profileIds.includes(plan[0].profileCandidates.at(-1).id));
+assert.ok(!resolved[0].profileIds.includes(plan[0].profileCandidates.at(-2).id));
+for(const ordinal of [plan[0].profileCandidates.length-1,plan[0].profileCandidates.length-2])details[`character_0_record_${ordinal}`].certainty=1;
+const usefulLimits=resolveLiveCharacterPlan(plan,decisions,details);
+assert.ok(usefulLimits[0].profileIds.includes(plan[0].profileCandidates.at(-1).id));
+assert.ok(usefulLimits[0].profileIds.includes(plan[0].profileCandidates.at(-2).id));
 
 const protectedEntry=structuredClone(entries[0]);
 protectedEntry.recordBank.records.at(-1).type='boundary';

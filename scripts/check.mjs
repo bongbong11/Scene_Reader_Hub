@@ -2,6 +2,10 @@ import { readdir } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 const root=path.resolve(import.meta.dirname,'..');
+for(const test of ['tests/hub-independent-delivery.mjs','tests/hub-character-interpretation.mjs','tests/hub-emotion-fields-v2.mjs']){
+    const result=spawnSync(process.execPath,[test],{cwd:root,stdio:'inherit'});
+    if(result.status!==0)process.exit(result.status||1);
+}
 async function files(dir){
     const found=[];
     for(const entry of await readdir(dir,{withFileTypes:true})){

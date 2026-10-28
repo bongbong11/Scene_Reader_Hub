@@ -24,8 +24,7 @@ export function selectRecordCandidates(entry, transcript, {limit=20,maxChars=160
     // Semantic hits lead, while a few lexical and broad anchors prevent one topic
     // from hiding a relationship, role or boundary that the scene also needs.
     const diverse=[], types=new Set();
-    const protectedRecord = item => item.record.type === 'boundary' || (item.record.type === 'knowledge' && ['does_not_know','misunderstands'].includes(item.record.knowledge_state));
-    const anchors = [...sorted.filter(protectedRecord), ...sorted.filter(item => !protectedRecord(item))];
+    const anchors = [...sorted.filter(item=>['value','relationship','reaction','expression'].includes(item.record.type)),...sorted];
     for(const item of anchors) if((item.semantic || item.lexical) && !types.has(item.record.type) && diverse.length<4){types.add(item.record.type);diverse.push(item);}
     const primary=semanticRank.size ? [
         ...sorted.filter(item=>item.semantic).slice(0,Math.max(1,limit-4)),
@@ -47,7 +46,10 @@ export function selectRecordCandidates(entry, transcript, {limit=20,maxChars=160
     return selected;
 }
 export function scopedRecordLine(name, record) {
-    const scope=[`type=${record.type}`,`target=${record.target || 'self'}`,`when=${record.when || 'none'}`,`modality=${record.modality}`,`basis=${record.basis}`];
-    if(record.type==='knowledge') scope.push(`knowledge=${record.knowledge_state}`,`domain=${record.knowledge_domain}`);
-    return `${name} [${scope.join('; ')}]: ${record.rule}`;
+    const target=record.target&&!generic(record.target)?` toward ${record.target}`:'';
+    const cues=Array.isArray(record.when)?record.when.join(', '):record.when||'';
+    const qualifier={habit:'Habit',preference:'Preference',tendency:'Tendency',conditional:'Conditional',possibility:'Possible',negation:'Limit'}[record.modality]||'';
+    const knowledge=record.type==='knowledge'?({knows:'Known to this person',believes:'Belief',suspects:'Suspicion',doubts:'Uncertain belief',misunderstands:'Misunderstanding',does_not_know:'Not known to this person'}[record.knowledge_state]||''):'';
+    const scope=[knowledge,qualifier,cues&&!generic(cues)?'context cues: '+cues:''].filter(Boolean).join('; ');
+    return `${name}${target}: ${record.rule}${scope?' ('+scope+')':''}`;
 }

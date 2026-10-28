@@ -52,6 +52,6 @@ assert.equal(profile.error,'');
 assert.deepEqual(profile.states.map(state=>state.id),mixed.states.map(state=>state.id));
 assert.equal(profile.states[0].values.anger,undefined,'an omitted assessment must not be silently converted to zero');
 assert.equal(profile.states[1].values.anger,40);assert.equal(profile.states[2].values.joy,30);
-assert.ok(profile.states.every(state=>state.coverageVersion===1));
+assert.ok(profile.states.every(state=>state.coverageVersion===2));
 assert.ok(profile.diagnostics.actors.every(actor=>actor.reasons.includes('missing_moods')));
 console.log('Mixed emotions passed: three actors, NPC opt-in/out, accidental disabled scores, incomplete sexual pair, preserved ordinary moods, independent diagnostics and next-turn consumption.');

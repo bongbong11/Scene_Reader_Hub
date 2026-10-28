@@ -1,5 +1,5 @@
 import { recordBankIsCurrent } from '../character/records.js';
-import { sexualEligible } from '../character/sexual-conduct.js';
+import {STATE_MOODS} from '../character/state-contract.js';
 import {bankIdentity} from './bank-identity.js';
 import {loadBankRecords,bankPages,completeBankMatches} from '../storage/character-pages.js';
 import {requirePreparedIndex} from './record-hashes.js';
@@ -19,8 +19,8 @@ export async function searchCharacterRecords({ entries, priorStates, transcript,
     async function searchEntry(entry) {
         const query=transcripts.get(entry.id)||transcript;
         const values = priorStates.get(entry.id)?.values || {};
-        const cue = [sexualEligible(entry) || values.a > 0 ? 'sexual desire restraint boundary' : '',
-            ...['anger','joy','fear','sadness'].filter(key => values[key] > 0)].filter(Boolean).join(' ');
+        const cue = [values.a > 0 ? 'sexual desire restraint' : '',
+            ...STATE_MOODS.filter(key => values[key] > 0)].filter(Boolean).join(' ');
         signal?.throwIfAborted();
         if(entry.recordBank?.pagedRecords){
             const bank=entry.recordBank,result=unavailable?{...unavailable,indices:[]}:await retrieval.searchPaged({kind:'character',bankId:bank.pagedRecords.bankId,count:bank.pagedRecords.count,transcript:query,sharedTranscript:transcript,signal,recovery,pages:pageSignal=>bankPages(bank,{signal:pageSignal})});

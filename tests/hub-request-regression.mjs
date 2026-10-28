@@ -151,8 +151,9 @@ await scenario('request observer filters auxiliary quiet dry-run and resolves na
  assert.equal(observePromptReceipt({messages:[{content:[{type:'text',text:'Guide'},{type:'image_url'}]}]},{payload:'Guide'}).scene,'confirmed');assert.equal(observePromptReceipt({prompt:'changed'},{payload:'{{setvar::x::1}}'}).scene,'unverifiable');
 });
 await scenario('macro placement must include the prepared payload',async()=>{
- const t=setup();t.f.run("record(true).preferences.injectionMode='macro';macroAvailable=true");await t.generate();assert.equal(t.f.ctx.extensionPrompts['scene-reader-router'].value,'');assert.ok(t.active());
- t.f.sandbox.auditPrompt={prompt:'No macro.'};t.f.run('promptObserver.observe(auditPrompt)');assert.equal(t.messages.at(-1).error,true);t.f.sandbox.auditPrompt={prompt:t.active()+'\n'+t.judgment().worldPayload};t.f.run('promptObserver.observe(auditPrompt)');assert.equal(t.messages.at(-1).done,true);
+ const t=setup();t.f.run("record(true).preferences.injectionMode='macro';macroAvailable=true");await t.generate();assert.ok(t.active());
+ const registered=t.f.ctx.extensionPrompts['scene-reader-router'].value;assert.match(registered,/SCENE_READER_CHARACTER/,'person default remains independent of the legacy scene macro');
+ t.f.sandbox.auditPrompt={prompt:'No macro.'};t.f.run('promptObserver.observe(auditPrompt)');assert.equal(t.messages.at(-1).error,true);t.f.sandbox.auditPrompt={prompt:t.judgment().characterDelivery.scenePayload+'\n'+registered+'\n'+t.judgment().worldPayload};t.f.run('promptObserver.observe(auditPrompt)');assert.equal(t.messages.at(-1).done,true);
 });
 await scenario('accepted arrival reaches budget despite existing cast reuse',async()=>{
  const rec={preferences:{settingsContract:3,appearanceChance:100,villainEnabled:false}};rec.appearanceOffer=makeAppearanceOffer(rec,'candidate',()=>0.1);

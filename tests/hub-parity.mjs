@@ -53,7 +53,11 @@ try {
   assert.equal(observed.judgment.decisionContract,4);
   assert.ok(observed.requests[0].questions.scene_status);
   assert.ok(!observed.requests[0].questions.scene_level);
-  for(const key of ['scene-reader-router','scene-reader-world'])if(observed.prompts[key])assert.equal(observed.prompts[key],key==='scene-reader-router'?observed.judgment.payload:observed.judgment.worldPayload);
+  assert.ok(Object.keys(observed.prompts).every(key=>['scene-reader-router','scene-reader-world','scene-reader-state-capture'].includes(key)),'original host prompt identifiers remain unchanged');
+  if(observed.prompts['scene-reader-world'])assert.equal(observed.prompts['scene-reader-world'],observed.judgment.worldPayload);
+  const base=observed.prompts['scene-reader-router']||'';
+  if(base.includes('(Meta:'))assert.ok(base.startsWith(observed.judgment.payload)||base.startsWith(observed.judgment.characterDelivery.scenePayload),'combined default preserves the original scene envelope');
+  else if(base)assert.match(base,/\[SCENE_READER_CHARACTER\]/,'independent person depth does not move to a scene preset slot');
 
  }
 } finally {globalThis.Date=OriginalDate;Math.random=originalRandom;}

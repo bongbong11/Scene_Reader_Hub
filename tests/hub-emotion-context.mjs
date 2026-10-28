@@ -17,7 +17,7 @@ assert.ok(context.chars<=8000);assert.equal(buildEmotionContext([user('x'.repeat
 const seen=[],roster=[{code:'C0',id:'a',name:'Actor',trackArousal:false}];
 const result=await collectProfileOutputState({service:{},profileId:'test',roster,output:chat[10].mes,context,request:async(_s,_id,system,body)=>{seen.push({system,body});return {result:{states:[{code:'C0',joy:35}]}};}});
 assert.equal(result.states[0].values.joy,35);assert.deepEqual(seen[0].body.recent_roleplay_context,context.messages);
-assert.match(seen[0].system,/absent person from context alone/);assert.match(seen[0].system,/resolved feeling/);
+assert.match(seen[0].system,/Collect current participants from output/);assert.match(seen[0].system,/resolved feeling/);
 const full='Opening speaker expresses fear. '+'.'.repeat(13000)+' Later speaker expresses joy.';
 await collectProfileOutputState({service:{},profileId:'test',roster,output:full,context,request:async(_s,_id,_system,body)=>{assert.equal(body.output,full,'retain both early and late speakers');return {result:{states:[]}};}});
 const huge=await collectProfileOutputState({service:{},profileId:'test',roster,output:'x'.repeat(24001),request:async()=>{throw Error('should not send');}});
