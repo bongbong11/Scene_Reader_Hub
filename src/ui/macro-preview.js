@@ -2,7 +2,7 @@ export function openMacroPreview({document,preview}) {
     document.getElementById('sr-macro-preview')?.close();
     const dialog=document.createElement('dialog');
     dialog.id='sr-macro-preview';dialog.className='sr-story-dialog sr-macro-preview';
-    const title=document.createElement('h3');title.textContent='마지막 인물 매크로 전송';
+    const title=document.createElement('h3');title.textContent='마지막 인물 분석 전송';
     const status=document.createElement('p');status.setAttribute('aria-live','polite');
     const content=document.createElement('pre');
     const note=document.createElement('p');note.className='sr-help';
@@ -11,9 +11,9 @@ export function openMacroPreview({document,preview}) {
     close.addEventListener('click',()=>dialog.close());
     const refresh=()=>{
         const value=preview.read();
-        const labels={included:'매크로 반영 확인',fallback:'매크로 미사용 · 기존 위치로 전달',unconfirmed:'매크로 반영을 확인하지 못했습니다.',failed:'전송 실패 · 새로 전송한 뒤 확인하세요.'};
-        status.textContent=value ? labels[value.status]+(value.status==='included'?` · ${new Date(value.at).toLocaleTimeString()} · 요청 ${value.messageIndex}번째 메시지 (${value.role})`:'') : '아직 전송 전 · 새로 판독한 뒤 답변을 생성하세요.';
-        content.textContent=value?.text||'';content.hidden=!content.textContent;note.hidden=value?.status!=='included';
+        const labels={included:'매크로 반영 확인',fallback:'기본 판정·전개에 통합',disabled:'주입 항목 꺼짐',unconfirmed:'매크로 반영을 확인하지 못했습니다.',failed:'전송 실패 · 새로 전송한 뒤 확인하세요.'};
+        status.textContent=value ? labels[value.status]+(['included','fallback'].includes(value.status)?` · ${new Date(value.at).toLocaleTimeString()} · 요청 ${value.messageIndex}번째 메시지 (${value.role})`:'') : '아직 전송 전 · 새로 판독한 뒤 답변을 생성하세요.';
+        content.textContent=value?.text||'';content.hidden=!content.textContent;note.hidden=!['included','fallback'].includes(value?.status);
     };
     const unsubscribe=preview.subscribe(refresh);
     dialog.addEventListener('close',()=>{unsubscribe();dialog.remove();});

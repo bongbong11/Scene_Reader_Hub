@@ -1,3 +1,6 @@
+import {createPresetEntryHost} from '../adapters/preset-entry-host.js';
+import {createInjectionPlacement} from '../storage/injection-placement.js';
+import {watchPresetPlacement} from '../adapters/preset-placement-events.js';
 import {createSeasonalDate} from '../world/seasonal-date-runtime.js';
 import {seasonalEnabled} from '../world/seasonal.js';
 import {createSeasonalDateUi} from '../ui/seasonal.js';
@@ -353,10 +356,18 @@ const promptObserver=createPromptObserver({getContext,getChatKey:stateChatKey,
     report:(...args)=>hub.report(...args),
     updateActivity:(...args)=>updateActivity(...args),updateStatus:(...args)=>updateStatus(...args),
 });
+const presetEntries=createPresetEntryHost({getContext});
+const placement=createInjectionPlacement({host:presetEntries,getSettings:()=>runtime.settings,getPreferences:()=>preferences(),
+    saveSettings:async()=>{await saveServerSettings();saveSettingsDebounced();},
+    isBusy:()=>Boolean(runtime.judgeInFlight||runtime.pendingGenerationType),
+    clear:()=>{presetRequest.preview.clear();return clearInjection();},apply:()=>applyStoredInjection(),refresh:()=>setFormValues(),
+    report:(code,detail)=>noteDiagnostic(code,{...detail,module:'src/storage/injection-placement.js'}),
+});
 const presetRequest=createPresetRequest({
+    getPreset:presetEntries.read,
     window,getContext,getCycle:()=>runtime.activeGenerationCycle,getChatKey:()=>stateChatKey(),isEnabled:()=>runtime.settings?.enabled,
     report:(...args)=>hub.report(...args),verifyRequest:promptObserver.verifyRequest,
-    isCharacterMacroEnabled:()=>runtime.settings.characterMacroEnabled===true,
+    isCharacterMacroEnabled:()=>placement.read().characterMacroEnabled,
 });
 const seasonalDateUi=createSeasonalDateUi({document});
 const seasonalDate=createSeasonalDate({
@@ -371,7 +382,9 @@ let {init} = createStartup({
     get analysis() { return analysis; },
     initVisibility:()=>{void visibility.check({notify:false});visibilityAdapter.init();seasonalDate.init(eventSource,event_types);},
     get hub() { return hub; },
-    initPresetRequest:presetRequest.init,
+    initPresetRequest:async()=>{await presetEntries.init();await presetRequest.init();watchPresetPlacement({host:presetEntries,eventSource,types:event_types,
+        busy:()=>Boolean(runtime.judgeInFlight||runtime.pendingGenerationType),refresh:()=>setFormValues(),
+        clearPreview:presetRequest.preview.clear,reapply:()=>applyStoredInjection(),report:noteDiagnostic});},
     resetPresetRequest:presetRequest.reset,
     finishPresetRequest:presetRequest.finish,
     clearTransmissionPreview:presetRequest.preview.clear,
@@ -647,6 +660,7 @@ let {sharedStorage, companionStorage, storagePost, loadReasonerProfiles, setting
 
 
 let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAssistantOutputChanged, applyStoredInjection, clearInjection, waitForOutputChanges} = createOutputLifecycle({
+    placement,
     get analysis() { return analysis; },
     hub,
     get STATE_CAPTURE_KEY() { return STATE_CAPTURE_KEY; },
@@ -836,6 +850,7 @@ visibility=createVisibilityLifecycle({
 });
 const visibilityAdapter=createVisibilityAdapter({window,document,eventSource,event_types,check:async()=>{await visibility.check();seasonalDate.refresh();}});
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
+    placement,presetEntries,
     seasonalDate,
     get companionStorage(){return companionStorage;},
     get analysis() { return analysis; },checkVisibility:()=>visibility.check(),

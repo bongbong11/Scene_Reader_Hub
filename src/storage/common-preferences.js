@@ -24,6 +24,7 @@ export function roomPreferences(value = {}) {
 // Preserve the first opened existing room's choices once; later rooms cannot
 // replace a common choice. Opening the home screen never seeds defaults.
 export function migrateCommonPreferences(settings, source) {
+    if(settings.injectionPlacementsV1?.retired)return null;
     const prior = commonPreferences(settings.commonPreferences), legacy = commonPreferences(source);
     const next = {...legacy,...prior};
     return Object.keys(next).some(key => !Object.hasOwn(prior,key)) ? next : null;

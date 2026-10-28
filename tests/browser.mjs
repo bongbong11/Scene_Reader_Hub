@@ -35,6 +35,7 @@ const wadeProfile=createProfile(wadeItem,{characterId:'wade',sourceHash:wadeHash
 const store={settings:{global:{enabled:true,autoJudge:true,showConfidence:true,pauseOnOoc:true}},chat:{preferences:{settingsContract:3,charmMemory:true,lorebookMemory:true}},history:[],characters:{enabled:true,characters:[{id:'hunter',name:'Hunter',source:'Hunter is a lawyer.',sourceVisibleToMain:true}],npcs:[{id:'wade',name:'Wade',source:wadeSource,sourceHash:wadeHash,sourceVisibleToMain:false,profile:wadeProfile}]}};
 const wadeEntry={...store.characters.npcs[0],kind:'npc',npcRole:'mixed'};
 store.characters.npcs[0]={...wadeEntry,recordBank:createRecordBank({entity_type:'npc',entity_name:'Wade',intimacy_reference:{text:'Wade keeps intimate wishes private unless he chooses to disclose them.',source_ids:['S001']},records:[{type:'relationship',target:'son',when:['family matters'],rule:'Wade tends to control his son on family matters.',modality:'tendency',basis:'explicit',source_ids:['S001'],knowledge_domain:'none',knowledge_state:'none'}]},wadeEntry,'browser-records')};
+let nativePresets=null;
 const requests=[];
 const vectorCollections=new Map(), retrievalSecrets={};
 let failCharacterWrite=false;
@@ -45,13 +46,14 @@ let recordReview=null;
 const host=`<!doctype html><html><meta charset="utf-8"><style>:root{--SmartThemeBodyColor:#eee;--SmartThemeBlurTintColor:#25252b;--SmartThemeBorderColor:#666;--SmartThemeQuoteColor:#9cbfff}body{margin:0;background:#202025;color:var(--SmartThemeBodyColor);font:16px Arial}button,input,select,textarea{box-sizing:border-box;font:inherit}button{cursor:pointer}select,input,textarea{color:inherit;background:var(--SmartThemeBlurTintColor)}.menu_button{border:1px solid var(--SmartThemeBorderColor);border-radius:5px;padding:7px}.text_pole{width:100%;border:1px solid #666;padding:6px}.checkbox_label{display:flex;align-items:center;gap:6px}.checkbox_label input{width:auto}</style><link rel="stylesheet" href="${prefix}style.css"><div id="extensions_settings"></div><div id="extensionsMenu"></div><div id="leftSendForm"><button id="extensionsMenuButton">wand</button></div><textarea id="send_textarea"></textarea><script>
 const listeners=new Map(), prompts={},macros={};
 window.mock={chat:[],prompts,macros,errors:[],worldBooks:{'Hunter Lore':{entries:{1:{uid:1,key:['door'],content:'The council meets tomorrow.'},2:{uid:2,key:['unrelated'],content:'Not relevant.'}}},'Hunter Extra':{entries:{3:{uid:3,constant:true,content:'Hunter owns the house.'}}},'Persona Lore':{entries:{4:{uid:4,key:['friend'],content:'Rosa is a friend of the user persona.'}}},'Persona Specific':{entries:{5:{uid:5,key:['neighbor'],content:'Rosa knows the user persona as a neighbor.'}}}},async emit(name,...args){if(name==='GENERATION_AFTER_COMMANDS')await mock.emit('GENERATION_STARTED',...args);for(const fn of listeners.get(name)||[])await fn(...args)}};
-window.ctx={characterId:1,characters:[null,{avatar:'Hunter.png',data:{description:'Sawyer Valentine is Hunter’s colleague.',personality:'Hunter speaks carefully under pressure.',extensions:{world:'Hunter Lore'}}}],powerUserSettings:{persona_description_lorebook:'Persona Lore',persona_descriptions:{'User.png':{lorebook:'Persona Specific'}}},chatId:'test-room',chatMetadata:{},name1:'User',name2:'Hunter',chat:mock.chat,extensionPrompts:prompts,saveMetadata:async()=>{},macros:{register(name,value){macros[name]=value.handler},category:{MISC:'misc'}}};
+window.ctx={mainApi:'openai',characterId:1,characters:[null,{avatar:'Hunter.png',data:{description:'Sawyer Valentine is Hunter’s colleague.',personality:'Hunter speaks carefully under pressure.',extensions:{world:'Hunter Lore'}}}],powerUserSettings:{persona_description_lorebook:'Persona Lore',persona_descriptions:{'User.png':{lorebook:'Persona Specific'}}},chatId:'test-room',chatMetadata:{},name1:'User',name2:'Hunter',chat:mock.chat,extensionPrompts:prompts,saveMetadata:async()=>{},macros:{register(name,value){macros[name]=value.handler},category:{MISC:'misc'}}};
 mock.slashCommands={};ctx.SlashCommandParser={addCommandObject(command){mock.slashCommands[command.name]=command}};ctx.SlashCommand={fromProps:value=>value};ctx.SlashCommandArgument={fromProps:value=>value};ctx.ARGUMENT_TYPE={STRING:'string'};window.SillyTavern={getContext:()=>ctx};window.jQuery=fn=>fn();
-mock.presetSettings={prompts:[{identifier:'main',name:'Main rules',content:'Rules for {{user}}.',role:'system'},{identifier:'world-anchor',name:'World anchor',content:'World anchor rules.',role:'system'}],prompt_order:[{character_id:1,order:[{identifier:'main',enabled:true},{identifier:'world-anchor',enabled:true}]}]};
-mock.promptManager={serviceSettings:mock.presetSettings,activeCharacter:{id:1},getPromptOrderForCharacter(){return this.serviceSettings.prompt_order.find(x=>x.character_id===this.activeCharacter.id)?.order||[]},preparePrompt(prompt){return {...prompt,content:prompt.content.replaceAll('{{user}}',ctx.name1).replaceAll('{{char}}',ctx.name2)}}};
+mock.presetSettings={preset_settings_openai:'Synthetic A',model:'unchanged-model',prompts:[{identifier:'main',name:'Main rules',content:'Rules for {{user}}.',role:'system'},{identifier:'world-anchor',name:'World anchor',content:'World anchor rules.',role:'system'}],prompt_order:[{character_id:1,order:[{identifier:'main',enabled:true},{identifier:'world-anchor',enabled:true}]}]};
+mock.nativePresets=/*NATIVE_PRESET_CACHE*/null||{presets:[structuredClone(mock.presetSettings)],preset_names:{'Synthetic A':0}};Object.assign(mock.presetSettings,structuredClone(mock.nativePresets.presets[0]));
+mock.promptManager={saveServiceSettings(){},render(){},serviceSettings:mock.presetSettings,activeCharacter:{id:1},getPromptOrderForCharacter(){return this.serviceSettings.prompt_order.find(x=>x.character_id===this.activeCharacter.id)?.order||[]},preparePrompt(prompt){return {...prompt,content:prompt.content.replace(/\\{\\{\\/\\/[\\s\\S]*?\\}\\}/g,'').replace(/\\{\\{([^{}]+)\\}\\}/g,(match,key)=>key==='user'?ctx.name1:key==='char'?ctx.name2:mock.macros[key]?.()??match)}}};
 mock.outbound=async()=>{
     await mock.emit('GENERATION_STARTED','normal',{},false);
-    const hostText=mock.presetSettings.prompts.filter(p=>mock.promptManager.getPromptOrderForCharacter().some(e=>e.identifier===p.identifier && e.enabled)).map(p=>mock.promptManager.preparePrompt(p).content).join('\\n');
+    const hostText=mock.promptManager.getPromptOrderForCharacter().filter(e=>e.enabled).map(e=>mock.presetSettings.prompts.find(p=>p.identifier===e.identifier)).filter(Boolean).map(p=>mock.promptManager.preparePrompt(p).content).join('\\n');
     const messages=[{role:'system',content:hostText},...Object.values(mock.prompts).filter(p=>typeof p==='string' && p).map(p=>({role:'system',content:p})),...mock.chat.map(m=>({role:m.is_user?'user':'assistant',content:m.mes}))];
     await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
     const body={type:'normal',messages};await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);
@@ -78,9 +80,11 @@ window.eventSource={on(name,fn){if(!listeners.has(name))listeners.set(name,[]);l
 </script><script type="module" src="${prefix}index.js"></script></html>`;
 const server=http.createServer(async(req,res)=>{try{
     if(req.url==='/favicon.ico'){res.statusCode=204;res.end();return;}
-    if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
+    if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host.replace('/*NATIVE_PRESET_CACHE*/null',JSON.stringify(nativePresets)));return;}
     if(req.url==='/script.js'){res.setHeader('Content-Type','application/javascript');res.end(await readFile(new URL('./fixtures/browser-host.mjs',import.meta.url),'utf8'));return;}
-    if(req.url==='/scripts/openai.js'){res.setHeader('Content-Type','application/javascript');res.end('export const oai_settings=window.mock.presetSettings;export const promptManager=window.mock.promptManager;');return;}
+    if(req.url==='/scripts/openai.js'){res.setHeader('Content-Type','application/javascript');res.end('export const oai_settings=window.mock.presetSettings;export const promptManager=window.mock.promptManager;export function getChatCompletionPreset(s=oai_settings){return structuredClone(s)}');return;}
+    if(req.url==='/scripts/preset-manager.js'){res.setHeader('Content-Type','application/javascript');res.end(`export function getPresetManager(){return {getPresetList:()=>window.mock.nativePresets,savePreset:async(name,preset)=>{const result=await fetch('/api/presets/save',{method:'POST',body:JSON.stringify({name,preset})});if(!result.ok)throw Error('Synthetic preset save failed');return result.json();}}}`);return;}
+    if(req.url==='/api/presets/save'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});nativePresets ||= {presets:[],preset_names:{}};const index=nativePresets.preset_names[body.name]??nativePresets.presets.length;nativePresets.presets[index]=body.preset;nativePresets.preset_names[body.name]=index;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({name:body.name}));return;}
     if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);requests.push({url:req.url,body});res.setHeader('Content-Type','application/json');res.end(JSON.stringify({ok:true,messages:body.messages}));return;}
     if(req.url==='/scripts/extensions.js'){res.setHeader('Content-Type','application/javascript');res.end('export const extension_settings={};');return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','application/javascript');res.end("export const world_info={charLore:[{name:'Hunter',extraBooks:['Hunter Extra']}]};export async function loadWorldInfo(name){if(window.mock.loreReady)await window.mock.loreReady;return window.mock.worldBooks[name]||null}");return;}
@@ -138,7 +142,8 @@ try{
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     await page.locator('#scene-reader-quick-button').waitFor();
     await page.waitForFunction(()=>Object.keys(mock.slashCommands).length===6);
-    if(process.env.SR_BROWSER_CASE==='negative-routing'){
+    if(process.env.SR_BROWSER_CASE==='preset-entry'){await page.locator('#scene-reader-quick-button').click();await checkPresetSlots(page,store,requests);assert.deepEqual(errors,[]);}
+    else if(process.env.SR_BROWSER_CASE==='negative-routing'){
         await checkRecordProtection(page,store,requests,review=>{recordReview=review;});
         await checkNegativeRouting(page,store,requests);assert.deepEqual(errors,[]);
     }else if(process.env.SR_BROWSER_CASE==='final-routing'){
@@ -182,7 +187,7 @@ try{
             assert.ok(await page.locator('.sr-header p').evaluate(node=>node.scrollWidth<=node.clientWidth+1),'mobile description stays on one complete line');
             assert.equal(await page.locator('#sr-embedding-rebuild span').isVisible(),true);
             assert.equal(await page.locator('#sr-tab-flow .sr-explanation').first().evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),10.5);
-            assert.equal(await page.locator('.sr-injection-credit').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),9);
+            assert.equal(await page.locator('.sr-injection-credit').count(),0,'native placement has no Card Inject UI credit');
             assert.equal(await page.locator('.sr-seasonal-caption').evaluate(node=>parseFloat(getComputedStyle(node).fontSize)),10.5);
 await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot({path:path.join(root,'artifacts','mobile-header.png')});}
     }
@@ -521,7 +526,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.locator('.sr-character-turn-card').first().screenshot({path:path.join(root,'artifacts','character-emotion-mobile.png')});
     await page.locator('#sr-settings-button').click();
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-router']), '');
-    await page.locator('#sr-settings-button').click();await page.locator('#sr-injection-mode').evaluate(element=>element.closest('details').open=true);await page.locator('#sr-injection-mode').selectOption('preset');
+    await page.locator('#sr-settings-button').click();await page.locator('#sr-injection-mode').evaluate(element=>element.closest('details').open=true);await page.evaluate(()=>mock.emit('GENERATION_ENDED'));await page.locator('#sr-injection-mode').selectOption('entry');await page.locator('[data-sr-kind="scene"][data-sr-gap="0"]').click();await page.waitForFunction(()=>document.getElementById('sr-injection-mode').value==='entry'&&!document.getElementById('sr-injection-mode').disabled);
     const beforeMacro=requests.filter(r=>r.url.endsWith('/systemone')).length;
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Open the door again.'});await mock.emit('MESSAGE_SENT',3);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.ok(requests.some(r=>r.body.questions?.sexual_0_restraint),'physical self-control becomes an independent next-turn Jev question');
@@ -834,7 +839,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.screenshot({path:path.join(root,'artifacts','world-seasonal-mobile.png')});
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-world-injection-mode').evaluate(element=>element.closest('details').open=true);
-    await page.locator('#sr-world-injection-mode').selectOption('depth');
+    await page.evaluate(()=>mock.emit('GENERATION_ENDED'));await page.locator('#sr-world-injection-mode').selectOption('depth');await page.waitForFunction(()=>document.getElementById('sr-world-injection-mode').value==='depth'&&!document.getElementById('sr-world-injection-mode').disabled);
     await page.evaluate(async()=>{mock.chat.push({is_user:true,mes:'Current date: 2026-10-31. They continue across campus.'});await mock.emit('MESSAGE_SENT',mock.chat.length-1);await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.match(await page.evaluate(()=>JSON.stringify(mock.prompts)),/Halloween/,'seasonal world reaches depth injection');
     assert.equal(await page.evaluate(()=>mock.macros['scene-reader-world']()),'','depth mode leaves no duplicate world macro');
@@ -1025,7 +1030,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>mock.errors),[]);
     const requestAudit=await page.evaluate(async()=>{
         await mock.emit('GENERATION_STARTED','normal',{},false);
-        const messages=[{role:'system',content:mock.promptManager.preparePrompt(mock.presetSettings.prompts[0]).content},...Object.values(mock.prompts).filter(Boolean).map(content=>({role:'system',content}))];
+        const messages=[{role:'system',content:mock.promptManager.getPromptOrderForCharacter().filter(r=>r.enabled).map(r=>mock.presetSettings.prompts.find(p=>p.identifier===r.identifier)).filter(Boolean).map(p=>mock.promptManager.preparePrompt(p).content).join('\\n')},...Object.values(mock.prompts).filter(Boolean).map(content=>({role:'system',content}))];
         await mock.emit('GENERATE_AFTER_DATA',{prompt:messages},false);
         const body={messages};
         await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);

@@ -34,9 +34,9 @@ export async function checkBehaviorToggle(page,store,requests,setViewportSize) {
     assert.equal(await button('gemini').getAttribute('aria-pressed'),'true','another room keeps the global choice');
     await page.evaluate(async key=>{ctx.chatId=key;await mock.emit('CHAT_CHANGED');},originalRoom);
     // Real Hub preparation and host request: both switch directions, both delivery paths.
-    const originalMacro=Boolean(store.settings.global.characterMacroEnabled);
+    const originalMacro=Boolean(store.settings.global.injectionPlacementsV1?.profiles?.['openai:Synthetic A']?.characterMacroEnabled??store.settings.global.characterMacroEnabled);
     for(const macro of [false,true]) {
-    if(Boolean(store.settings.global.characterMacroEnabled)!==macro)await Promise.all([
+    if(Boolean(store.settings.global.injectionPlacementsV1?.profiles?.['openai:Synthetic A']?.characterMacroEnabled??store.settings.global.characterMacroEnabled)!==macro)await Promise.all([
         page.waitForResponse(r=>r.url().endsWith('/storage/settings')),
         page.locator('#sr-character-macro').evaluate((el,checked)=>{el.checked=checked;el.dispatchEvent(new Event('change',{bubbles:true}));},macro),
     ]);

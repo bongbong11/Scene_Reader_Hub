@@ -1,41 +1,43 @@
 import assert from 'node:assert/strict';
-
-export async function checkPresetSlots(page,store,requests) {
+export async function checkPresetSlots(page,store,requests){
     await page.locator('[data-sr-tab="flow"]').click();
-    await page.locator('#sr-injection-mode').evaluate(element=>element.closest('details').open=true);
+    await page.locator('#sr-injection-mode').evaluate(e=>e.closest('details').open=true);
     if(!await page.locator('#sr-injection-mode').isVisible())await page.locator('#sr-settings-button').click();
-    const presetBefore=await page.evaluate(()=>JSON.stringify(mock.presetSettings)),saved=JSON.stringify(store.characters);
-    await page.locator('#sr-injection-mode').selectOption('preset');
-    await page.locator('#sr-scene-slot-target').selectOption('main');
-    await page.locator('#sr-scene-slot-side').selectOption('before');
-    await page.waitForFunction(()=>document.getElementById('sr-scene-slot-side').value==='before');
-    await page.locator('#sr-world-injection-mode').selectOption('preset');
-    await page.locator('#sr-world-slot-target').selectOption('world-anchor');
-    await page.locator('#sr-world-slot-side').selectOption('after');
-    await page.waitForFunction(()=>document.getElementById('sr-world-slot-target').value==='world-anchor');
-    const body=await page.evaluate(()=>mock.outbound());
-    const full=body.messages.map(m=>m.content).join('\n');
-    assert.ok(full.indexOf('data-kind="scene"')<full.indexOf('Rules for User.'),'scene block is before the selected prompt');
-    assert.equal(full.split('data-kind="scene"').length-1,1);
-    assert.equal(await page.evaluate(()=>mock.macros['scene-reader']()),'');
-    assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-router']),'');
-    assert.ok((await page.locator('#sr-hub-run-trace').textContent()).includes('프리셋 위치 주입'));
+    const saved=JSON.stringify(store.characters);
+    await page.evaluate(()=>mock.emit('GENERATION_ENDED'));
+    const choose=async(kind,index)=>{
+        await page.locator(kind==='scene'?'#sr-injection-mode':'#sr-world-injection-mode').selectOption('entry');
+        await page.locator(`[data-sr-kind="${kind}"][data-sr-gap="${index}"]`).click();
+        await page.waitForFunction(kind=>document.getElementById(kind==='scene'?'sr-injection-mode':'sr-world-injection-mode').value==='entry'||mock.toasts?.some(t=>t.level==='error'),kind);
+        assert.equal(await page.locator(kind==='scene'?'#sr-injection-mode':'#sr-world-injection-mode').inputValue(),'entry',JSON.stringify(await page.evaluate(()=>mock.toasts)));
+        await page.waitForTimeout(100);
+    };
+    await choose('scene',0);await choose('world',3);
+    const names=await page.evaluate(()=>mock.promptManager.getPromptOrderForCharacter().map(r=>r.identifier));
+    assert.equal(names[0],'scene-reader-hub-slot-v1');assert.equal(names.at(-1),'scene-reader-hub-world-slot-v1');
+    assert.equal(await page.evaluate(()=>mock.presetSettings.model),'unchanged-model');
+    assert.equal(await page.evaluate(()=>mock.presetSettings.prompts.find(p=>p.identifier==='main').content),'Rules for {{user}}.');
+    assert.ok(requests.some(r=>r.url==='/api/presets/save'));
+    await page.evaluate(async()=>{mock.chat.splice(0,mock.chat.length,{is_user:true,mes:'Hunter and Wade discuss the council.'});await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
+    const body=await page.evaluate(()=>mock.outbound()),full=body.messages.map(m=>m.content).join('\n');
+    assert.equal(full.split('data-kind="scene"').length-1,1);assert.ok(full.indexOf('data-kind="scene"')<full.indexOf('Rules for User.'));
+    assert.ok(!full.includes('SR_HUB_'));assert.ok(!full.includes('이 항목을 드래그'));assert.ok(!full.includes('{{scene-reader-hub'));assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-router']),'');
+    await page.locator('#sr-character-macro-preview').click();assert.match(await page.locator('#sr-macro-preview').innerText(),/기본 판정·전개에 통합/);await page.locator('#sr-macro-preview button').click();
+    await page.evaluate(async()=>{mock.promptManager.getPromptOrderForCharacter().find(r=>r.identifier==='scene-reader-hub-slot-v1').enabled=false;await mock.emit('SETTINGS_UPDATED');});
+    const off=await page.evaluate(()=>mock.outbound());assert.ok(!off.messages.some(m=>String(m.content).includes('data-kind="scene"')));
+    assert.ok(await page.evaluate(()=>SceneReaderHub.diagnostics().events.some(e=>e.code==='PRESET_SLOT_RESULT'&&e.reason==='prompt_disabled')));
+    await page.evaluate(async()=>{await mock.emit('GENERATION_ENDED');mock.promptManager.getPromptOrderForCharacter().find(r=>r.identifier==='scene-reader-hub-slot-v1').enabled=true;await mock.emit('SETTINGS_UPDATED');});
+    await choose('scene',0);assert.equal(await page.evaluate(()=>mock.presetSettings.prompts.filter(p=>p.identifier==='scene-reader-hub-slot-v1').length),1);
     const before=requests.filter(r=>r.url.endsWith('/systemone')).length;
-    await page.locator('#sr-clean-legacy-injection').click();
-    await page.waitForFunction(()=>document.querySelector('.sr-toast-message') && [...document.querySelectorAll('.sr-toast-message')].some(n=>n.textContent.includes('이전 임시 주입을 정리')));
-    assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length,before,'cleanup does not perform another judgment');
-    assert.equal(JSON.stringify(store.characters),saved,'cleanup never erases actor storage');
-    assert.equal(await page.evaluate(()=>JSON.stringify(mock.presetSettings)),presetBefore,'settings and cleanup never modify the preset');
-    await page.evaluate(()=>mock.presetSettings.prompt_order[0].order[0].enabled=false);
-    await page.locator('#sr-preset-slots-refresh').click();
-    assert.match(await page.locator('#sr-scene-slot-target option:checked').textContent(),/꺼짐/);
-    const missing=await page.evaluate(()=>mock.outbound());
-    assert.ok(!missing.messages.some(m=>m.content.includes('data-kind="scene"')),'disabled target does not silently fall back');
-    assert.ok(await page.evaluate(()=>SceneReaderHub.diagnostics().events.some(e=>e.code==='PRESET_SLOT_RESULT' && e.reason==='prompt_disabled')));
-    await page.evaluate(()=>mock.presetSettings.prompt_order[0].order[0].enabled=true);
-    await page.locator('#sr-preset-slots-refresh').click();
-    await page.locator('#sr-scene-slot-side').selectOption('after');
-    await page.locator('#sr-world-injection-mode').selectOption('depth');
+    await page.locator('#sr-clean-legacy-injection').click();await page.waitForFunction(()=>[...document.querySelectorAll('.sr-toast-message')].some(n=>n.textContent.includes('이전 임시 주입을 정리')));
+    assert.equal(requests.filter(r=>r.url.endsWith('/systemone')).length,before);assert.equal(JSON.stringify(store.characters),saved);
+    assert.equal(store.settings.global.injectionPlacementsV1.retired,true);assert.ok(!Object.hasOwn(store.settings.global.commonPreferences,'injectionMode'));
+    await page.reload();await page.locator('#scene-reader-quick-button').click();
+    assert.equal(await page.locator('#sr-injection-mode').inputValue(),'entry');assert.equal(await page.evaluate(()=>mock.presetSettings.prompts.filter(p=>p.identifier==='scene-reader-hub-slot-v1').length),1);
+    // Leave the other integration cases on their original depth route.
+    await page.locator('#sr-injection-mode').evaluate(e=>e.closest('details').open=true);await page.locator('#sr-settings-button').click();
+    await page.locator('#sr-injection-mode').selectOption('depth');await page.waitForFunction(()=>!document.getElementById('sr-injection-mode').disabled);await page.locator('#sr-world-injection-mode').selectOption('depth');
+    await page.waitForFunction(()=>document.getElementById('sr-world-injection-mode').value==='depth'&&!document.getElementById('sr-world-injection-mode').disabled);
     if(await page.locator('#sr-settings-button').isVisible())await page.locator('#sr-settings-button').click();
-    console.log('Browser preset slots passed: saved selectors, exact front/back, blank legacy macro, no double registration, visible per-stage reasons, disabled target stop, and cleanup preserving source presets and character storage.');
+    console.log('Native preset browser passed: named save/reload, scene/world slots, unchanged source prompts/model, real substitution, toggle exclusion, preview, idempotence and exact legacy cleanup.');
 }

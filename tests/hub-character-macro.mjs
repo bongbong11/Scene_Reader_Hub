@@ -214,7 +214,7 @@ for(const kind of ['missing','legacy','empty','scene_missing','disabled']) {
         await sendGenerationRequest(body);
         assert.ok(flatten(sent.at(-1)).includes(full),'late removal restores integrated delivery');
         assert.equal(runtime.preview.read().status,'fallback');
-        assert.equal(runtime.preview.read().text,'');
+        assert.equal(runtime.preview.read().text,full);
     }
     {
         const {body}=prepare();

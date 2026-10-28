@@ -3,19 +3,19 @@ import assert from 'node:assert/strict';
 export async function checkCharacterMacro(page,store,requests,setViewportSize) {
     store.settings.global.ownerUnlocked=false;
     store.settings.global.characterMacroEnabled=false;
+    if(store.settings.global.injectionPlacementsV1)for(const profile of Object.values(store.settings.global.injectionPlacementsV1.profiles))profile.characterMacroEnabled=false;
     await page.evaluate(()=>localStorage.removeItem('scene-reader-owner-unlocked-v1'));
     await page.reload();
     await page.locator('#sr-extension-open').evaluate(e=>e.closest('details').open=true);
     await page.locator('#sr-extension-open').click();
     await page.locator('#sr-settings-button').click();
-    assert.equal(await page.locator('#sr-character-macro-panel').isVisible(),true,'integration is available without developer unlock');
-    assert.equal(await page.locator('#sr-character-macro-panel').evaluate(e=>e.open),false,'integration starts collapsed');
-    assert.match(await page.locator('#sr-character-macro-panel summary').textContent(),/위브 프리셋 연동/);
+    assert.equal(await page.locator('#sr-injection-placement').evaluate(e=>e.open),false,'placement starts collapsed');
+    assert.equal(await page.locator('#sr-character-macro-panel').count(),1);
     assert.equal(await page.locator('#sr-character-macro-panel').evaluate(e=>Boolean(e.closest('.sr-developer-lock'))),false);
     assert.equal(await page.locator('#sr-owner-card').isVisible(),false,'other developer features remain locked');
     await page.locator('#sr-character-macro').evaluate(e=>e.closest('details').open=true);
     await Promise.all([page.waitForResponse(r=>r.url().endsWith('/settings')),page.locator('#sr-character-macro').check()]);
-    assert.equal(store.settings.global.characterMacroEnabled,true);
+    assert.equal(store.settings.global.injectionPlacementsV1.profiles['openai:Synthetic A'].characterMacroEnabled,true);
     async function previewText() {
         await page.locator('#sr-character-macro-preview').click();
         const text=await page.locator('#sr-macro-preview').innerText();
@@ -62,6 +62,7 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
             const body={type,messages};
             await mock.emit('CHAT_COMPLETION_SETTINGS_READY',body);
             await fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});
+            await mock.emit('GENERATION_ENDED');
             return {body,receipt:SceneReaderHub.diagnostics().events.findLast(e=>e.code==='CHARACTER_MACRO_RECEIPT')};
         },{macro,duplicates,type});
     }

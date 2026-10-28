@@ -129,7 +129,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
             const missing=event.phase==='request'&&expected.includes('unconfirmed');
             const confirmed=expected.length>0 && expected.every(value=>value==='confirmed');
             set('delivery',event,{state:missing?'failed':event.phase==='request'&&confirmed?'success':'idle',
-                message:missing?'요청에서 주입문 전체를 찾지 못했습니다. 주입 위치와 프리셋을 확인해 주세요.':event.phase==='request'&&confirmed?'실제 전송 요청에 주입문 포함 확인':'아직 실제 전송 요청 포함을 확인하지 못했습니다.',sticky:false});return;
+                message:expected.length===0&&(event.sceneSuppressed||event.worldSuppressed)?'주입 항목 꺼짐 · 전달 제외':missing?'요청에서 주입문 전체를 찾지 못했습니다. 주입 위치와 프리셋을 확인해 주세요.':event.phase==='request'&&confirmed?'실제 전송 요청에 주입문 포함 확인':'아직 실제 전송 요청 포함을 확인하지 못했습니다.',sticky:false});return;
         }
         if(event.stage==='injection.slot' && (event.resultStatus==='missing'||event.code==='PRESET_SLOT_SEND_ERROR')) {
             set('preparation',event,{state:'failed'});return;

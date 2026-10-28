@@ -5,6 +5,7 @@ export async function checkNegativeRouting(page,store,requests) {
     const wasOpen=await page.locator('#scene-reader-dialog').evaluate(node=>node.open);
     try {
         Object.assign(store.settings.global,{enabled:true,autoJudge:true,continuityEnabled:false,characterMacroEnabled:true});
+        if(store.settings.global.injectionPlacementsV1)store.settings.global.injectionPlacementsV1.profiles['openai:Synthetic A']={scene:'depth',world:'depth',characterMacroEnabled:true};
         Object.assign(store.chat.preferences,{worldHostility:true,npcToUser:true,userMisfortune:true,relationshipDirection:'hostile',negativePriority:true,socialEnabled:true,fightSustain:false,villainEnabled:false,worldAgencyEnabled:false,advancedEnabled:false,newGenerationEnabled:false,injectionMode:'depth',worldInjectionMode:'depth'});
         store.settings.global.commonPreferences={injectionMode:'depth',worldInjectionMode:'depth'};
         store.chat.lastJudgment=null;store.chat.pendingPlan=null;

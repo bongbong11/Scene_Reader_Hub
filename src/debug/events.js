@@ -1,5 +1,5 @@
 const OMIT = /key|secret|token|password|prompt|transcript|payload|text|source/i;
-const SAFE_REASONS = new Set(['','prompt_missing','prompt_disabled','content_not_found','ambiguous_content','snapshot_changed','primary_missing','domain_state_changed','input_changed']);
+const SAFE_REASONS = new Set(['','prompt_missing','prompt_disabled','macro_missing','content_not_found','ambiguous_content','snapshot_changed','primary_missing','domain_state_changed','input_changed']);
 export function safeDetail(detail = {}) {
     return Object.fromEntries(Object.entries(detail).filter(([key,value]) => (key==='reason' && SAFE_REASONS.has(value)) || (!OMIT.test(key) && !/^(error|message|reason|name)$/i.test(key)) || /^(inputKey|sourceKey|runKey|payloadChars|worldChars|textChars|promptHash|promptChars)$/.test(key)).map(([key,value]) =>
         [key, typeof value === 'string' ? value.replace(/(?:Bearer\s+|sk-)[\w.-]+/gi,'[redacted]').slice(0,240) : ['number','boolean'].includes(typeof value) || value === null ? value : Array.isArray(value) ? value.slice(0,20).map(x=>String(x).slice(0,80)) : '[structured]']));

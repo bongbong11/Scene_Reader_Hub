@@ -5,6 +5,7 @@ import { recentTurnCount } from '../context/turn-settings.js';
 import {retireCollection,retireHistory} from './retired-collection.js';
 export function createHydration(deps) {
 async function hydrateServerState({ migrate = true } = {}) {
+    const placementBeforeRestore=!migrate&&deps.settings?.injectionPlacementsV1?structuredClone(deps.settings.injectionPlacementsV1):null;
     const chatKey = deps.stateChatKey();
     deps.companionStorage?.chatLoading(chatKey);
     const sequence = ++deps.hydrateSequence;
@@ -40,7 +41,8 @@ async function hydrateServerState({ migrate = true } = {}) {
     }
     deps.backupList = Array.isArray(data.backups) ? data.backups : [];
     const saved = data.settings && typeof data.settings === 'object' ? data.settings : {};
-    const obsoleteGlobal=cleanGlobalSettings(saved.global);
+    if(placementBeforeRestore){saved.global ||= {};saved.global.injectionPlacementsV1=placementBeforeRestore;}
+    const obsoleteGlobal=cleanGlobalSettings(saved.global)||Boolean(placementBeforeRestore);
     if (saved.global && typeof saved.global === 'object') {
         deps.settings = { ...deps.DEFAULTS, ...saved.global };
         deps.settings.characterBehaviorMode = normalizeBehaviorMode(deps.settings.characterBehaviorMode);
@@ -50,6 +52,7 @@ async function hydrateServerState({ migrate = true } = {}) {
         delete deps.settings.jevProvider;
         if (deps.settings.commonPreferences) deps.settings.commonPreferences=commonPreferences(deps.settings.commonPreferences);
         for (const key of ['enabled', 'showChatIcon', 'autoJudge', 'showConfidence', 'ownerUnlocked', 'characterMacroEnabled', 'continuityEnabled']) if (typeof deps.settings[key] !== 'boolean') deps.settings[key] = deps.DEFAULTS[key];
+        cleanGlobalSettings(deps.settings);
         deps.settings.recentTurns = recentTurnCount(deps.settings);
         deps.extension_settings[deps.MODULE] = deps.settings;
     } else if (migrate) await deps.saveServerSettings();

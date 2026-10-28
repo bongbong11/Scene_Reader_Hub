@@ -34,7 +34,7 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
     function start(type,data={},dryRun=false) {enabled=!dryRun&&type!=='quiet'&&!data?.quiet_prompt;pending=null;reported.clear();}
     function inspect(data,dryRun,phase,expected) {
         if(!enabled||dryRun||!expected||(!expected.payload&&!expected.worldPayload))return null;
-        const receipt={...observePromptReceipt(data,{...expected,payload:expected.deliveryPayload??expected.payload,...getNames(),cycleId:getCycleId(),dryRun}),phase};
+        const receipt={...observePromptReceipt(data,{...expected,payload:expected.sceneSuppressed?'':expected.deliveryPayload??expected.payload,worldPayload:expected.worldSuppressed?'':expected.worldPayload,characterPayload:expected.sceneSuppressed?'':expected.characterPayload,activity:expected.sceneSuppressed?{}:expected.activity,additionBlocks:expected.sceneSuppressed?[]:expected.additionBlocks,...getNames(),cycleId:getCycleId(),dryRun}),phase,sceneSuppressed:Boolean(expected.sceneSuppressed),worldSuppressed:Boolean(expected.worldSuppressed)};
         if(expected.slotResults)receipt.slots=expected.slotResults.map(item=>`${item.kind}:${item.status}${item.reason?':'+item.reason:''}`);
         for(const kind of ['scene','world'])if(expected[kind+'Preset'] && receipt[kind]!=='not_expected' && expected.slotResults?.find(item=>item.kind===kind)?.status==='missing')receipt[kind]='unconfirmed';
         report('injection.consume','PROMPT_OBSERVED',receipt);
@@ -81,7 +81,7 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
         }
         const values=[receipt.scene,receipt.world,receipt.character].filter(value=>value!=='not_expected');
         const confirmed=values.every(value=>value==='confirmed');
-        const message=(expected.judgmentWarning?'판독 일부 확인 필요 · ':'')+(confirmed?(phase==='request'?'전송 요청에 주입문 포함 확인':'주입문 조립 확인 · 전송 대기')
+        const message=(expected.judgmentWarning?'판독 일부 확인 필요 · ':'')+(values.length===0?'주입 항목 꺼짐 · 전송할 내용 없음':confirmed?(phase==='request'?'전송 요청에 주입문 포함 확인':'주입문 조립 확인 · 전송 대기')
             :phase==='request'?'전송문에서 주입문 전체를 확인하지 못했습니다. 실행 기록과 프리셋 기준 항목을 확인해 주세요.':'주입문 조립 중 · 실제 전송 요청에서 포함 여부를 확인합니다.');
         const routingNote=expected.characterRoute==='missing'?' · 인물 매크로 없음: 기존 위치 사용'
             :expected.characterRoute==='legacy'?' · 이전 판독: 기존 위치 사용'

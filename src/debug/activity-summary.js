@@ -6,6 +6,9 @@ const count=v=>Number.isSafeInteger(v)&&v>=0?v:0;
 export function activitySummary(e){
  const row=(category,result,detail={})=>({category,result,detail:{...(Number.isSafeInteger(e.outputIndex)&&e.outputIndex>=0?{대상답변:e.outputIndex}:{}),...detail}});
  switch(e.code){
+ case 'PRESET_ENTRY_SAVED':return row('저장·설정','프리셋 주입 항목 저장 완료',{종류:e.kind==='world'?'세계관·시즌':'기본 판정·전개'});
+ case 'PRESET_LEGACY_CLEANED':return row('저장·설정','이전 주입 위치 설정 정리 완료');
+ case 'PRESET_SLOT_RESULT':if(e.side!=='inside'||e.phase!=='send')return null;return row('주입',({inserted:'전용 항목에 포함',present:'전용 항목에 포함',disabled:'전용 항목 꺼짐',empty:'전달 내용 없음',missing:'전용 항목·매크로 확인 필요'})[e.resultStatus]||'주입 위치 확인 필요',{종류:e.kind==='world'?'세계관·시즌':'기본 판정·전개'});
  case 'STARTUP_READY':return row('시작','초기화 완료',{버전:/^\d+\.\d+\.\d+$/.test(e.version)?e.version:'확인 불가'});
  case 'RUN_STARTED':return row('분석','판독 시작',{방식:e.trigger==='manual'?'수동':'자동'});
  case 'RUN_PREPARED':return row('분석','판독 완료 · 주입 준비');
@@ -19,8 +22,8 @@ export function activitySummary(e){
  }
  case 'SCENE_DELIVERY':return row('주입','NSFW 중단 · 일반 시트 분석·매크로 생성 생략',{인물참고문:Number.isSafeInteger(e.referenceCount)?count(e.referenceCount):'미확인',고정지침:'준비',전송:'확인 전'});
  case 'CHARACTER_DELIVERY_PREPARED':return row('주입','일반 인물 분석 준비',{시트반영:count(e.appliedCount),후보:count(e.candidateCount),저장기록:count(e.storedCount)});
- case 'CHARACTER_MACRO_ROUTE':if(e.phase==='prepare'||e.scenePaused)return null;return row('주입',({macro:'인물 매크로 위치로 전달',missing:'매크로 없음 · 기존 위치로 전달',disabled:'매크로 꺼짐 · 기존 위치로 전달',legacy:'분리 자료 없음 · 기존 위치로 전달',empty:'인물 매크로에 전달할 내용 없음',scene_missing:'일반 주입문 확인 불가 · 매크로 분리 생략'})[e.resultStatus]||'인물 전달 확인 불가');
- case 'PROMPT_OBSERVED':if(e.phase!=='request')return null;return row('주입','실제 전송문 확인',{장면:receipts[e.scene]||'확인 불가',세계관:receipts[e.world]||'확인 불가',인물매크로:receipts[e.character]||'전달 대상 없음'});
+ case 'CHARACTER_MACRO_ROUTE':if(e.phase==='prepare'||e.scenePaused)return null;return e.sceneSuppressed?row('주입','주입 항목 꺼짐 · 인물 전달 제외'):row('주입',({macro:'인물 매크로 위치로 전달',missing:'매크로 없음 · 기존 위치로 전달',disabled:'매크로 꺼짐 · 기존 위치로 전달',legacy:'분리 자료 없음 · 기존 위치로 전달',empty:'인물 매크로에 전달할 내용 없음',scene_missing:'일반 주입문 확인 불가 · 매크로 분리 생략'})[e.resultStatus]||'인물 전달 확인 불가');
+ case 'PROMPT_OBSERVED':if(e.phase!=='request')return null;return row('주입','실제 전송문 확인',{장면:e.sceneSuppressed?'꺼짐':receipts[e.scene]||'확인 불가',세계관:e.worldSuppressed?'꺼짐':receipts[e.world]||'확인 불가',인물매크로:receipts[e.character]||'전달 대상 없음'});
  case 'ANALYSIS_STARTED':return e.continuityIncluded===false?null:row('분석','연속성 수집 시작');
  case 'ANALYSIS_RESULT':return e.continuityIncluded===false?null:row('분석',e.status==='degraded'?'연속성 일부 반영 · 미확인 값 보존':'연속성 수집 완료',{반영:count(e.acceptedCount),미확인:count(e.invalidCount)});
  case 'ANALYSIS_CANCELLED':return row('분석','연속성 수집 취소');

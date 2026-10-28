@@ -78,6 +78,4 @@ export function applyPresetSlots(body, blocks, {prompts=[],prepared=new Map()}={
     return {changed,results};
 }
 
-export function slotBlock(kind,content) {
-    return content ? `<SCENE_READER_OUTPUT data-source="scene_reader_hub" data-kind="${kind}">\n${content}\n</SCENE_READER_OUTPUT>` : '';
-}
+export {slotBlock} from './output-block.js';

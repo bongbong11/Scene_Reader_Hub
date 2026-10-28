@@ -105,16 +105,15 @@ function bindForm() {
     });
     deps.document.getElementById('sr-character-macro')?.addEventListener('change',event=>deps.runUiTask((async()=>{
         deps.macroTransmissionPreview.clear();
-        await deps.saveGlobal('characterMacroEnabled',event.target.checked);
-        deps.renderAll();
+        try{if(deps.placement)await deps.placement.character(event.target.checked);
+        else await deps.saveGlobal('characterMacroEnabled',event.target.checked);}
+        finally{deps.renderAll();}
     })(),'인물 매크로 설정을 저장하지 못했습니다.'));
     deps.document.getElementById('sr-character-macro-copy')?.addEventListener('click',()=>deps.runUiTask(deps.copyText('{{scene-reader-character}}')));
     deps.document.getElementById('sr-character-macro-preview')?.addEventListener('click',()=>deps.runUiTask(Promise.resolve().then(()=>openMacroPreview({document:deps.document,preview:deps.macroTransmissionPreview})).catch(error=>{
         deps.noteDiagnostic?.('macro_preview',{module:'src/ui/macro-preview.js',status:'failed',phase:'render',errorKind:'MACRO_PREVIEW_FAILED'});
         throw error;
     }),'인물 매크로 전송 내용을 표시하지 못했습니다.'));
-    deps.document.getElementById('sr-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveInjectionMode(event.target.value)));
-    deps.document.getElementById('sr-world-injection-mode')?.addEventListener('change', (event) => deps.runUiTask(deps.saveWorldInjectionMode(event.target.value)));
     deps.document.getElementById('sr-relationship-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('relationshipPace', event.target.value)));
     deps.document.getElementById('sr-resolution-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('resolutionPace', event.target.value)));
     deps.document.getElementById('sr-physical-intimacy-pace')?.addEventListener('change', (event) => deps.runUiTask(deps.savePreference('physicalIntimacyPace', event.target.value)));
@@ -141,7 +140,7 @@ function bindForm() {
         if (input) input.value = '';
         deps.renderOwnerMode();
         const macroInput=deps.document.getElementById('sr-character-macro');
-        if(macroInput)macroInput.checked=deps.settings.characterMacroEnabled===true;
+        if(macroInput)macroInput.checked=deps.placement?.read().characterMacroEnabled ?? deps.settings.characterMacroEnabled===true;
         notifySceneReaderToast(deps.window, 'success', '개발자 모드를 열었습니다.', '씬판독기');
     };
     deps.document.getElementById('sr-owner-unlock')?.addEventListener('click', () => deps.runUiTask(unlockOwner(), '잠금을 해제하지 못했습니다.'));

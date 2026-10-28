@@ -159,7 +159,7 @@ assert.doesNotMatch(source, /world\.builtin \? '기본/);
 assert.match(source, /id="sr-world-editor" hidden/);
 assert.match(source, /showWorldList\(\)/);
 assert.match(source, /id="sr-world-edit-hint"/);
-assert.match(source, /id="sr-scene-slot-target"/);
+assert.match(source, /id="sr-scene-entry-list"/);
 assert.doesNotMatch(source, /id="sr-copy-macro"/);
 assert.match(source, /씬판독기 전체 사용/);
 assert.match(source, /판독과 주입 중단/);
