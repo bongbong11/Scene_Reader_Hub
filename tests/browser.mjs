@@ -534,6 +534,12 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.ok(!requests.some(r=>r.body.questions?.character_0_affect_a),'the legacy arousal-expression question is suppressed for router-managed people');
     assert.ok(store.chat.lastJudgment?.payload?.includes('<SEXUAL_CONDUCT pace="medium">'),'the independent physical decision reaches the final injection');
     assert.ok(!store.chat.lastJudgment?.payload?.includes('Prior state sexual arousal 38%'),'stored arousal does not duplicate or block the physical conduct decision');
+    assert.match(store.chat.lastJudgment?.statePayload||'',/sexual arousal 38%/,'independent observed state is retained even with a partial a/c pair');
+    assert.match(store.chat.lastJudgment?.payload||'',/<CHARACTER_STATE_REFERENCE>/,'observed emotion reaches the assembled person block');
+    assert.ok(!requests.filter(r=>r.url.endsWith('/systemone')).slice(beforeMacro).some(r=>Object.keys(r.body.questions||{}).some(key=>key.includes('_affect_'))),'ordinary emotions do not require expression approval');
+    const emotionTransmission=await page.evaluate(()=>mock.outbound());
+    assert.equal(emotionTransmission.messages.map(m=>m.content).join('\n').split('<CHARACTER_STATE_REFERENCE>').length-1,1,'actual browser request includes observed state once');
+    assert.ok(await page.evaluate(()=>SceneReaderHub.diagnostics().events.some(e=>e.code==='CHARACTER_STATE_RECEIPT'&&e.resultStatus==='confirmed')));
     assert.ok(!requests.filter(r=>r.url.endsWith('/systemone')).slice(beforeMacro).some(r=>r.body.state?.memory_reference?.entries?.length),'reserved memory stays off in macro mode');
     const beforeLoreEdit=requests.filter(r=>r.url.endsWith('/systemone')).length;
     await page.evaluate(async()=>{

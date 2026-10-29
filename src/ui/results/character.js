@@ -41,11 +41,11 @@ function renderCharacterTurnResults() {
         if(entry)trace.push({id:entry.id,name:entry.name,kind:entry.kind,index:trace.length,presence:'active',profileIds:[],emotionOnly:true});
     }
     if (!trace.length) { root.innerHTML = '<div class="sr-empty-small">이번 판독 범위에서 개별 판정할 저장 인물이 없었습니다.</div>'; return; }
-    root.innerHTML = `<p class="sr-help">인물 주입 ${Number(judgment.characterInjectionChars)||0} / ${Number(judgment.characterInjectionLimit)||5000}자 · 육체 판정 ${Number(judgment.sexualInjectionChars)||0}자 · 갈등·세계관은 별도</p>` + trace.map((person) => {
+    root.innerHTML = `<p class="sr-help">인물 기록 ${Number(judgment.characterInjectionChars)||0} / ${Number(judgment.characterInjectionLimit)||5000}자 · 감정 자료 ${Number(judgment.characterStateChars)||0}자 · 육체 판정 ${Number(judgment.sexualInjectionChars)||0}자 · 갈등·세계관은 별도</p>` + trace.map((person) => {
         const prefix = 'character_' + person.index + '_';
         const presence = judgment.details?.[prefix + 'presence'];
         const direction = judgment.details?.[prefix + 'response_direction'];
-        const status = person.emotionOnly ? '감정값 확인' : person.injected ? '주입문 준비됨' : person.presence === 'active' ? '장면 판정만 · 별도 주입 없음' : person.presence === 'background' ? '배경 참고' : '미적용';
+        const status = person.emotionOnly ? '감정값 확인' : person.injected || person.stateStatus==='prepared' ? '주입문 준비됨' : person.presence === 'active' ? '장면 판정만 · 별도 주입 없음' : person.presence === 'background' ? '배경 참고' : '미적용';
         const audit = [presence && ['장면 역할',presence],direction && ['반응 방향',direction]].filter(Boolean).map(([label,detail]) =>
             '<div class="sr-decision-row"><span>' + label + '</span><small>Jev ' + deps.escapeHtml(String(detail.selected || '응답 없음')) + ' → 확신 ' + Math.round((Number(detail.certainty)||0)*100) + '% / 기준 ' + Math.round((Number(detail.threshold)||0)*100) + '% → 최종 ' + deps.escapeHtml(String(detail.effective || '없음')) + ' · ' + deps.escapeHtml(detail.rule || (detail.fallbackApplied ? '확신도 부족 · 기본값 적용' : '선택 유지')) + '</small></div>').join('');
         const entry = [...characterStore.characters,...characterStore.npcs,characterStore.persona].filter(Boolean).find((item) => item.id === person.id);
@@ -64,7 +64,7 @@ function renderCharacterTurnResults() {
             ...((person.excludedByPresenceRuleIds || []).length ? [['참여 판정으로 제외', `${person.excludedByPresenceRuleIds.length}개 규칙 · 이번 응답에 참여하지 않아 미적용`]] : []),
             ...((person.omittedRuleIds || []).length ? [['길이 제한으로 제외', `${person.omittedRuleIds.length}개 규칙 · 문장 중간을 자르지 않고 항목 전체 제외`]] : []),
             ['이번 정보 참고', (person.contextIds || []).length ? person.contextIds.length + '개 후보 중 접근이 확인된 항목만 사용' : '별도 정보 선택 없음'],
-            ...(person.priorAffect?[['상태 표현 판정',(person.affectSelections||[]).map(item=>`${({a:'충동',...MOOD_LABELS})[item.field]} · ${({inward:'속마음·억제',visible:'대사·작은 행동',active:'인물에 맞는 직접 행동'})[item.expression]}`).join(' / ')||'이번 응답에 별도 반영 없음']]:[]),
+            ...(person.priorAffect?[['감정 자료 전달',person.stateStatus==='prepared'?`${(person.stateFields||[]).map(field=>moodNames[field]).filter(Boolean).join(' · ')} · 인물 주입문 준비됨`:person.stateStatus==='inactive'?'이번 장면 참여 대상 아님':person.stateStatus==='no_state'?'전달할 정상 수집값 없음':'이전 판독 · 새로 판독해 확인']]:[]),
             ...(sexual ? [['육체적 진행 단계',deps.SEXUAL_TURN_LABELS.pace[sexual.pace]||sexual.pace],['성적 자제력',deps.SEXUAL_TURN_LABELS.restraint[sexual.restraint]||'응답 확인 필요'],['행동 경로',deps.SEXUAL_TURN_LABELS.route[sexual.route]||'기존 프리셋에 맡김'],['행동 대상',deps.SEXUAL_TURN_LABELS.target[sexual.target]||'판정 없음'],['육체 판정 주입',sexual.valid?'별도 주입문 준비':sexual.presence!=='active'?'이번 응답 참여 없음':'응답 누락·형식 오류로 기존 프리셋에 맡김']]:[]),
             ['지식 접근 제외', (person.deniedIds || []).length ? person.deniedIds.length + '개 · 해당 정보만 제외' : '없음'],
             ...(!person.recordMode ? [['반응 방향', characterTurnLabel('direction',person.direction)]] : []),

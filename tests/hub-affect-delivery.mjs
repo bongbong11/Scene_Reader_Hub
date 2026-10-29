@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import {buildCharacterInjection,buildCharacterTurnQuestions} from '../src/character/live.js';
+import {buildCharacterStateInjection} from '../src/character/state-injection.js';
+import {buildInjection,RELATIONSHIP_PROMPTS} from '../src/injection/assemble.js';
+import {deliveryParts} from '../src/injection/delivery-routing.js';
+import {createPresetRequest} from '../src/injection/preset-request.js';
+import {PRESET_ENTRIES,entryText} from '../src/injection/preset-entry-contract.js';
+import {CHAT_DEFAULTS} from '../src/storage/contract.js';
+import {createPromptObserver} from '../src/injection/receipt.js';
+import {LEGACY_PROMPTS as L} from '../src/decision/legacy-prompts.js';
+import {wholeDiagnosticReport} from '../src/debug/whole-report.js';
+import {storylineInjection} from '../src/context/storyline-reference.js';
+
+// Observed feelings must survive a full record budget without displacing records.
+const records=Array.from({length:6},(_,i)=>({id:'r'+i,type:'reaction',rule:'Keeps commitments through concrete choices. '.repeat(15),target:'Morgan'}));
+const person={index:0,id:'p',name:'Morgan',kind:'character',presence:'active',profileIds:records.map(r=>r.id),profileItems:records,profileCandidates:records,contextCandidates:[],contextIds:[],contextItems:[],denied:[],recordMode:true,recordScores:{},priorState:{id:'p',values:{a:25,c:70,anger:20,joy:0,fear:10,sadness:0,shame:5,interest:50},targets:{interest:'User'}}};
+const result=buildCharacterInjection([person],{maxChars:3000});
+assert.ok(result.text.length<=3000);
+assert.match(result.stateText,/anger 20%/);
+assert.match(result.stateText,/interest 50% toward User/);
+assert.match(result.stateText,/joy 0%/);
+assert.equal(result.text,buildCharacterInjection([{...person,priorState:null}],{maxChars:3000}).text,'no record is displaced by emotion');
+assert.ok(result.traces[0].injectedRuleIds.length>0,'records and expression coexist');
+assert.equal(result.traces[0].stateFields.length,8);
+const tiny=buildCharacterInjection([person],{maxChars:100});
+assert.equal(tiny.stateText,result.stateText,'record budget cannot cut observed state');
+assert.ok(!Object.keys(buildCharacterTurnQuestions([person])).some(key=>key.includes('_affect_')));
+assert.equal(buildCharacterStateInjection([{...person,presence:'absent'}]).text,'');
+assert.equal(buildCharacterStateInjection([{...person,priorState:null}]).text,'');
+const partial=buildCharacterStateInjection([{...person,priorState:{id:'p',values:{anger:15,joy:0,interest:101,shame:'35'}}}]);
+assert.match(partial.text,/anger 15%, joy 0%/);assert.doesNotMatch(partial.text,/interest \d|shame \d|fear \d/);
+const npc=buildCharacterStateInjection([{...person,kind:'npc',trackArousal:false}]);
+assert.doesNotMatch(npc.text,/sexual arousal \d|self-control \d/);assert.match(npc.text,/anger 20%/);
+const linked={sharedSource:{active:true},sharedReference:{characterStates:[{id:'p',name:'Morgan',values:{anger:80}},{id:'other',name:'Riley',values:{joy:12}}]}};
+const beforeLinked=JSON.stringify(linked);
+const carried=storylineInjection(linked,{},null,{representedStateIds:['p']});
+assert.doesNotMatch(carried,/Morgan — prior feelings/,'current delivery supersedes the inherited duplicate');
+assert.match(carried,/Riley — prior feelings/,'unrepresented carry-over remains');
+assert.equal(JSON.stringify(linked),beforeLinked,'rendering leaves stored history untouched');
+assert.match(storylineInjection(linked),/Morgan — prior feelings/,'ordinary carry-over stays available without replacement');
+
+// Real assembly, settings and emotion paragraphs reach all independent routes once.
+const handlers={},sent=[],events=[];
+const prompts=Object.entries(PRESET_ENTRIES).map(([kind,spec])=>({...spec,content:entryText(kind),enabled:true}));
+const context={mainApi:'openai',name1:'User',name2:'Morgan',chat:[],macros:{register:(key,value)=>handlers[key]=value.handler}};
+let cycle,mode;
+const transport={fetch:async(_url,options)=>{sent.push(JSON.parse(options.body));return {ok:true};}};
+const observer=createPromptObserver({getExpected:()=>cycle?.injection,getContext:()=>context,getChatKey:()=>'room',getNames:()=>({userName:'User',characterName:'Morgan'}),getCycleId:()=>'test',report:(...args)=>events.push(args),updateStatus:()=>{},updateActivity:()=>{}});
+const runtime=createPresetRequest({window:transport,getContext:()=>context,getCycle:()=>cycle,getChatKey:()=>'room',isEnabled:()=>true,isCharacterMacroEnabled:()=>mode==='weave',getPreset:()=>({key:'A',prompts}),loadHost:async()=>({}),report:(...args)=>events.push(args),verifyRequest:observer.verifyRequest});
+await runtime.init();
+const render=value=>String(value).replace(/\{\{user\}\}/gi,'User').replace(/\{\{char\}\}/gi,'Morgan');
+let combinations=0;
+for(const direction of ['positive','dynamic','hostile'])for(const scenePreset of [false,true])for(const worldPreset of [false,true])for(mode of ['depth','weave','entry'])for(const weaveAnchor of [false,true])for(const type of ['normal','swipe','regenerate','continue']){
+    const characterDelivery={};
+    const settings={...CHAT_DEFAULTS,relationshipDirection:direction,worldHostility:true,npcToUser:true,userMisfortune:true,negativePriority:true,worldAgencyEnabled:true};
+    const payload=buildInjection({settings,decisions:{primary_focus:'direct',relationship_pacing:'hold',basic_move:'continue',world_npc_activity:'active'},characterBlock:[result.text,result.stateText].join('\n\n'),delivery:characterDelivery});
+    const args={payload,characterDelivery,worldPayload:'SYNTHETIC_WORLD',scenePreset,worldPreset,characterMode:mode,statePayload:result.stateText};
+    const parts=deliveryParts(args);
+    cycle={injection:{...args,chatKey:'room',presetKey:'A',independentDelivery:true,deliveryPayload:parts.scene,independentScene:parts.scene,independentCharacter:parts.character,basePayload:parts.base,baseWithoutCharacter:parts.withoutCharacter,sceneNative:scenePreset,worldNative:worldPreset,characterNative:mode==='entry'}};
+    observer.start(type);runtime.start(type);
+    const body={type,messages:[{role:'system',content:render(parts.base)},...Object.values(PRESET_ENTRIES).map(spec=>({role:'system',content:handlers[spec.macro]()})),{role:'system',content:weaveAnchor?handlers['scene-reader-character']():''},{role:'user',content:'Reply in character.'}]};
+    runtime.observeAssembly({prompt:body.messages});runtime.observeRequest(body);
+    await transport.fetch('/api/backends/chat-completions/generate',{method:'POST',body:JSON.stringify(body)});
+    const text=sent.at(-1).messages.map(m=>m.content).join('\n');
+    for(const fragment of [result.text,result.stateText,RELATIONSHIP_PROMPTS[direction],L.WORLD_HOSTILITY,L.NPC_TO_USER_DEFAULT,L.USER_MISFORTUNE,L.INDEPENDENT_PERSPECTIVES,'SYNTHETIC_WORLD'])assert.equal(text.split(render(fragment)).length-1,1,JSON.stringify({direction,scenePreset,worldPreset,mode,weaveAnchor,type,fragment:fragment.slice(0,30)}));
+    assert.equal(events.filter(e=>e[1]==='CHARACTER_STATE_RECEIPT').at(-1)?.[2].resultStatus,'confirmed');
+    assert.doesNotMatch(text,/SR_HUB_|SR_CHARACTER_SLOT_/);
+    runtime.finish();cycle.injection=null;
+    assert.ok(runtime.preview.read()?.text.includes('interest 50%'),'receipt survives completed generation');
+    combinations++;
+}
+const diagnostic=wholeDiagnosticReport({judgment:{characterTrace:result.traces,characterStateChars:result.stateChars}});
+assert.equal(diagnostic.characterStateDelivery.people[0].fields.length,8);
+assert.doesNotMatch(JSON.stringify(diagnostic),/Morgan|Keeps commitments|interest 50/);
+assert.ok(!JSON.stringify(events).includes('Keeps commitments'));
+console.log(`Affect delivery passed: all valid observations, independent record budget, no expression veto, ${combinations} final settings/placement/generation combinations and retained receipts.`);

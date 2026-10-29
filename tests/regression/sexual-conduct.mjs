@@ -51,7 +51,7 @@ assert.doesNotMatch(JSON.stringify(state),/RAW SHEET MUST NOT CROSS/);
 
 const characterQuestions=buildCharacterTurnQuestions([base]);
 assert.equal(characterQuestions.character_0_affect_a,undefined);
-assert.ok(characterQuestions.character_0_affect_anger);
+assert.equal(characterQuestions.character_0_affect_anger,undefined,'moods are observations, not extra conduct choices');
 
 const settings={developmentStyle:'balanced',progressionMode:'natural',worldDirection:'natural',relationshipDirection:'dynamic',relationshipPace:'slow',resolutionPace:'slow',physicalIntimacyPace:'fast'};
 const decisions={primary_focus:'direct',basic_move:'continue',progress_need:'flowing',direct_execution:'yes',relationship_pacing:'hold',relationship_beat:'none',resolution_pacing:'continue',npc_route:'none',villain_route:'none',fight_sustain:'no'};

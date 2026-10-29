@@ -162,7 +162,10 @@ for (const style of ['static','dynamic']) for (const intensity of [0.5,1.5]) {
     assert.doesNotMatch(judgment.payload,/Prior state sexual arousal 35%/,'stored arousal no longer competes with the independent physical-conduct router');
     assert.match(judgment.payload,/<SEXUAL_CONDUCT pace="medium">/,'physical conduct is injected independently of ordinary progression');
     assert.ok(!Object.keys(seen.at(-1).questions).some(key=>key.endsWith('_affect_a')),'the old arousal-expression question is suppressed for router-managed people');
-    assert.match(judgment.payload,/Prior state anger 25%/,'different feelings coexist');
+    assert.match(judgment.payload,/anger 25%/,'observed feelings reach the real pipeline without expression permission');
+    assert.match(judgment.payload,/joy 0%/,'evaluated zeros are preserved');
+    assert.match(judgment.payload,/sexual arousal 35%/,'observed state remains distinct from physical-conduct instructions');
+    assert.ok(!Object.keys(seen.at(-1).questions).some(key=>key.includes('_affect_')));
     assert.ok(seen[0].state.prior_output_character_states.every(person=>person.id!=='persona'),'persona state stays private when impersonation is off');
     f.run('characterStore.npcs[0].trackArousal=false;');
     await f.run('runJudge()');

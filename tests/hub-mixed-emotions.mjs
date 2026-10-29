@@ -26,10 +26,10 @@ const entry=store.npcs[0],prior=stateForEntry(mixed.states[1],entry);
 assert.equal(prior.values.a,undefined);assert.equal(prior.values.anger,40);
 const plan=buildLiveCharacterPlan([entry],{canonicalOnly:true});plan[0].priorState=prior;
 const questions=buildCharacterTurnQuestions(plan);
-assert.ok(questions.character_0_affect_anger);assert.equal(questions.character_0_affect_a,undefined);
-const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active',character_0_affect_anger:'visible'});
-assert.match(buildCharacterInjection(resolved).text,/anger 40%/);
-assert.doesNotMatch(buildCharacterInjection(resolved).text,/sexual arousal/);
+assert.ok(!Object.keys(questions).some(key=>key.includes('_affect_')));
+const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active'});
+assert.match(buildCharacterInjection(resolved).stateText,/anger 40%/);
+assert.doesNotMatch(buildCharacterInjection(resolved).stateText,/sexual arousal/);
 const chat=[{is_user:true,mes:'Continue.'},{is_user:false,mes:'All three answer.\n[[SR_STATE]]\nC0|a10|c90|joy20\nC1|a45|c55|anger40\nC2|a35|joy30\n[[/SR_STATE]]'}];
 const record={};let saves=0;
 const output=createOutputEvents({

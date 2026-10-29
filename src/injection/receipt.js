@@ -9,7 +9,7 @@ function promptText(data) {
     if(!data||typeof data!=='object')return '';
     return [promptText(data.prompt),promptText(data.input),promptText(data.messages),promptText(data.chat)].filter(Boolean).join('\n');
 }
-export function observePromptReceipt(data,{payload='',worldPayload='',characterPayload='',additionBlocks=[],activity={},cycleId='',dryRun=false,userName='',characterName=''}={}) {
+export function observePromptReceipt(data,{payload='',worldPayload='',characterPayload='',statePayload='',additionBlocks=[],activity={},cycleId='',dryRun=false,userName='',characterName=''}={}) {
     if(dryRun)return {cycleId,status:'dry_run',observed:false};
     const text=promptText(data).replaceAll('\r\n','\n');
     const check=value=>{
@@ -23,6 +23,7 @@ export function observePromptReceipt(data,{payload='',worldPayload='',characterP
         return /\{\{[^}]+\}\}/.test(rendered)?'unverifiable':'unconfirmed';
     };
     return {cycleId,status:text?'observed':'unavailable',observed:Boolean(text),promptHash:text?stableFingerprint(text):'',promptChars:text.length,scene:check(payload),world:check(worldPayload),character:check(characterPayload),characterChars:characterPayload.length,payloadChars:payload.length,worldChars:worldPayload.length,
+        state:check(statePayload),stateChars:statePayload.length,
         activity:activityBlocks(activity).map(({id,text})=>({id,status:check(text)})),
         additions:additionBlocks.map(({id,feature,templateId,text})=>({id,feature,templateId,status:check(text)}))};
 }
@@ -37,9 +38,11 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
         const characterSuppressed=expected.independentDelivery?expected.characterSuppressed:expected.sceneSuppressed;
         const receipt={...observePromptReceipt(data,{...expected,payload:expected.sceneSuppressed?'':expected.deliveryPayload??expected.payload,worldPayload:expected.worldSuppressed?'':expected.worldPayload,characterPayload:characterSuppressed?'':expected.characterPayload,activity:expected.sceneSuppressed?{}:expected.activity,additionBlocks:expected.sceneSuppressed?[]:expected.additionBlocks,...getNames(),cycleId:getCycleId(),dryRun}),phase,sceneSuppressed:Boolean(expected.sceneSuppressed),worldSuppressed:Boolean(expected.worldSuppressed),characterSuppressed:Boolean(characterSuppressed)};
         if(expected.slotResults)receipt.slots=expected.slotResults.map(item=>`${item.kind}:${item.status}${item.reason?':'+item.reason:''}`);
+        if(characterSuppressed){receipt.state='not_expected';receipt.stateChars=0;}
         for(const kind of ['scene','world'])if(expected[kind+'Preset'] && receipt[kind]!=='not_expected' && expected.slotResults?.find(item=>item.kind===kind)?.status==='missing')receipt[kind]='unconfirmed';
         report('injection.consume','PROMPT_OBSERVED',receipt);
         if(phase==='request') {
+            if(receipt.state!=='not_expected')report('injection.consume','CHARACTER_STATE_RECEIPT',{module:'src/injection/receipt.js',resultStatus:receipt.state,stateChars:receipt.stateChars,status:receipt.state==='unconfirmed'?'degraded':'info'});
             if(expected.characterRoute)report('injection.consume','CHARACTER_MACRO_RECEIPT',{module:'src/injection/receipt.js',resultStatus:receipt.character,reasonCode:expected.characterRoute,status:receipt.character==='unconfirmed'?'degraded':'info',characterChars:receipt.characterChars});
             const rec=getRecord();
             if(rec?.lastJudgment?.payload===expected.payload && rec.lastJudgment.storyDirection){
@@ -80,7 +83,7 @@ export function createPromptObserver({getExpected:readExpected,getContext,getCha
                 rememberOpportunity(rec,item,reasonCode);
             }
         }
-        const values=[receipt.scene,receipt.world,receipt.character].filter(value=>value!=='not_expected');
+        const values=[receipt.scene,receipt.world,receipt.character,receipt.state].filter(value=>value!=='not_expected');
         const confirmed=values.every(value=>value==='confirmed');
         const message=(expected.judgmentWarning?'판독 일부 확인 필요 · ':'')+(values.length===0?'주입 항목 꺼짐 · 전송할 내용 없음':confirmed?(phase==='request'?'전송 요청에 주입문 포함 확인':'주입문 조립 확인 · 전송 대기')
             :phase==='request'?'전송문에서 주입문 전체를 확인하지 못했습니다. 실행 기록과 프리셋 기준 항목을 확인해 주세요.':'주입문 조립 중 · 실제 전송 요청에서 포함 여부를 확인합니다.');

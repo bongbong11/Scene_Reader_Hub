@@ -35,7 +35,7 @@ export function storylineInjection(record, represented = {}, delivery = null, op
     // crowd useful prose out of the independently rendered RP projection.
     reference.confirmed_facts=[];
     reference.knowledge=(record.characterState?.knowledge||record.continuity?.knowledge||[]).slice(-12);
-    reference.character_states=(record.sharedReference?.characterStates||[]).slice(0,12);
+    reference.character_states=(record.sharedReference?.characterStates||[]).filter(state=>!options.representedStateIds?.includes(state.id)).slice(0,12);
     reference.background_events=(record.backgroundEvents||[]).slice(0,3);
     reference.context=options.includeContext===false?null:compactValues(compactContext(record,typeof options.fingerprint==='function'?{record,...options,inherited:true}:null));
     // Only remove equal selected values already rendered in character context.

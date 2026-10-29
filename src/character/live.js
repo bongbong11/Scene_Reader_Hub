@@ -9,26 +9,11 @@ import {supplementRecordCandidates} from './record-protection.js';
 import {prepareProtectionQuestions, characterRecordQuestion} from './record-questions.js';
 import {allocateRecordIds, protectionTrace} from './record-allocation.js';
 import {participationQuestion} from './presence.js';
-import {STATE_MOODS} from './state-contract.js';
+import {buildCharacterStateInjection} from './state-injection.js';
 
 const DIRECTIONS = { none: 'No separate direction is needed.', speak: 'Let a direct line lead.', act: 'Let concrete conduct lead.', selective: 'Respond only to what matters to this person.', withhold: 'Withhold information for an established motive.', evade: 'Evade for an established motive.', deceive: 'Deceive only if the person has an established motive and knows what is being concealed.', withdraw: 'Withdraw when the person can actually do so.', confront: 'Confront a supported live issue.' };
 const ACCESS_LABELS = { observed: 'Directly perceived', reported: 'Was told', public: 'Publicly available', stored_knowledge: 'Previously established for this person', profile_supported: 'Within supported lived or role knowledge', private_access: 'Has established private access' };
 const CHARACTER_INJECTION_PREAMBLE='Scoped character constraints, not scripted actions. Preserve belief, report, ignorance and time scope; expertise does not require a lecture.';
-const AFFECT_CHOICES = {
-    none: 'The previous output state does not affect this person in the next response.',
-    inward: "Let this feeling inform the character's perspective; outward expression follows their personality.",
-    visible: 'Express this feeling in character through speech or behavior.',
-    active: 'Let the relevant feeling contribute to a character-led action that fits the current scene and established limits.',
-};
-function affectSummary(state, selectedFields = null) {
-    if (!state?.values) return '';
-    const labels = { a: 'sexual arousal', c: 'self-control', ...Object.fromEntries(STATE_MOODS.map(mood=>[mood,mood])) };
-    return Object.entries(labels).filter(([key]) => (!selectedFields || selectedFields.includes(key) || (key === 'c' && selectedFields.includes('a'))) && Number.isFinite(state.values[key]) && (['a','c'].includes(key) || state.values[key] > 0))
-        .map(([key, label]) => `${label} ${state.values[key]}%${state.targets?.[key] ? ` toward ${state.targets[key]}` : ''}`).join(', ');
-}
-function affectFields(state, { includeArousal = true } = {}) {
-    return ['a',...STATE_MOODS].filter(key => (includeArousal || key !== 'a') && Number.isFinite(state?.values?.[key]) && (key === 'a' || state.values[key] > 0));
-}
 const NEED_GROUPS = {
     identity: ['fact','core','value','boundary','capability'],
     relationship: ['relationship'],
@@ -121,11 +106,6 @@ export function buildCharacterTurnQuestions(plan = [], observed = {}) {
     for (const person of plan) {
         const prefix = `character_${person.index}`;
         if(!Object.hasOwn(observed,person.id))questions[`${prefix}_participation`]=participationQuestion(person);
-        for (const field of affectFields(person.priorState, { includeArousal: !person.sexualConductManaged })) questions[`${prefix}_affect_${field}`] = {
-            type: 'choice',
-            instructions: `${person.name}'s prior completed RP output carried ${affectSummary(person.priorState, [field])}. Choose its expression in the NEXT response, or none if no longer relevant. Use the new input, current scene, and this person's stored limits. Ordinary conversation and other feelings may coexist with it; no new event or relationship milestone is required. It is not proof of an action, consent, relationship change, or another person's knowledge. Answer independently of presence and record choices; code will suppress this if the person is not active.`,
-            criteria: AFFECT_CHOICES,
-        };
         if (person.recordMode) {
             for (const [ordinal,item] of person.profileCandidates.entries()) questions[`${prefix}_record_${ordinal}`] = characterRecordQuestion(person, item, person.protectedCandidateIds?.includes(item.id));
         } else {
@@ -171,7 +151,6 @@ export function resolveLiveCharacterPlan(plan, decisions, details = {}) {
             else accepted.push({ ...item, access });
         }
         let direction = !person.recordMode && presence === 'active' && Object.hasOwn(DIRECTIONS, decisions[`${prefix}_response_direction`]) ? decisions[`${prefix}_response_direction`] : 'none';
-        const affectSelections = presence === 'active' ? affectFields(person.priorState, { includeArousal: !person.sexualConductManaged }).map(field => ({field, expression: decisions[`${prefix}_affect_${field}`]})).filter(item => item.expression !== 'none' && Object.hasOwn(AFFECT_CHOICES, item.expression)) : [];
         // The Jev questions are parallel; validate the chosen action against access here.
         const basis = decisions[`${prefix}_response_basis`] || 'none';
         const basisItem = person.contextCandidates.find(item => item.id === basis);
@@ -179,7 +158,7 @@ export function resolveLiveCharacterPlan(plan, decisions, details = {}) {
             (basisItem && !accepted.some(item => item.id === basis)) ||
             (denied.length && !accepted.length && ['deceive', 'withhold'].includes(direction))) direction = 'none';
         return { ...person, presence, presenceUncertain:Boolean(details[`${prefix}_presence`]?.presenceUncertain), participationEvidence:details[`${prefix}_presence`]?.participationEvidence || 'unknown', presenceResolution:details[`${prefix}_presence`]?.presenceResolution || 'policy', profileIds, jevSelectedRuleIds, profileItems: profileIds.map(id => person.profileCandidates.find(item => item.id === id)), contextIds,
-            contextItems: accepted, denied, direction, affectSelections,recordScores,unreviewedRecordCount, excludedReason: denied.length ? '접근 근거 없는 정보는 제외 · 독립적인 직접 반응은 유지' : '' };
+            contextItems: accepted, denied, direction, recordScores,unreviewedRecordCount, excludedReason: denied.length ? '접근 근거 없는 정보는 제외 · 독립적인 직접 반응은 유지' : '' };
     });
 }
 function contextLine(person, item) {
@@ -197,10 +176,11 @@ function contextLine(person, item) {
 export function buildCharacterInjection(plan = [], { conflictActive = false, volume = plan[0]?.volume || 'generous', maxChars:charBudget = null } = {}) {
     const maxChars=Math.min(characterVolume(volume).chars,charBudget??Infinity);
     const selections = [], traces = [];
+    const states=buildCharacterStateInjection(plan);
     for (const person of plan) {
         traces.push({ index: person.index, id: person.id, name: person.name, kind: person.kind, presence: person.presence,
             presenceUncertain:person.presenceUncertain,participationEvidence:person.participationEvidence,presenceResolution:person.presenceResolution,
-            profileIds: person.profileIds, contextIds: person.contextIds, deniedIds: person.denied.map(item => item.id), direction: person.direction, affectSelections: person.affectSelections || [], priorAffect: person.priorState || null, recordMode:person.recordMode,
+            profileIds: person.profileIds, contextIds: person.contextIds, deniedIds: person.denied.map(item => item.id), direction: person.direction, stateFields:states.traces.find(item=>item.index===person.index)?.fields||[], stateStatus:states.traces.find(item=>item.index===person.index)?.status||'no_state', priorAffect: person.priorState || null, recordMode:person.recordMode,
             recordStatus:person.recordStatus, storedRecordCount:person.storedRecordCount || 0, candidateCount:person.profileCandidates?.length || 0, prefilterStats:person.prefilterStats || {},
             recordSelections:person.profileItems.map(item=>({id:item.id,type:item.type,rule:item.rule,source_ids:item.source_ids,knowledge_state:item.knowledge_state})), excludedReason: person.excludedReason });
         if (person.presence !== 'active' && !(person.presence === 'background' && person.presenceUncertain)) continue;
@@ -218,12 +198,6 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         if (person.kind === 'npc' && person.antagonist && conflictActive) chosen.push({ priority: 85, mandatory: true, text: `${person.name}: Opposition follows established motives and limits.` });
         if (person.denied.length) chosen.push({ priority: 90, mandatory: true, text: `${person.name}: Do not treat unshared scene or reference material as this person's knowledge.` });
         for (const item of person.profileItems) chosen.push({ supplemental: person.protectedCandidateIds?.includes(item.id) === true, priority:70+(person.recordScores?.[item.id]||0)*10, personIndex: person.index, ruleId: item.id, text: person.recordMode ? scopedRecordLine(person.name,item) : `${person.name}: ${item.rule}` });
-        for (const expression of ['inward', 'visible', 'active']) {
-            const fields = (person.affectSelections || []).filter(item => item.expression === expression).map(item => item.field);
-            if (!fields.length) continue;
-            const phrasing = { inward: 'through available viewpoint; outward expression follows their personality', visible: 'through speech or behavior', active: 'through a fitting character-led action' }[expression];
-            chosen.push({ priority: 68, text: `${person.name}: Prior state ${affectSummary(person.priorState, fields)}. Let it register ${phrasing} within the current interaction; respect established limits and do not turn a feeling into automatic consent or relationship change.` });
-        }
         if (person.kind === 'npc') {
             const role = {ally:'ally',villain:'villain',mixed:'mixed'}[person.npcRole] || 'mixed';
             chosen.push({priority:65,mandatory:true,text:`${person.name} · ${role} role: let established motives and limits color relevant conduct; the label supplies no new knowledge.`});
@@ -284,7 +258,7 @@ export function buildCharacterInjection(plan = [], { conflictActive = false, vol
         trace.omittedMandatoryCount = mandatory.filter(item=>item.personIndex===trace.index && !includedItems.includes(item)).length;
     }
     const text=lines.length ? `<CHARACTER_EXECUTION>\n${CHARACTER_INJECTION_PREAMBLE}\n${lines.join('\n')}\n</CHARACTER_EXECUTION>` : '';
-    return { text, traces, charCount:text.length, charLimit:maxChars,
+    return { text, stateText:states.text, stateChars:states.charCount, traces, charCount:text.length, charLimit:maxChars,
         deliveredKnowledge:includedItems.filter(item=>item.knowledge).map(item=>item.knowledge) };
 }
 export { CHARACTER_LIVE_SYSTEM };

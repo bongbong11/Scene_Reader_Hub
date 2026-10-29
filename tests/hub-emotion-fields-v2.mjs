@@ -28,8 +28,8 @@ for(const field of ['a','c']){
 const plan=buildLiveCharacterPlan([{id:'a',kind:'character',name:'Morgan',source:'Morgan speaks softly.'}],{canonicalOnly:true});
 plan[0].priorState={id:'a',values:{anger:15,interest:25}};
 const questions=buildCharacterTurnQuestions(plan);
-assert.ok(questions.character_0_affect_anger&&questions.character_0_affect_interest,'other missing moods cannot suppress valid expression questions');
-const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active',character_0_affect_anger:'visible',character_0_affect_interest:'inward'});
-const injection=buildCharacterInjection(resolved).text;
+assert.ok(!Object.keys(questions).some(key=>key.includes('_affect_')),'observed feelings need no second model permission');
+const resolved=resolveLiveCharacterPlan(plan,{character_0_presence:'active'});
+const injection=buildCharacterInjection(resolved).stateText;
 assert.match(injection,/anger 15%/);assert.match(injection,/interest 25%/);
 console.log('Emotion v2 passed: six-field parse, missing-only recovery, retained four-field historical coverage, NPC scope and no invented zeros.');

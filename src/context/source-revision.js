@@ -35,7 +35,7 @@ function sourceRevisionKey(rec, world, {includeVault = true} = {}) {
         seasonalContract: 2,
         seasonalDate: deps.seasonalDate?.revision() || null,
         characterBehaviorMode: normalizeBehaviorMode(deps.settings.characterBehaviorMode),
-        characterStateContract: 2,
+        characterStateContract: 3,
         characterStateRevision: Number(rec?.characterStateRevision) || 0,
         sceneGateContract: 4,
         drawContract: 3,

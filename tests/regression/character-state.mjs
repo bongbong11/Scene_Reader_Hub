@@ -106,14 +106,14 @@ assert.equal(extractStateBlock('RP\n[[SR_STATE]]C0|a101|c60[[/SR_STATE]]',roster
 
 const plan = [{ index: 0, id: 'rowan', name: 'Rowan', kind: 'character', recordMode: true, sourceVisibleToMain: true,
     profileCandidates: [], contextCandidates: [], profileSlotLimit: 4, core: { excerpts: [] }, priorState: rec.characterStateEvents[0].states[0] }];
-assert.ok(buildCharacterTurnQuestions(plan).character_0_affect_a);
-assert.ok(buildCharacterTurnQuestions(plan).character_0_affect_anger);
+assert.ok(!Object.keys(buildCharacterTurnQuestions(plan)).some(key=>key.includes('_affect_')));
 const resolved = resolveLiveCharacterPlan(plan, { character_0_presence: 'active', character_0_affect_a: 'visible', character_0_affect_anger: 'inward', character_0_affect_fear: 'none' });
 const injected = buildCharacterInjection(resolved);
-assert.match(injected.text, /sexual arousal 38%/);
-assert.match(injected.text, /anger 25% toward Felix/);
-assert.doesNotMatch(injected.text, /fear 40%/);
+assert.match(injected.stateText, /sexual arousal 38%/);
+assert.match(injected.stateText, /anger 25% toward Felix/);
+assert.match(injected.stateText, /fear 40%/,'old expression vetoes cannot hide observed feelings');
 assert.equal(buildCharacterInjection(resolveLiveCharacterPlan(plan, { character_0_presence: 'absent', character_0_affect_a: 'active' })).text, '');
+assert.equal(buildCharacterInjection(resolveLiveCharacterPlan(plan, {character_0_presence:'absent'})).stateText,'');
 assert.equal(stateRoster({enabled:true,characters:[store.characters[0]],npcs:[]},{}, {characterTrace:[{id:'rowan',presence:'absent'}]}).length,0,'absent main character does not become an automatic state target');
 const optedOut = stateForEntry({id:'felix',values:{a:70,c:40,anger:30},targets:{a:'Rowan',anger:'Ellis'}},store.npcs[0]);
 assert.equal(optedOut.values.a,undefined,'disabling NPC arousal blocks previously saved arousal from future judgment');
