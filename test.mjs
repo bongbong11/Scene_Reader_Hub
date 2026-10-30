@@ -41,7 +41,7 @@ const css = await readFile(new URL('./style.css', import.meta.url), 'utf8');
 await access(new URL(`./${manifest.js}`, import.meta.url));
 
 assert.equal(manifest.display_name, '씬판독기 Hub');
-assert.equal(manifest.version, '0.2.39');
+assert.equal(manifest.version, '0.2.40');
 assert.equal(manifest.version,HUB_VERSION,'manifest and runtime diagnostics identify the same release');
 assert.equal(pkg.version, manifest.version);
 assert.match(decisionEngineSource, /optionalProbability\(answer\?\.confidence\)/);
@@ -81,7 +81,7 @@ assert.ok(source.indexOf('현재 사건·인물 현황') < source.indexOf('장�
 assert.match(source, /장면·관계 판독/);
 assert.match(source, /사건·NPC 진행/);
 assert.match(source, /갈등·실행 점검/);
-assert.match(source, /저장 상태·실제 주입문/);
+assert.match(source, /저장 상태·주입 준비본/);
 assert.equal((source.match(/<details class="sr-details"/g) || []).length, 5, 'automatic progression result UI must group results into five accordions');
 assert.match(source, /id="sr-ooc-policy"/);
 for (const id of ['sr-continuity-enabled', 'sr-reasoner-profile', 'sr-reasoner-refresh', 'sr-reasoner-test', 'sr-continuity-results']) assert.match(source, new RegExp(`id="${id}"`));

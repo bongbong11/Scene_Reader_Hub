@@ -17,9 +17,9 @@ async function handleOocOnlySkip({ messageId = null, inputKey = '' } = {}) {
     const alreadyHandled = Boolean(idMarker ? deps.handledOocMarkers.includes(idMarker) : keyMarker && deps.handledOocMarkers.includes(keyMarker));
     rememberOocMarker(idMarker);
     rememberOocMarker(keyMarker);
-    if (!alreadyHandled) {
-        deps.updateActivity('OOC 입력 감지 · 이번 판독과 주입을 건너뜁니다.', { done: true });
-    }
+    // Finish every execution, even when this input has already been acknowledged.
+    deps.updateActivity('OOC 입력 감지 · 이번 판독과 주입을 건너뜁니다.', { done: true });
+    deps.noteDiagnostic?.('ooc_skip',{module:'src/lifecycle/ooc.js',status:'skipped',reasonCode:alreadyHandled?'OOC_ALREADY_HANDLED':'OOC_CURRENT_INPUT'});
 }
 return {rememberOocMarker, handleOocOnlySkip};
 }

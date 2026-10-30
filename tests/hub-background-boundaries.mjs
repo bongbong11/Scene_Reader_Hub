@@ -29,7 +29,8 @@ await within((async()=>{while(!finishJev)await tick();})());
 finishEmotion({result:{states:[{code:'C0',a:0,c:90,anger:0,joy:30,fear:0,sadness:0}]}});
 await tick();assert.equal(f.run('record().characterStateCapture.status'),'collecting','foreground owns the record until preparation and host generation finish');
 finishJev();await within(generation);
-assert.equal(f.run('record().characterStateCapture.status'),'collecting','prepared prompt does not wait for emotion persistence');
+// Once the Hub releases its transaction, collection may finish independently;
+// the host's generation flag is not a second application gate.
 f.run('pendingGenerationType=""');await within(collection);
 assert.notEqual(f.run('record().characterStateCapture.status'),'collecting');
 

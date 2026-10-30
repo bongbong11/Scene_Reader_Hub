@@ -20,7 +20,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const swipeId = deps.selectedStateSwipe(deps.getContext().chat?.[outputIndex]);
     const existing = owner.characterStateEvents?.find(event => event.outputIndex===outputIndex && event.swipeId===swipeId && event.fingerprint===fingerprint);
     const pending = deps.pendingProfileStateRequests.get(existing?.capture?.requestId);
-    if (pending) return pending;
+    if (pending && !pending.retryable) return pending;
     const preserved = missingOnly ? structuredClone(existing?.states || []) : [];
     const fullRoster = roster;
     if (missingOnly) {
@@ -38,6 +38,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
     const participantIds=[...new Set([...(missingOnly ? existing?.capture?.participantIds || [] : []),...fullRoster.map(person=>person.id)])];
     const started=Date.now();
     const capture = { outputIndex, swipeId, fingerprint, requestId, participantIds, status:'collecting', phase:'request', count:preserved.length, source:'profile-output' };
+    if(pending?.retryable)pending.cancel?.();
     owner.characterStateCapture = capture;
     deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic(capture)});
     deps.storeStateEvent(owner,{outputIndex,swipeId,fingerprint,states:preserved,source:'profile-output',capture},deps.STATE_HISTORY_LIMIT);
@@ -52,6 +53,8 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         deps.renderCharacterTurnResults();
     }
     let phase='request';
+    let finishFailure;
+    const failureReady=new Promise(resolve=>{finishFailure=resolve;});
     const task = (async () => {
         if (!deps.connectionRequestService) await deps.loadReasonerProfiles();
         const result = await deps.collectProfileOutputState({
@@ -60,15 +63,18 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         });
         if(controller.signal.aborted)return;
         const requestMs=Date.now()-started;
-        if(result.error&&!result.states.length){
+        const requestFailed=Boolean(result.error&&!result.states.length);
+        if(requestFailed){
             progress({status:result.error,phase:'request',requestMs,durationMs:requestMs,errorKind:result.errorKind||'EMOTION_'+result.error.toUpperCase()});
+            // Expose failure immediately and allow an explicit retry. Keep this
+            // task cancellable while its terminal status waits for safe storage.
+            task.retryable=true;
             if(chatKey===deps.stateChatKey())notifyEmotionCapture(result.error,preserved.length);
-            return;
-        }
-        progress({phase:'response',requestMs});
+            finishFailure();
+        }else progress({phase:'response',requestMs});
         phase='source';
         const waiting=Date.now();
-        progress({phase:'waiting'});
+        if(!requestFailed)progress({phase:'waiting'});
         await withRequestLifetime(async signal=>{
             await deps.waitForOutputChanges();signal.throwIfAborted();
             // The reply is already complete. Protect Hub writes, not the host's
@@ -95,40 +101,43 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         const incomplete=roster.some(person=>!absentIds.has(person.id) && missingStateFields(states.find(state=>state.id===person.id),person).length);
         const malformed=diagnostics?.actors?.some(actor=>actor.reasons?.some(reason=>reason!=='not_participating' && reason!=='missing_moods'));
         const waitMs=Date.now()-waiting;
-        progress({phase:'storage',waitMs});
-        const completed = {outputIndex,swipeId,fingerprint,requestId,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics,phase:'complete',requestMs,waitMs,...(result.errorKind?{errorKind:result.errorKind,phase:'request'}:{})};
-        const saving={...completed,status:'collecting',phase:'storage'};
-        if (selected) rec.characterStateCapture = saving;
-        deps.storeStateEvent(rec,{outputIndex,swipeId,fingerprint,states,source:'profile-output',capture:saving},deps.STATE_HISTORY_LIMIT,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
-        const snapshot=structuredClone(rec);
-        snapshot.characterStateEvents.find(event=>event.capture?.requestId===requestId).capture=completed;
-        if(snapshot.characterStateCapture?.requestId===requestId)snapshot.characterStateCapture=completed;
+        const completed = {outputIndex,swipeId,fingerprint,requestId,participantIds,status:result.error || (incomplete?'incomplete':malformed?'partial':states.length?'collected':'empty'),count:states.length,source:'profile-output',diagnostics,phase:'complete',requestMs,waitMs,...(result.error?{errorKind:result.errorKind||'EMOTION_'+result.error.toUpperCase(),phase:'request'}:{})};
+        // Publish one terminal capture to the shared record. Other normal saves
+        // must see the same result, never a temporary collecting snapshot.
+        if (selected) rec.characterStateCapture = completed;
+        deps.storeStateEvent(rec,{outputIndex,swipeId,fingerprint,states,source:'profile-output',capture:completed},deps.STATE_HISTORY_LIMIT,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
+        task.saving=!requestFailed;
+        if(task.saving)deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',...captureDiagnostic({...completed,status:'collecting',phase:'storage'})});
+        deps.renderCharacterTurnResults();
         phase='storage';
-        await deps.persistChat(chatKey,snapshot);
+        await deps.persistChat(chatKey);
+        task.saving=false;
         if(controller.signal.aborted)return;
         completed.durationMs=Date.now()-started;
         phase='render';
         progress(completed);
         if (chatKey === deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             deps.renderAll();
-            notifyEmotionCapture(completed.status,completed.count,selected);
+            if(!requestFailed)notifyEmotionCapture(completed.status,completed.count,selected);
         }
     })().catch(error => {
         if(controller.signal.aborted)return;
         if(chatKey===deps.stateChatKey() && deps.pendingProfileStateRequests.has(requestId)) {
             const rec=deps.record();
-            const event=rec?.characterStateEvents?.find(item=>item.outputIndex===outputIndex && item.swipeId===swipeId && item.fingerprint===fingerprint);
+            const event=rec?.characterStateEvents?.find(item=>item.capture?.requestId===requestId);
+            if(!event)return; // A newer retry or output change owns this slot now.
             const status=phase==='storage'&&!error.storageSaved?'save_failed':'processing_failed';
             const errorKind=phase==='source'&&error.code==='REQUEST_TIMEOUT'?'EMOTION_APPLY_TIMEOUT':/^[A-Z][A-Z0-9_]{0,79}$/.test(error.code||'')?error.code:'EMOTION_PROCESSING_FAILED';
             if(event) {
                 if(!error.storageSaved)event.states=preserved;
                 event.capture={...capture,status,count:event.states.length,errorKind,phase:error.phase||phase};
-                if(rec.characterStateCapture?.fingerprint===fingerprint && rec.characterStateCapture?.swipeId===swipeId)rec.characterStateCapture=event.capture;
+                if(rec.characterStateCapture?.requestId===requestId)rec.characterStateCapture=event.capture;
             }
             notifyEmotionCapture(status);
             deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status,errorKind,phase:error.phase||phase});
         }
     }).finally(()=>{
+        task.saving=false;
         const rec=chatKey===deps.stateChatKey()?deps.record():null;
         if(rec?.characterStateEvents?.some(event=>event.capture?.requestId===requestId&&event.capture.status==='collecting'))progress({status:'cancelled',phase,errorKind:'EMOTION_SOURCE_CHANGED'});
         deps.pendingProfileStateRequests.delete(requestId);
@@ -144,6 +153,7 @@ function scheduleProfileStateCollection({ chatKey, outputIndex, text, roster, mi
         deps.noteDiagnostic?.('character_state_capture',{module:'src/character/emotion-runtime.js',status:'cancelled',errorKind:'ANALYSIS_CANCELLED'});
     };
     task.cancel=()=>{controller.abort();closeCancelled();};
+    task.failureReady=failureReady;
     deps.pendingProfileStateCollection = task;
     deps.pendingProfileStateRequests.set(requestId,task);
     notifyEmotionCapture('collecting');
@@ -170,7 +180,10 @@ async function collectCurrentEmotion() {
     judgment={...judgment,characterTrace:entries.map(entry=>({id:entry.id,presence:judgment.characterTrace.find(p=>p.id===entry.id)?.presence==='active'?'active':'background'}))};
     const roster=deps.stateRoster(deps.characterStore,rec.preferences,judgment);
     if (!roster.length) throw new Error('감정을 읽을 참여 인물이 없습니다. 인물 기록과 판독 결과를 확인하세요.');
-    await scheduleProfileStateCollection({chatKey:deps.stateChatKey(),outputIndex,text,roster,missingOnly:true});
+    const task=scheduleProfileStateCollection({chatKey:deps.stateChatKey(),outputIndex,text,roster,missingOnly:true});
+    // A known request failure releases the manual button immediately. Its
+    // tracked task still saves the terminal status once the Hub is idle.
+    if(task)await Promise.race([task,task.failureReady]);
 }
 return {notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion};
 }

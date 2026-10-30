@@ -29,7 +29,7 @@ export function createPagedTransport(post,{noteDiagnostic}={}) {
   for(const item of writes)roots[item.key]=await encodeTree(prepare?await prepare(emit):item.value,emit,{signal});
   let result;
   try{result=await post('v2/operations/commit',{operationId,roots,...(chatKey?{chatKey}:{})},{signal});}
-  catch(error){const status=await post('v2/operations/status',{operationId},{allowFailure:true});if(status?.operation?.status!=='committed')throw error;if(Object.entries(roots).some(([key,root])=>status.operation.results?.[key]?.root!==root))throw error;result=status;noteDiagnostic?.('storage_resolution',{module:'src/storage/paged-transport.js',phase:'v2/operations/commit',status:'succeeded',code:'STORAGE_COMMIT_RECOVERED'});}
+  catch(error){const status=await post('v2/operations/status',{operationId},{allowFailure:true});if(status?.operation?.status!=='committed')throw error;if(Object.entries(roots).some(([key,root])=>status.operation.results?.[key]?.root!==root))throw error;result=status;noteDiagnostic?.('storage_resolution',{module:'src/storage/paged-transport.js',phase:'v2/operations/commit',storageScope:error.storageScope||'',status:'succeeded',code:'STORAGE_COMMIT_RECOVERED'});}
   for(const hash of known){uploaded.add(hash);if(uploaded.size>32768)uploaded.delete(uploaded.values().next().value);}for(const [key,meta]of Object.entries(result.operation.results))revisions.set(key,meta.revision);return result.operation;
  }
  return {capabilities,read,select,write:(key,value,options={})=>writeMany([{key,value,immutable:options.immutable}],options),writeMany,clear(){capabilityPromise=undefined;revisions.clear();cache.clear();uploaded.clear();used=0;},revision:key=>revisions.get(key)||0};

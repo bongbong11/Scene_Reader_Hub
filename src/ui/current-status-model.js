@@ -19,7 +19,7 @@ function advice(id,event) {
     if(id==='embedding')return '상단 임베딩 재시도로 누락된 기록을 다시 처리하세요. 정상 완료된 기록은 재사용합니다.';
     if(id==='search')return '검색 실패 시 단어 매칭으로 진행합니다. 연결을 확인한 뒤 판독을 다시 시도하세요. 전체 재생성은 필요하지 않을 수 있습니다.';
     if(id==='scene'||id==='decision')return /TIMEOUT/.test(code)?'제브 응답 시간이 초과됐습니다. 잠시 후 판독을 다시 시도해 주세요.':'제브 판정 응답을 확인하지 못했습니다. 연결 확인 또는 전체 로그 복사를 이용하세요.';
-    if(id==='storage')return '저장 성공을 확인하지 못했습니다. 저장소 연결을 확인해 주세요.';
+    if(id==='storage')return event.httpStatus===409?'저장 내용이 변경되어 충돌했습니다. 최신 저장 상태를 확인한 뒤 다시 시도하세요.':event.httpStatus?'저장소가 요청을 처리하지 못했습니다. 오류 코드와 저장 상태를 확인해 주세요.':'저장소 응답을 확인하지 못했습니다. 연결과 저장 상태를 확인해 주세요.';
     if(id==='delivery'||id==='preparation')return '주입 위치와 프리셋 기준 항목을 확인해 주세요. 상세 원인은 전체 로그로 확인할 수 있습니다.';
     return '이번 실행을 완료하지 못했습니다. 전체 로그를 복사해 실패 원인을 확인해 주세요.';
 }
@@ -40,14 +40,15 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
     const pendingFailures=new Map();
     function reset() {entries.clear();pendingFailures.clear();cycleId='';settled=false;valid=false;sharedSearch='';}
     function rememberFailures(id) {
-        for(const row of entries.values())if(row.state==='failed' && !AUXILIARY.has(row.id) && (!id||row.id===id))pendingFailures.set(row.id,row);
+        for(const [key,row] of entries)if(row.state==='failed' && !AUXILIARY.has(row.id) && (!id||row.id===id))pendingFailures.set(key,row);
+        while(pendingFailures.size>256)pendingFailures.delete(pendingFailures.keys().next().value);
     }
     function set(id,event,{key='',state=normalize(event.status),message='',sticky=true}={}) {
         const identity=`${id}:${key}`,prior=entries.get(identity);
         // A later small connection test or another bank's success must not hide a failure.
         if(sticky && prior?.state==='failed' && state!=='failed')return;
-        entries.set(identity,{id,state,message:message || (state==='failed'?advice(id,event):''),code:errorCode(event),at:event.at || ''});
-        if(entries.size>256)entries.delete(entries.keys().next().value);
+        entries.set(identity,{id,state,message:message || (state==='failed'?advice(id,event):''),code:errorCode(event),scope:event.storageScope||'',phase:event.phase||'',at:event.at || ''});
+        if(entries.size>256)entries.delete([...entries].find(([,row])=>row.state!=='failed'&&row.state!=='running')?.[0]||entries.keys().next().value);
     }
     function finishPending(state) {
         for(const [key,value] of entries)if(value.state==='running')entries.set(key,{...value,state,message:state==='cancelled'?'이번 작업이 중단됐습니다.':'이후 단계는 실행하지 않았습니다.'});
@@ -73,7 +74,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
                 rememberFailures('embedding');
                 for(const [key,row] of entries)if(row.id==='embedding')entries.delete(key);
             }
-            if(event.status==='succeeded')pendingFailures.delete('embedding');
+            if(event.status==='succeeded')for(const [key,row] of pendingFailures)if(row.id==='embedding')pendingFailures.delete(key);
             set('embedding',event,{key:'maintenance',message:event.status==='succeeded'?`확인 완료 · 재사용 ${event.reusedCount || 0}개 · 생성 ${event.generatedCount || 0}개`:''});return;
         }
         if(event.stage==='retrieval_request') {
@@ -118,14 +119,24 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
             // Duplicate notices do not replace an actual result.
             return;
         }
-        if(event.stage==='storage_resolution'&&event.status==='succeeded'){set('storage',event,{key:event.phase||'',sticky:false,message:'실제 저장 완료를 다시 확인했습니다.'});pendingFailures.delete('storage');return;}
-        if(event.stage==='storage_request') {set('storage',event,{key:event.phase || ''});return;}
+        if(event.stage==='storage_resolution'&&event.status==='succeeded'){
+            // Commit readback verifies this operation, not every failed storage request.
+            const key=event.storageScope||event.phase||'';
+            for(const [identity,row] of entries)if(row.id==='storage'&&(event.storageScope?row.scope===event.storageScope:!row.scope&&row.phase===event.phase))entries.delete(identity);
+            for(const [identity,row] of pendingFailures)if(row.id==='storage'&&(event.storageScope?row.scope===event.storageScope:!row.scope&&row.phase===event.phase))pendingFailures.delete(identity);
+            set('storage',event,{key,sticky:false,message:'실제 저장 완료를 다시 확인했습니다.'});return;
+        }
+        if(event.stage==='storage_request') {
+            const recovered=event.status==='succeeded'&&Boolean(event.storageScope);
+            if(recovered)for(const [key,row] of pendingFailures)if(row.id==='storage'&&row.scope===event.storageScope)pendingFailures.delete(key);
+            set('storage',event,{key:event.storageScope||event.phase||'',sticky:!recovered});return;
+        }
         if(event.code==='PROMPT_REGISTERED') {
             set('preparation',event,{state:'success',message:'주입문 등록 완료 · 실제 요청 포함은 아직 확인 전입니다.'});
             set('delivery',event,{state:event.payloadChars || event.worldChars?'idle':'skipped',message:event.payloadChars || event.worldChars?'생성 요청 전송 시 확인합니다.':'이번 판독에서 추가할 주입문이 없습니다.',sticky:false});return;
         }
         if(event.code==='PROMPT_OBSERVED') {
-            const expected=[event.scene,event.world,event.character].filter(value=>value && value!=='not_expected');
+            const expected=[event.scene,event.world,event.character,event.state].filter(value=>value && value!=='not_expected');
             const missing=event.phase==='request'&&expected.includes('unconfirmed');
             const confirmed=expected.length>0 && expected.every(value=>value==='confirmed');
             set('delivery',event,{state:missing?'failed':event.phase==='request'&&confirmed?'success':'idle',
@@ -153,7 +164,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
         const failed=rows.some(row=>row.state==='failed');
         const delivered=rows.find(row=>row.id==='delivery');
         const complete=valid&&settled&&!rows.some(row=>row.id!=='continuity'&&row.state==='running')&&['success','skipped'].includes(delivered.state);
-        if(complete&&!failed)for(const id of pendingFailures.keys())if(!AUXILIARY.has(id))pendingFailures.delete(id);
+        if(complete&&!failed)for(const [key,row] of pendingFailures)if(!AUXILIARY.has(row.id)&&row.id!=='storage')pendingFailures.delete(key);
         let unresolved=false;
         for(const previous of pendingFailures.values()){
             unresolved=true;

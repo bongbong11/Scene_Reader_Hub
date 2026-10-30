@@ -21,7 +21,7 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
         const text=await page.locator('#sr-macro-preview').innerText();
         return text;
     }
-    assert.match(await previewText(),/아직 전송 전/);
+    assert.match(await previewText(),/전송 기록을 비웠습니다/);
     await page.locator('#sr-macro-preview button').click();
     await page.evaluate(()=>{
         const original=HTMLDialogElement.prototype.showModal;
@@ -96,7 +96,7 @@ export async function checkCharacterMacro(page,store,requests,setViewportSize) {
         assert.ok(box.x>=0 && box.x+box.width<=width+1,'transmission dialog fits mobile and desktop');
     }
     await page.evaluate(async()=>{await mock.emit('GENERATION_STARTED','normal',{},false);});
-    assert.match(await page.locator('#sr-macro-preview').innerText(),/아직 전송 전/);
+    assert.match(await page.locator('#sr-macro-preview').innerText(),/전송 기록을 비웠습니다/);
     assert.equal(await page.locator('#sr-macro-preview pre').textContent(),'','an open preview drops old content immediately');
     await page.locator('#sr-macro-preview button').click();
     await page.locator('#sr-settings-button').click();

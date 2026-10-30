@@ -881,7 +881,8 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await page.evaluate(async()=>{mock.streamingEnabled=false;ctx.mainApi='openai';ctx.chatCompletionSettings={n:2};await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
     assert.equal(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),'','multiple completions do not receive unsupported metadata requests');
     await page.evaluate(async()=>{ctx.chatCompletionSettings.n=1;await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'single nonstream output resumes state collection inside the scene slot');
+    assert.match(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),/\[\[SR_STATE\]\]/,'single nonstream output resumes collection in its independent metadata slot');
+    assert.doesNotMatch(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'the basic RP slot does not duplicate the collection command');
     for(const width of [320,390]) {
         await setViewportSize({width,height:850});
         assert.equal(await page.locator('#scene-reader-dialog').evaluate(e=>e.scrollWidth>e.clientWidth+2),false,'search settings overflow at '+width);
@@ -985,7 +986,7 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     await Promise.all([page.waitForResponse(response=>response.url().endsWith('/chat')),page.locator('#sr-profile-emotion').uncheck()]);
     assert.equal(await page.locator('#sr-emotion-now').isVisible(),true,'manual recovery remains available in main-output mode');
     await page.evaluate(async()=>{mock.streamingEnabled=false;await mock.emit('GENERATION_AFTER_COMMANDS','normal',{},false);});
-    assert.match(await page.evaluate(async()=>await mock.slotText('scene')),/\[\[SR_STATE\]\]/,'turning the option off restores main-model collection inside the scene slot');
+    assert.match(await page.evaluate(()=>mock.prompts['scene-reader-state-capture']),/\[\[SR_STATE\]\]/,'turning profile collection off restores main-model collection in the independent metadata slot');
     await page.locator('#sr-settings-button').click();
     await page.locator('#sr-enabled').uncheck();
     await page.waitForFunction(()=>!JSON.stringify(mock.prompts).includes('Halloween'));

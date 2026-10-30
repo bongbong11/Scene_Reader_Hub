@@ -1,1 +1,1 @@
-export const HUB_VERSION='0.2.39';
+export const HUB_VERSION='0.2.40';

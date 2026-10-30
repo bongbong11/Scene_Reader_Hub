@@ -26,8 +26,9 @@ const success={states:[{id:'m',coverageVersion:2,values:{anger:10,interest:20},t
     const f=setup({result:{states:[],error:'timeout',errorKind:'PROFILE_TIMEOUT'},hubBusy:true,hostBusy:true});
     const task=f.start();await tick();
     assert.equal(f.record.characterStateCapture.status,'timeout','known request failure is visible before any apply wait');
-    assert.equal(f.deps.pendingProfileStateRequests.size,0,'failure releases the collection button without waiting for generation');
-    f.idle();await task;
+    assert.equal(task.retryable,true,'a known failure allows a new explicit retry while its status waits for safe storage');
+    assert.equal(f.saves,0,'failure persistence must not race a Hub transaction');
+    f.idle();await task;assert.equal(f.saves,1);assert.equal(f.deps.pendingProfileStateRequests.size,0);
 }
 {
     const f=setup({result:success,hostBusy:true});await f.start();
@@ -42,11 +43,12 @@ const success={states:[{id:'m',coverageVersion:2,values:{anger:10,interest:20},t
 }
 {
     let finish,snapshot;const f=setup({result:success});
-    f.deps.persistChat=async(_key,value)=>{snapshot=value;await new Promise(resolve=>{finish=resolve;});};
+    f.deps.persistChat=async(_key,value=f.record)=>{snapshot=structuredClone(value);await new Promise(resolve=>{finish=resolve;});};
     const task=f.start();await tick();
-    assert.equal(f.record.characterStateCapture.phase,'storage');assert.equal(f.record.characterStateCapture.status,'collecting','save readiness is not announced as completion');
+    assert.equal(task.saving,true,'save activity is transient and not written into the persisted result');
+    assert.equal(f.record.characterStateCapture.status,'incomplete','concurrent saves read the terminal result');
     assert.equal(snapshot.characterStateCapture.status,'incomplete','saved snapshot has a terminal status for reload');
-    finish();await task;assert.equal(f.record.characterStateCapture.status,'incomplete');
+    finish();await task;assert.equal(f.record.characterStateCapture.status,'incomplete');assert.equal(task.saving,false);
 }
 {
     const f=setup({result:success,sourceWait:()=>new Promise(()=>{}),applyTimeoutMs:10});await f.start();

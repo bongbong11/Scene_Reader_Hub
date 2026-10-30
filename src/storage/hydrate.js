@@ -115,9 +115,9 @@ async function hydrateServerState({ migrate = true } = {}) {
     if (!current()) return false;
     deps.characterStore = deps.normalizeCharacterStore(data.characters);
     deps.messageSnapshots.set(chatKey, deps.messageSnapshot(deps.getContext().chat));
-    await deps.loadReasonerProfiles();
-    if (!current()) return false;
     deps.companionStorage?.chatLoaded(chatKey);
+    // Storage is ready after its own migrations; optional profile UI cannot delay it.
+    void Promise.resolve().then(()=>{if(current())return deps.loadReasonerProfiles();}).catch(()=>deps.noteDiagnostic?.('profile_list',{module:'src/storage/hydrate.js',status:'warning',errorKind:'PROFILE_LIST_FAILED'}));
     return true;
 }
 return {hydrateServerState};

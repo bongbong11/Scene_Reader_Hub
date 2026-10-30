@@ -37,22 +37,23 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     const sceneSuppressed=sceneNative&&placement.preset.prompts.some(p=>p.identifier===PRESET_ENTRIES.scene.identifier&&!p.enabled);
     const independent=Boolean(placement),characterMode=placement?.character||'depth';
     const parts=deliveryParts({payload,characterDelivery:payload?judgment?.characterDelivery:null,worldPayload,scenePreset,worldPreset,characterMode});
-    const roster = deps.settings.enabled && sourceCurrent && !sceneSuppressed ? deps.stateRoster(deps.characterStore, rec?.preferences, rec?.lastJudgment,{recheckOutput:deps.STATE_COLLECTOR_MODE==='profile-output'}) : [];
+    const roster = deps.settings.enabled && sourceCurrent ? deps.stateRoster(deps.characterStore, rec?.preferences, rec?.lastJudgment,{recheckOutput:deps.STATE_COLLECTOR_MODE==='profile-output'}) : [];
     const stateCollectionPaused = rec?.lastJudgment?.sceneIntimacy?.route === 'paused';
     const context = deps.getContext();
     const multipleOutputs = context.mainApi === 'openai' && Number(context.chatCompletionSettings?.n) > 1;
     const mainCapture = !stateCollectionPaused && deps.STATE_COLLECTOR_MODE === 'main-output' && !deps.isStreamingEnabled() && !multipleOutputs;
     const capturePayload=mainCapture ? deps.mainOutputStatePrompt(roster) : '';
-    const basePayload=independent?[parts.base,!scenePreset?capturePayload:''].filter(Boolean).join('\n\n'):'';
+    const basePayload=independent?parts.base:'';
     wrotePrompt=true;
     await deps.setExtensionPrompt(deps.INJECT_KEY,independent?basePayload:scenePreset?'':payload,deps.IN_CHAT,0,false,deps.SYSTEM_ROLE);
     assertOwner();
     await deps.setExtensionPrompt(deps.WORLD_INJECT_KEY,independent?'':worldPreset?'':worldPayload,deps.IN_CHAT,0,false,deps.SYSTEM_ROLE);
     assertOwner();
-    await deps.setExtensionPrompt(deps.STATE_CAPTURE_KEY, independent?'':scenePreset?'':capturePayload, deps.IN_CHAT, 0, false, deps.SYSTEM_ROLE);
+    // Collection metadata uses its own existing slot, independently of RP delivery toggles.
+    await deps.setExtensionPrompt(deps.STATE_CAPTURE_KEY, independent?capturePayload:scenePreset?'':capturePayload, deps.IN_CHAT, 0, false, deps.SYSTEM_ROLE);
     assertOwner();
     const slots=deps.getContext().extensionPrompts;
-    if(slots)for(const [key,expected] of [[deps.INJECT_KEY,independent?basePayload:scenePreset?'':payload],[deps.WORLD_INJECT_KEY,independent?'':worldPreset?'':worldPayload],[deps.STATE_CAPTURE_KEY,independent?'':scenePreset?'':capturePayload]]) {
+    if(slots)for(const [key,expected] of [[deps.INJECT_KEY,independent?basePayload:scenePreset?'':payload],[deps.WORLD_INJECT_KEY,independent?'':worldPreset?'':worldPayload],[deps.STATE_CAPTURE_KEY,independent?capturePayload:scenePreset?'':capturePayload]]) {
         const slot=slots[key];
         const actual=typeof slot==='string'?slot:slot?.value||'';
         if(actual!==expected)throw new Error('주입문이 SillyTavern에 등록되지 않았습니다: '+key);
@@ -60,9 +61,10 @@ async function applyStoredInjection({ exactSnapshot = false, validate = null } =
     deps.activeInjectionPayload = payload;
     deps.activeMacroPayload = '';
     deps.activeWorldMacroPayload = '';
-    const routing=independent?{independentDelivery:true,basePayload,baseWithoutCharacter:[parts.withoutCharacter,!scenePreset?capturePayload:''].filter(Boolean).join('\n\n'),deliveryPayload:!scenePreset&&characterMode!=='entry'?payload:parts.scene,independentScene:parts.scene,independentCharacter:parts.character,characterMode,characterNative:characterMode==='entry',characterPreset:characterMode==='entry'}:{};
+    const routing=independent?{independentDelivery:true,captureStandalone:true,basePayload,baseWithoutCharacter:parts.withoutCharacter,deliveryPayload:!scenePreset&&characterMode!=='entry'?payload:parts.scene,independentScene:parts.scene,independentCharacter:parts.character,characterMode,characterNative:characterMode==='entry',characterPreset:characterMode==='entry'}:{};
     deps.activeGenerationCycle = { ...deps.activeGenerationCycle, injection:{chatKey,visibilityKeyV1:visibility,payload,characterDelivery:payload?judgment?.characterDelivery:null,worldPayload,capturePayload,activity:payload?judgment?.activity||{}:{},additionBlocks:payload?judgment?.additionBlocks||[]:[],scenePreset,worldPreset,sceneNative,worldNative,sceneSuppressed,presetKey:placement?.key||'',sceneSlot:normalizePresetSlot(placement?.sceneSlot||rec?.preferences?.scenePresetSlot),worldSlot:normalizePresetSlot(placement?.worldSlot||rec?.preferences?.worldPresetSlot),registrationVerified:Boolean(slots),judgmentWarning:Boolean(judgment?.sceneIntimacy?.error||[judgment?.opportunityPlan?.event,judgment?.opportunityPlan?.person].some(item=>item?.reasonCode==='invalid_selection')||(judgment?.jevDiagnostics?.valid<judgment?.jevDiagnostics?.requested))}, stateRoster: roster, stateCollectorMode: deps.STATE_COLLECTOR_MODE, stateCollectionPaused, stateCaptureEnabled: !scenePreset && mainCapture && roster.length > 0 };
     Object.assign(deps.activeGenerationCycle.injection,routing);
+    if(independent)deps.activeGenerationCycle.stateCaptureEnabled=mainCapture&&roster.length>0;
     deps.activeGenerationCycle.injection.statePayload=payload?judgment?.statePayload||'':'';
     const preview = deps.document.getElementById('sr-prompt-preview');
     if (preview) preview.textContent = payload || '현재 주입문 없음';

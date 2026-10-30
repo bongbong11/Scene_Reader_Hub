@@ -225,6 +225,7 @@ let {recentContext, currentInputKey} = createContextRuntime({
 });
 
 let {rememberOocMarker, handleOocOnlySkip} = createOocLifecycle({
+    get noteDiagnostic() { return noteDiagnostic; },
     get activeGenerationCycle() { return runtime.activeGenerationCycle; }, set activeGenerationCycle(value) { runtime.activeGenerationCycle = value; },
     get clearInjection() { return clearInjection; },
     get generationMode() { return runtime.generationMode; }, set generationMode(value) { runtime.generationMode = value; },
@@ -384,7 +385,7 @@ let {init} = createStartup({
     get hub() { return hub; },
     initPresetRequest:async()=>{await presetEntries.init();await presetRequest.init();watchPresetPlacement({host:presetEntries,eventSource,types:event_types,
         busy:()=>Boolean(runtime.judgeInFlight||runtime.pendingGenerationType),refresh:()=>setFormValues(),
-        clearPreview:presetRequest.preview.clear,reapply:()=>applyStoredInjection(),report:noteDiagnostic});},
+        clearPreview:presetRequest.preview.clear,reapply:validate=>applyStoredInjection({validate}),getScope:()=>stateChatKey(),report:noteDiagnostic});},
     resetPresetRequest:presetRequest.reset,
     finishPresetRequest:presetRequest.finish,
     clearTransmissionPreview:presetRequest.preview.clear,
@@ -539,6 +540,7 @@ let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults,
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
     isStateCapturePending: requestId => runtime.pendingProfileStateRequests.has(requestId),
+    isStateCaptureSaving: requestId => Boolean(runtime.pendingProfileStateRequests.get(requestId)?.saving),
     readState: () => ({settings: runtime.settings, characterStore: runtime.characterStore, backupList: runtime.backupList, reasonerProfiles: runtime.reasonerProfiles, reasonerProfileError: runtime.reasonerProfileError, characterAnalysisSelection: runtime.characterAnalysisSelection, activeInjectionPayload: runtime.activeInjectionPayload}),
     selectCharacter: value => {runtime.characterAnalysisSelection = value;},
 });
