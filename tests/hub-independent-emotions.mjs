@@ -85,7 +85,7 @@ try{
  current=other;await assert.rejects(store.save(room),{code:'EMOTION_SOURCE_CHANGED'});
  // Restore may replace the emotion object while retaining an old request ID.
  // A late pre-restore response must not publish into that new object.
- let owned={characterStateEvents:[]},lateResolve,saves=0;
+ current=room;let owned={characterStateEvents:[]},lateResolve,saves=0;
  const isolated={...deps,emotionStorage:{state:()=>owned,enabled:()=>true,blocked:()=>false,save:async()=>{saves++;}},collectProfileOutputState:()=>new Promise(resolve=>lateResolve=resolve),pendingProfileStateRequests:new Map()};
  const pending=createEmotionRuntime(isolated).scheduleProfileStateCollection({chatKey:room,outputIndex:0,text:chat[0].mes,roster:[{id:'test',code:'C0',trackArousal:false,coverageVersion:2}]});
  owned=structuredClone(owned);const restored=JSON.stringify(owned);
