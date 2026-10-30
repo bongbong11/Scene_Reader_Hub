@@ -10,7 +10,7 @@ async function waitForOutputChanges() { await deps.outputChangePromise; }
 async function rollbackChangedOutput(messageId, kind = 'changed') {
     deps.invalidateReasonerJobs({preserveProfileStates:kind === 'swiped'});
     const currentRecord = deps.record();
-    const rec = currentRecord ? structuredClone(currentRecord) : null;
+    const rec = currentRecord ? structuredClone(deps.emotionStorage?.view(currentRecord)||currentRecord) : null;
     if (!rec) return;
     const chatKey = deps.stateChatKey();
     let history = structuredClone(await deps.loadStateHistory(chatKey));

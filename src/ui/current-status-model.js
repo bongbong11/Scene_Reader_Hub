@@ -92,6 +92,10 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
         if(event.stage==='jev_request') {
             set(event.requestKind==='scene'?'scene':'decision',event,{message:event.status==='degraded'?'일부 판정 응답이 누락되거나 형식이 맞지 않습니다. 전체 로그를 확인해 주세요.':''});return;
         }
+        if(event.stage==='emotion_storage'){
+            if(event.status==='succeeded')pendingFailures.delete('storage:emotion');
+            set('storage',event,{key:'emotion',sticky:false,message:event.status==='failed'?'감정 저장소 확인 필요 · 연속성·주입은 별도로 진행합니다.':'감정 자료 저장 확인'});return;
+        }
         if(['history_analysis','profile_request','character_state_capture','auxiliary_result','analysis_vault'].includes(event.stage))return;
         if(event.stage==='visibility') {set('preparation',event,{state:event.status==='failed'?'failed':'skipped',sticky:false,message:event.status==='failed'?'숨김 반영 실패 · 다음 실행 전에 확인해 주세요.':'가시성 변경 반영 · 이전 주입은 해제했습니다.'});return;}
         // Transport/capture events cannot prove that continuity actually ran.

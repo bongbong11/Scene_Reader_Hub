@@ -69,7 +69,7 @@ export function createSharedRouter(deps) {
         return serial(view.link.storylineId,async()=>{
             if(epoch!==started || views.get(chatKey)!==view)throw fail('STORAGE_STALE_CHAT','채팅 연결이 바뀌었습니다.');
             const ref=chatRef(chatKey);
-            const state=confirmedStory(record,{chat:chatKey===deps.stateChatKey()?deps.getContext().chat:[],fingerprint:deps.stableFingerprint,sourceChatRef:ref,sourceChatKey:chatKey});
+            const state=confirmedStory(deps.emotionView?.(record,chatKey)||record,{chat:chatKey===deps.stateChatKey()?deps.getContext().chat:[],fingerprint:deps.stableFingerprint,sourceChatRef:ref,sourceChatKey:chatKey});
             const prior=view.story.checkpoints[view.link.checkpointId]?.state || {};
             let story=view.story,link={...view.link},confirmed=prior;
             if(link.active && digest(state)!==digest(prior)) {
@@ -146,5 +146,5 @@ export function createSharedRouter(deps) {
         else if(view?.v2Active&&['chat','transaction','history','characters'].includes(route))return saveIndependent(view,body.chatKey,route,body,options);
         return deps.post(route,body,options);
     }
-    return {post,documents,views,required,serial,metadata,clear,resolve,scope:()=>userScope,updateBaseline:saveCharacters,rawPost:deps.post,subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);}};
+    return {post,documents,views,required,serial,metadata,clear,resolve,emotionView:(record,chatKey)=>deps.emotionView?.(record,chatKey)||record,scope:()=>userScope,updateBaseline:saveCharacters,rawPost:deps.post,subscribe(listener){listeners.add(listener);return()=>listeners.delete(listener);}};
 }

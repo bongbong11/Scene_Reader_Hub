@@ -2,11 +2,13 @@
 
 캐릭터의 성격과 설정을 지키며, 대화·관계·사건이 자연스럽게 이어지도록 돕는 SillyTavern 확장입니다. Jev가 최근 롤플레잉 대화를 판독하고, 다음 답변에 필요한 진행 방향과 인물 기록을 골라 전달합니다.
 
-**Hub 0.2.40 · Jev 서버 플러그인 0.10.3**
+**Hub 0.2.41 · Jev 서버 플러그인 0.10.4**
 
 실제 이야기는 채팅 모델이 작성합니다. 판독 결과가 전달되어도 모델이 지시를 놓치거나 다르게 표현할 수 있습니다. 씬판독기의 결과 화면에서는 **주입 준비 → 실제 요청 포함 → 답변에서 실행됐는지 확인**을 구분합니다.
 
-이번 자료 정리 기능은 **화면 확장과 서버 플러그인 0.10.3를 함께 업데이트**한 뒤 SillyTavern을 재시작하고 브라우저를 새로고침하세요. 기존 인물 JSON을 다시 만들거나 재임베딩할 필요는 없습니다. 플러그인은 아래 명령어로 덮어쓸 수 있습니다. 자세한 변경 사항은 [업데이트 내역](CHANGELOG.md)을 확인하세요.
+감정 독립 저장을 사용하려면 **화면 확장과 서버 플러그인 0.10.4를 함께 업데이트**한 뒤 SillyTavern을 재시작하고 브라우저를 새로고침하세요. 기존 인물 JSON을 다시 만들거나 재임베딩할 필요는 없습니다. 플러그인은 아래 명령어로 덮어쓸 수 있습니다. 자세한 변경 사항은 [업데이트 내역](CHANGELOG.md)을 확인하세요.
+
+감정 독립 저장은 공유 저장소 V2에서 적용됩니다. 구형 파일 저장소는 기존 방식으로 유지하며 자동 전환하지 않습니다. 새 방식으로 저장한 최신 감정은 구버전 Hub에서 읽지 못할 수 있습니다.
 
 ## 처음 시작하기
 
@@ -36,7 +38,7 @@ https://github.com/bongbong11/Scene_Reader_Hub.git
 
 ### 서버 플러그인
 
-**[서버 플러그인 0.10.3 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.10.3.zip)**
+**[서버 플러그인 0.10.4 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.10.4.zip)**
 
 압축을 직접 풀지 않고 아래 명령으로 설치하거나 업데이트할 수도 있습니다. **SillyTavern을 종료한 뒤, SillyTavern 폴더에서** 해당 명령 한 줄을 실행하세요. Node.js와 curl이 필요합니다. 완료 후에는 SillyTavern을 다시 시작하세요.
 
@@ -116,7 +118,7 @@ Jev 판독은 TypeSafe 공홈 또는 나노GPT 구독 전용 연결을 선택합
 
 ### 나노GPT 구독으로 Jev 사용하기
 
-서버 플러그인 **0.10.3**로 업데이트하고 SillyTavern을 재시작한 뒤 설정하세요.
+서버 플러그인 **0.10.4**로 업데이트하고 SillyTavern을 재시작한 뒤 설정하세요.
 
 1. [나노GPT API 키 관리](https://nano-gpt.com/api)에서 사용할 키의 Billing을 **Subscription only**로 설정합니다.
 2. Hub의 **Jev 판독 → 나노GPT · 구독 전용**을 선택합니다.

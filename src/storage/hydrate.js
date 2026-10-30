@@ -8,6 +8,7 @@ async function hydrateServerState({ migrate = true } = {}) {
     const placementBeforeRestore=!migrate&&deps.settings?.injectionPlacementsV1?structuredClone(deps.settings.injectionPlacementsV1):null;
     const chatKey = deps.stateChatKey();
     deps.companionStorage?.chatLoading(chatKey);
+    deps.emotionStorage?.unload(chatKey);
     const sequence = ++deps.hydrateSequence;
     const current = () => sequence === deps.hydrateSequence && chatKey === deps.stateChatKey();
     const data = await deps.storagePost('bootstrap', { chatKey, legacyChatKey:deps.legacyStateChatKey?.() }, { allowFailure: true });

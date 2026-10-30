@@ -141,7 +141,7 @@ export function createAuxiliaryRuntime(deps){
         return entry;
     }
     function queue(index){return schedule(index).completion;}
-    function observe(index){stopped=false;return schedule(index).registration;}
+    function observe(index){stopped=false;return schedule(index).registration.catch(()=>({status:'failed'}));}
     // Restoring a room is read-only: leave pending work for the next completed
     // turn. Do not start the scheduler or the Vault bridge.
     function restore(){

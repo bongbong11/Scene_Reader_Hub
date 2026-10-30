@@ -119,6 +119,8 @@ async function restore(root,{id,sourceRef,targetChatKey,confirmOwner=false,opera
     await require('./migration.cjs').migrate(root,{source});
     const currentState=await tx.snapshot(root);
     const target=hash(targetChatKey),values={[sessionKey(target)]:{chat,history:[]},['legacy:characters/'+target+'.json']:characters||{enabled:false,characters:[],npcs:[],persona:null}};
+    const emotion={characterStateEvents:[],characterStateCapture:null};
+    values[PREFIX+'emotion|'+target]={hubDocument:{schemaVersion:1,kind:'emotion',id:target,revision:1,operationId:'',contentHash:require('./canonical.cjs').digest(emotion),data:emotion}};
     await restoreWorld(root,saved,chat,values,currentState);
     const writes=[];
     for(const [key,value]of Object.entries(values))writes.push({key,value,expectedRevision:(await tx.entry(root,key,currentState))?.revision||0});

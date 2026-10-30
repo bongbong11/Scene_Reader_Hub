@@ -59,10 +59,12 @@ try {
     const assetCount=calls.filter(item=>item.route==='chat' && item.body.chatKey.startsWith(documentKey('asset',''))).length;
     Object.assign(records.get(key()).preferences,{developmentStyle:'dynamic',newGenerationEnabled:false,spontaneousMode:'both',negativePriority:true,appearanceChance:75});
     await router.post('chat',{chatKey:key(),value:records.get(key())});
+    await router.documents.write('emotion',chatRef(key()),{sourceScope:JSON.stringify([storyId,records.get(key()).sharedSource.epoch]),characterStateCapture:{status:'collected',outputIndex:3,swipeId:0,fingerprint:'finished-output'},characterStateEvents:[{outputIndex:3,swipeId:0,fingerprint:'finished-output',states:[{id:'actor',values:{joy:37}}]}]});
     await load('B');await service.connect({storylineId:storyId,mode:'continue'});
     const continued=await load('B');
     assert.equal(continued.chat.sharedSource.storylineId,storyId);assert.equal(continued.chat.sharedSource.baselineId,baselineId);
     assert.equal(continued.chat.pendingPlan,null);assert.equal(continued.chat.characterStateEvents.length,0);
+    assert.equal(continued.chat.sharedReference.characterStates.find(value=>value.id==='actor').values.joy,37,'continue carries the completed sidecar values, without old room output indices');
     assert.equal(continued.chat.preferences.developmentStyle,'dynamic');
     assert.equal(continued.chat.preferences.newGenerationEnabled,false);
     assert.equal(continued.chat.preferences.spontaneousMode,'both');

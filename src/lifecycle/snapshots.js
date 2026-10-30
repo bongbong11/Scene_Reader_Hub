@@ -3,6 +3,7 @@ import {retireCollection} from '../storage/retired-collection.js';
 const REVERSIBLE_FIELDS=new Set(['opportunities','lastOpportunityVerification','pacingState','characterState','relationshipState','observationState','sceneState','sceneIntimacy','characterStateEvents','characterStateCapture','eventProfile','npcProfile','generatedCast','drawOpportunityKey','villainProfile','lastEventRoll','lastNpcRoll','lastVillainRoll','backgroundEvents','advancedEntities','sceneOpportunity','progressionState','deferredRoutes','observedOpportunityKeys','continuity','lastReasonerSource','lastContinuityTrace','lastOpportunityInput','lastStateInput']);
 export function createStateSnapshots(deps) {
 function reversibleStateSnapshot(rec) {
+    if(!Object.hasOwn(rec,'characterStateEvents'))rec=deps.emotionStorage?.view(rec)||rec;
     return JSON.parse(JSON.stringify({
         opportunities: rec.opportunities || null,
         lastOpportunityVerification: rec.lastOpportunityVerification || null,

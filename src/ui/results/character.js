@@ -14,7 +14,7 @@ function renderCharacterTurnResults() {
     if (!root) return;
     if (!characterStore.enabled) { root.innerHTML = '<div class="sr-empty-small">인물 판정을 켜면 이번 턴 결과를 표시합니다.</div>'; return; }
     for (const card of root.querySelectorAll?.('[data-character-card-key]') || []) deps.characterCardOpen.set(card.dataset.characterCardKey,card.open);
-    const currentRecord=deps.record();
+    const currentRecord=deps.emotionStorage?.view(deps.record())||deps.record();
     const judgment = currentRecord?.lastJudgment || {};
     const latestEvent=latestStateEventForChat(currentRecord,deps.getContext().chat || [],deps.stableFingerprint);
     const storedCapture=latestEvent?.capture;

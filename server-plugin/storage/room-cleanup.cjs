@@ -35,7 +35,7 @@ async function inventory(root,{chatKey,deletedName}={}){
 }
 async function inspect(root,request){
     const room=identity(request.chatKey),pointer=await read(tx.headFile(root)),documents=await backups.allDocuments(root),nodes=chunks.reader(root);
-    const keys=['sessions','characters','chats','history'].map(folder=>'legacy:'+folder+'/'+room.ref+'.json').filter(key=>documents[key]);
+    const keys=[...['sessions','characters','chats','history'].map(folder=>'legacy:'+folder+'/'+room.ref+'.json'),PREFIX+'emotion|'+room.ref].filter(key=>documents[key]);
     if(!keys.length)throw failure('STORAGE_NOT_FOUND','이 방에 저장된 확장 자료가 없어요.',404);
     const session=documents['legacy:sessions/'+room.ref+'.json'];
     const stored=session?await nodes.value(session.root):null,storylineId=stored?.chat?.sharedLinkV1?.storylineId;

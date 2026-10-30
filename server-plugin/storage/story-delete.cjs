@@ -22,7 +22,7 @@ async function inspect(root,{storylineId,chatKey}){
         if(session.chat?.sharedLinkV1?.storylineId!==storylineId)continue;
         const ref=key.slice('legacy:sessions/'.length,-5);
         rooms.push({ref,title:catalog.hubDocument.data.rooms?.find(room=>room.chatRef===ref)?.title||'이름 없는 방'});
-        keys.push(key,'legacy:characters/'+ref+'.json','legacy:chats/'+ref+'.json','legacy:history/'+ref+'.json');
+        keys.push(key,'legacy:characters/'+ref+'.json','legacy:chats/'+ref+'.json','legacy:history/'+ref+'.json',PREFIX+'emotion|'+ref);
     }
     return {title:item.title,rooms,token:digest([storylineId,pointer?.hash]),pointer,documents,catalog,catalogKey,keys};
 }

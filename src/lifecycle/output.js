@@ -7,6 +7,7 @@ export function createOutputEvents(deps) {
 async function processCharacterMessageReceived(messageId) {
     const chatKey=deps.stateChatKey();
     const rec = deps.record();
+    const emotions=deps.emotionStorage?.state(rec)||rec;
     const cycleMode = deps.activeGenerationCycle?.mode || deps.generationMode || 'rp';
     const outputIndex = Number.isInteger(Number(messageId)) ? Number(messageId) : (deps.getContext().chat || []).length - 1;
     const output = (deps.getContext().chat || [])[outputIndex];
@@ -25,31 +26,35 @@ async function processCharacterMessageReceived(messageId) {
     }
     let captureChanged = false;
     if (rec && cycleMode === 'rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey === deps.stateChatKey()) && output && !output.is_user && !isMessageHidden(output) && stateCollectionPaused) {
-        rec.characterStateCapture = { outputIndex, status:'paused', count:0, source:collectorMode };
+        emotions.characterStateCapture = { outputIndex, status:'paused', count:0, source:collectorMode };
         captureChanged = true;
     } else if (rec && cycleMode === 'rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey === deps.stateChatKey()) && output && !output.is_user && !isMessageHidden(output) && roster.length) {
         if (collectorMode === 'main-output' && deps.activeGenerationCycle?.stateCaptureEnabled) {
             const result = collected;
             if (!String(output.mes || '').trim()) { result.states = []; result.error = 'empty_output'; }
-            rec.characterStateCapture = { outputIndex, participantIds:roster.map(person=>person.id), status: result.error || (result.diagnostics?.rejected || result.diagnostics?.partial ? 'partial' : result.states.length ? 'collected' : 'empty'), count: result.states.length, source: 'main-output', diagnostics: result.diagnostics || null };
+            emotions.characterStateCapture = { outputIndex, participantIds:roster.map(person=>person.id), status: result.error || (result.diagnostics?.rejected || result.diagnostics?.partial ? 'partial' : result.states.length ? 'collected' : 'empty'), count: result.states.length, source: 'main-output', diagnostics: result.diagnostics || null };
             captureChanged = true;
         } else if (collectorMode === 'profile-output') {
             deps.scheduleProfileStateCollection({ chatKey: deps.stateChatKey(), outputIndex, text: String(output.mes || ''), roster });
         } else {
-            rec.characterStateCapture={outputIndex,status:'skipped',skipReason:'main_capture_unavailable',count:0,source:collectorMode};
+            emotions.characterStateCapture={outputIndex,status:'skipped',skipReason:'main_capture_unavailable',count:0,source:collectorMode};
             captureChanged=true;
         }
     } else if(rec && cycleMode==='rp' && (!deps.activeGenerationCycle?.chatKey || deps.activeGenerationCycle.chatKey===chatKey) && output && !output.is_user && !isMessageHidden(output)) {
-        rec.characterStateCapture={outputIndex,status:'skipped',skipReason:'no_capture_targets',count:0,source:collectorMode};
+        emotions.characterStateCapture={outputIndex,status:'skipped',skipReason:'no_capture_targets',count:0,source:collectorMode};
         captureChanged=true;
     }
     if (captureChanged) {
         const fingerprint = deps.stableFingerprint(output.mes || '');
         const swipeId = selectedStateSwipe(output);
-        Object.assign(rec.characterStateCapture, {fingerprint,swipeId});
-        deps.storeStateEvent(rec, {outputIndex,fingerprint,swipeId,states:stateCollectionPaused || collected?.error ? [] : collected?.states || [],source:collectorMode,capture:rec.characterStateCapture},12,deps.latestStateForChat(rec,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
+        Object.assign(emotions.characterStateCapture, {fingerprint,swipeId});
+        deps.storeStateEvent(emotions, {outputIndex,fingerprint,swipeId,states:stateCollectionPaused || collected?.error ? [] : collected?.states || [],source:collectorMode,capture:emotions.characterStateCapture},12,deps.latestStateForChat(emotions,deps.getContext().chat.slice(0,outputIndex),deps.stableFingerprint));
+        if(deps.emotionStorage?.enabled(chatKey))try{await deps.emotionStorage.save(chatKey);}catch(error){
+            emotions.characterStateCapture={...emotions.characterStateCapture,status:'save_failed',phase:'storage',errorKind:error.code||'EMOTION_STORAGE_FAILED'};
+            deps.noteDiagnostic?.('character_state_capture',{module:'src/lifecycle/output.js',...captureDiagnostic(emotions.characterStateCapture)});
+        }
         deps.renderAll();
-        deps.noteDiagnostic?.('character_state_capture',{module:'src/lifecycle/output.js',...captureDiagnostic(rec.characterStateCapture)});
+        deps.noteDiagnostic?.('character_state_capture',{module:'src/lifecycle/output.js',...captureDiagnostic(emotions.characterStateCapture)});
     }
     deps.messageSnapshots.set(deps.stateChatKey(), deps.messageSnapshot(deps.getContext().chat));
     if (!deps.settings.enabled || cycleMode === 'disabled') { deps.pendingGenerationType = ''; if (captureChanged) await deps.persistChat(); return; }

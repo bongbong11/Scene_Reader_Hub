@@ -7,6 +7,7 @@ run.assert();
         if (deps.storageVersion >= 2) await deps.queueWrite('session:'+run.identity, () => {run.assert(); return deps.storagePost('transaction',{chatKey:run.identity,chat:structuredClone(frame.rec),history:run.history.slice(-deps.STATE_HISTORY_LIMIT)});});
         else { await deps.persistChat(run.identity,frame.rec); await deps.saveStateHistory(run.history,run.identity); }
         run.assert();
+        frame.rec=deps.emotionStorage?.strip(frame.rec,run.identity)||frame.rec;
         deps.chatRecords.set(run.identity,frame.rec);
         deps.stateHistoryCache.set(run.identity,run.history.slice(-deps.STATE_HISTORY_LIMIT));
         (frame.receipt = await deps.applyStoredInjection({validate:frame.assertCurrentSnapshot}));

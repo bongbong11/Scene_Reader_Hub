@@ -1,3 +1,4 @@
+import {createEmotionStorage} from './emotions.js';
 import {createCompanionStorage} from './companions.js';
 import {createStorageHttp} from './http.js';
 import {createProfileLoader} from '../adapters/profile-loader.js';
@@ -32,12 +33,15 @@ const sharedStorage={...sharedService,subscribe:sharedRouter.subscribe,metadata:
 const companionDeps = selectCapabilities(services,['getContext','stateChatKey','chatRecords','queueWrite','storageVersion','noteDiagnostic','ready']);
 Object.defineProperty(companionDeps,'post',{value:sharedRouter.post});
 const companions = createCompanionStorage(companionDeps);
-const storagePost = companions.post;
+const emotionStorage=createEmotionStorage({post:companions.post,queueWrite:deps.queueWrite,stateChatKey:deps.stateChatKey,noteDiagnostic:deps.noteDiagnostic});
+sharedDeps.emotionView=emotionStorage.view;
+const storagePost=emotionStorage.post;
+Object.defineProperty(services,'emotionStorage',{value:emotionStorage});
 Object.defineProperty(services,'companionStorage',{get:()=>companions});
 const {loadReasonerProfiles} = createProfileLoader(selectCapabilities(services,["connectionRequestService","listConnectionProfiles","reasonerProfileError","reasonerProfiles","renderReasonerProfiles"]));
 const {settingsSnapshot,saveServerSettings} = createSettingsRepository(selectCapabilities(services,["loadCustomWorlds","ownerPrompt","ownerUnlocked","queueWrite","serverStoreAvailable","settings","storagePost"]));
-const {saveServerChat,saveSession,saveCharacterStore} = createSessionRepository(selectCapabilities(services,["chatReadyKey","STATE_HISTORY_LIMIT","characterStore","chatRecords","clearInjection","queueWrite","record","serverStoreAvailable","stateChatKey","stateHistoryCache","storagePost","storageVersion"]));
-const {hydrateServerState} = createHydration(selectCapabilities(services,["noteDiagnostic","companionStorage","DEFAULTS","JEV_KEY_STORAGE","MODULE","OWNER_PROMPT_STORAGE","OWNER_UNLOCK_STORAGE","STATE_HISTORY_LIMIT","backupList","characterStore","chatRecords","chat_metadata","clearInjection","extension_settings","getContext","getSavedKey","hydrateSequence","jobs","legacyStateChatKey","loadReasonerProfiles","loadStateHistory","localStorage","messageSnapshot","messageSnapshots","normalizeCharacterStore","privateOwnerPrompt","record","saveCustomWorlds","saveServerChat","saveServerSettings","saveStateHistory","serverKeyStatus","settings","stateChatKey","stateHistoryCache","storagePost","storageVersion"]));
+const {saveServerChat,saveSession,saveCharacterStore} = createSessionRepository(selectCapabilities(services,["emotionStorage","chatReadyKey","STATE_HISTORY_LIMIT","characterStore","chatRecords","clearInjection","queueWrite","record","serverStoreAvailable","stateChatKey","stateHistoryCache","storagePost","storageVersion"]));
+const {hydrateServerState} = createHydration(selectCapabilities(services,["emotionStorage","noteDiagnostic","companionStorage","DEFAULTS","JEV_KEY_STORAGE","MODULE","OWNER_PROMPT_STORAGE","OWNER_UNLOCK_STORAGE","STATE_HISTORY_LIMIT","backupList","characterStore","chatRecords","chat_metadata","clearInjection","extension_settings","getContext","getSavedKey","hydrateSequence","jobs","legacyStateChatKey","loadReasonerProfiles","loadStateHistory","localStorage","messageSnapshot","messageSnapshots","normalizeCharacterStore","privateOwnerPrompt","record","saveCustomWorlds","saveServerChat","saveServerSettings","saveStateHistory","serverKeyStatus","settings","stateChatKey","stateHistoryCache","storagePost","storageVersion"]));
 const {openStateDb,loadStateHistory,saveStateHistory,clearStateHistory} = createHistoryRepository(selectCapabilities(services,["STATE_DB_NAME","STATE_DB_STORE","STATE_HISTORY_LIMIT","queueWrite","serverStoreAvailable","stateChatKey","stateDbPromise","stateHistoryCache","storagePost","window"]));
 
 
@@ -65,5 +69,5 @@ const {openStateDb,loadStateHistory,saveStateHistory,clearStateHistory} = create
 
 
 
-return {sharedStorage, companionStorage:companions.bridge, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory};
+return {emotionStorage, sharedStorage, companionStorage:companions.bridge, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory};
 }

@@ -71,7 +71,7 @@ function bindForm() {
 
     deps.document.getElementById('sr-close')?.addEventListener('click', () => deps.dialog.close());
     deps.document.getElementById('sr-copy-debug')?.addEventListener('click', () => deps.runUiTask((async () => {
-        await deps.copyText(JSON.stringify({...wholeDiagnosticReport({execution:deps.executionDebugReport(),judgment:deps.record()?.lastJudgment,record:deps.record(),chat:deps.getContext().chat, fingerprint:deps.stableFingerprint}),...vaultDiagnosticReport(deps.window)},null,2));
+        await deps.copyText(JSON.stringify({...wholeDiagnosticReport({execution:deps.executionDebugReport(),judgment:deps.record()?.lastJudgment,record:deps.emotionStorage?.view(deps.record())||deps.record(),chat:deps.getContext().chat, fingerprint:deps.stableFingerprint}),...vaultDiagnosticReport(deps.window)},null,2));
         notifySceneReaderToast(deps.window,'success','전체 진단 로그를 복사했습니다.','씬판독기');
     })(),'전체 진단 로그를 복사하지 못했습니다.'));
     deps.dialog.addEventListener('click', (event) => { if (event.target === deps.dialog) deps.dialog.close(); });

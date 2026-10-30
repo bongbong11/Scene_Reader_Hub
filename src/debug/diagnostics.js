@@ -9,7 +9,7 @@ function noteDiagnostic(stage, detail = {}) {
 }
 
 function diagnosticSnapshot() {
-    const rec=deps.record();
+    const rec=deps.emotionStorage?.view(deps.record())||deps.record();
     const judgment=rec?.lastJudgment;
     const route=judgment?.sceneIntimacy?.route || rec?.sceneIntimacy?.route || 'normal';
     const sourceCurrent=judgment ? judgment.sourceKey===deps.sourceRevisionKey(rec,deps.selectedWorld(rec)) : null;

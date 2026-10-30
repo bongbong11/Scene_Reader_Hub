@@ -90,6 +90,7 @@ let visibility;
 const hub = createHub({jobs:runtime.jobs,getIdentity:()=>stateChatKey(),StaleRunError});
 attachConsoleReporter(hub,{console:window.console||console});
 let {noteDiagnostic, diagnosticSnapshot,clearDiagnostics} = createDiagnostics({
+    get emotionStorage(){return emotionStorage;},
     get hub() { return hub; },
     get activeGenerationCycle() { return runtime.activeGenerationCycle; }, set activeGenerationCycle(value) { runtime.activeGenerationCycle = value; },
     get activeInjectionPayload() { return runtime.activeInjectionPayload; }, set activeInjectionPayload(value) { runtime.activeInjectionPayload = value; },
@@ -109,6 +110,7 @@ let {noteDiagnostic, diagnosticSnapshot,clearDiagnostics} = createDiagnostics({
 });
 
 let {notifyEmotionCapture, scheduleProfileStateCollection, collectCurrentEmotion} = createEmotionRuntime({
+    get emotionStorage(){return emotionStorage;},
     hub,isGenerationBusy:()=>Boolean(runtime.pendingGenerationType),
     get noteDiagnostic() { return noteDiagnostic; },
     get STATE_HISTORY_LIMIT() { return STATE_HISTORY_LIMIT; },
@@ -248,6 +250,7 @@ let {apiError, pluginError, callJev} = createJevClient({
 });
 
 let {reversibleStateSnapshot, restoreReversibleState} = createStateSnapshots({
+    get emotionStorage(){return emotionStorage;},
     get pendingProfileStateRequests() { return runtime.pendingProfileStateRequests; },
 });
 
@@ -535,7 +538,8 @@ const embeddingMaintenance = createEmbeddingMaintenance({
 
 
 const {prepareProfiles, prepareStandardProfiles, prepareConflictProfiles} = createDraws(selectedWorld);
-let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({getAnalysisState:()=>analysis?.state,document, getContext, stateChatKey, record, ownerPrompt, escapeHtml,window,
+let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults, renderJudgment, renderProfiles, renderStoredState, renderCharacterStore, renderCharacterAnalysisBrowser, renderBackups, renderReasonerProfiles, renderContinuity, renderAll} = createResults({
+    emotionStorage:{view:(...args)=>emotionStorage.view(...args)},getAnalysisState:()=>analysis?.state,document, getContext, stateChatKey, record, ownerPrompt, escapeHtml,window,
     isRoomReady:()=>runtime.chatReadyKey===null||runtime.chatReadyKey===stateChatKey(),
     onBeforeRender: () => { sharedStorageUi.refresh();if (!record()?.lastJudgment && runtime.activeInjectionPayload) runEventTask(reconcileInjection,'남은 주입문을 정리하지 못했습니다.'); },
     stableFingerprint,
@@ -558,7 +562,7 @@ let {decisionTitle, resultLabel, characterTurnLabel, renderCharacterTurnResults,
 
 
 
-let {sharedStorage, companionStorage, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory} = createRepository({
+let {emotionStorage, sharedStorage, companionStorage, storagePost, loadReasonerProfiles, settingsSnapshot, saveServerSettings, saveServerChat, saveSession, saveCharacterStore, hydrateServerState, openStateDb, loadStateHistory, saveStateHistory, clearStateHistory} = createRepository({
     get selectedWorld() { return selectedWorld; },
     get stableFingerprint() { return stableFingerprint; },
     get invalidateReasonerJobs() { return invalidateReasonerJobs; },
@@ -662,6 +666,7 @@ let {sharedStorage, companionStorage, storagePost, loadReasonerProfiles, setting
 
 
 let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAssistantOutputChanged, applyStoredInjection, clearInjection, waitForOutputChanges} = createOutputLifecycle({
+    get emotionStorage(){return emotionStorage;},
     placement,
     get analysis() { return analysis; },
     hub,
@@ -718,6 +723,7 @@ let {onCharacterMessageReceived, onUserMessageSent, rollbackChangedOutput, onAss
 });
 
 let {judgmentFailureState, sourceRevisionKey, stagedRecord, sourceUserRpForOutput, registerSceneOpportunity, commitPriorVerification, runJudge, executeJudge} = createSceneExecution({
+    get emotionStorage(){return emotionStorage;},
     seasonalDate,
     checkVisibility:()=>visibility?.check(),
     get analysis() { return analysis; },
@@ -852,6 +858,7 @@ visibility=createVisibilityLifecycle({
 });
 const visibilityAdapter=createVisibilityAdapter({window,document,eventSource,event_types,check:async()=>{await visibility.check();seasonalDate.refresh();}});
 let {setFormValues, renderWorldControls, showWorldEditor, showWorldList, characterEntries, showCharacterEditor, closeCharacterEditor, saveCharacterEntry, analyzeAndSaveCharacter, deleteCharacterEntry, downloadJson, saveGlobal, savePreference, saveInjectionMode, saveWorldInjectionMode, endActiveEvent, bindForm} = createUiController({
+    get emotionStorage(){return emotionStorage;},
     placement,presetEntries,
     seasonalDate,
     get companionStorage(){return companionStorage;},

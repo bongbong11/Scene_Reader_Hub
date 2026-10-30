@@ -4,7 +4,7 @@ import {preferencesForConnection} from '../storyline/preferences.js';
 import {clone,digest,chatRef,ownerRef,SHARED_LINK,bytes,fail} from '../storage/shared-document.js';
 import {projectBaseline,hasLegacyMaterial} from '../baseline/projector.js';
 import {confirmedStory,resetRuntime,splitRuntime,localCompanions} from '../storyline/projector.js';
-import {initialStory,pinCheckpoint} from '../storyline/repository.js';
+import {initialStory,pinCheckpoint,addCheckpoint} from '../storyline/repository.js';
 import {legacyPayload,materializeLegacy} from '../storage/legacy-materializer.js';
 import {protectRollback} from '../storage/rollback-safety.js';
 import {createAccountMigration} from './account.js';
@@ -45,7 +45,7 @@ export function createSharedService(deps,router) {
         const existing=await documents.read('original',originalId,{signal});if(existing)return originalId;
         const source=await rawPost('bootstrap',{chatKey},{signal});
         if(source.chat?.[SHARED_LINK])throw fail('MIGRATION_ALREADY_LINKED','이미 공유 이야기로 연결된 방입니다. 다시 불러와 주세요.');
-        await documents.write('original',originalId,{chat:clone(source.chat),characters:clone(source.characters),history:clone(source.history || [])},{operationId,signal});
+        await documents.write('original',originalId,{chat:clone(router.emotionView(source.chat,chatKey)),characters:clone(source.characters),history:clone(source.history || [])},{operationId,signal});
         return originalId;
     }
     async function operation(phase,task) {
@@ -71,7 +71,7 @@ export function createSharedService(deps,router) {
     }
     async function migrate({summary=''}={}) {
         return operation('migration',async({chatKey,signal,assert})=>{
-            const record=clone(deps.record() || {}),characters=clone(deps.characterStore);
+            const record=clone(router.emotionView(deps.record() || {},chatKey)),characters=clone(deps.characterStore);
             if(router.views.get(chatKey)?.link)throw fail('MIGRATION_ALREADY_LINKED','이미 이관된 채팅입니다.');
             const projection=projectBaseline({characters,preferences:record.preferences,world:deps.selectedWorld()});
             const operationId=digest([chatRef(chatKey),projection,record]);
@@ -116,10 +116,21 @@ export function createSharedService(deps,router) {
             if(mode==='continue') {
                 if(selected.pendingHandoff)throw fail('STORYLINE_HANDOFF_PENDING','마무리되지 않은 이어하기 연결이 있습니다. 해당 방을 다시 열거나 원본 복구를 사용해 주세요.');
                 story=pinCheckpoint(selected,selected.headCheckpointId);
-                story.pendingHandoff={chatRef:chatRef(chatKey),epoch:story.epoch+1,operationId};story.revision++;
                 state=clone(story.checkpoints[story.headCheckpointId].state);
+                if((await documents.paged.capabilities())?.features?.includes('emotion-storage')){
+                    const data=(await documents.read('emotion',selected.activeChatRef,{fresh:true,signal}))?.data;
+                    const capture=data?.characterStateCapture;
+                    const event=data?.sourceScope===JSON.stringify([selected.id,selected.epoch])&&capture?.status!=='collecting'&&data.characterStateEvents?.find(item=>item.outputIndex===capture?.outputIndex&&item.swipeId===capture?.swipeId&&item.fingerprint===capture?.fingerprint);
+                    if(event?.states?.length){
+                        const values=new Map((state.inheritedCharacterStates||[]).map(value=>[value.id,value]));
+                        for(const value of event.states)values.set(value.id,clone(value));
+                        state.inheritedCharacterStates=[...values.values()];
+                        story=addCheckpoint(story,state,operationId,selected.activeChatRef);
+                    }
+                }
+                story.pendingHandoff={chatRef:chatRef(chatKey),epoch:story.epoch+1,operationId};story.revision++;
             } else {
-                state=mode==='branch'?confirmedStory(deps.record(),{chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,sourceChatRef:chatRef(chatKey),sourceChatKey:chatKey}):{};
+                state=mode==='branch'?confirmedStory(router.emotionView(deps.record(),chatKey),{chat:deps.getContext().chat,fingerprint:deps.stableFingerprint,sourceChatRef:chatRef(chatKey),sourceChatKey:chatKey}):{};
                 // New story never inherits automatic acquired knowledge or old cards by default.
                 story=initialStory({id:digest(['new-story',operationId]),baselineId:baseline.id,baselineRevision:baseline.revision,state,writer:chatRef(chatKey),operationId});
             }
@@ -156,7 +167,7 @@ export function createSharedService(deps,router) {
                 if(!saved.chat?.[SHARED_LINK]) {if(allRooms)continue;throw fail('ROLLBACK_SOURCE_MISSING','이 방은 현재 기존 저장 방식입니다. 다른 연결 방도 복귀하려면 모든 방 준비를 사용해 주세요.');}
                 if(!pointer)throw fail('ROLLBACK_SOURCE_MISSING','이관 원본을 확인하지 못했습니다. 서버 백업 복원을 사용해 주세요.');
                 const source=await required('original',pointer,{signal});
-                let payload={chat:clone(source.chat),characters:clone(source.characters),history:clone(source.history || [])};
+                let payload={chat:clone(router.emotionView(source.chat,chatKey)),characters:clone(source.characters),history:clone(source.history || [])};
                 if(!originalOnly) {
                     await router.resolve(target,saved);const view=router.views.get(target);
                     payload=legacyPayload(target===chatKey?deps.record() || view.record:view.record,view.asset.characters,view.history);

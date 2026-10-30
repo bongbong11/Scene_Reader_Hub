@@ -14,10 +14,10 @@ import {memoryStatusText} from "../context/memory.js";
 
 
 
-export function createResults({readState:readRawState, document, getContext, stateChatKey, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, getAnalysisState = () => null, isStateCapturePending = () => true, isStateCaptureSaving = () => false, onBeforeRender = () => {},window}) {
+export function createResults({emotionStorage,readState:readRawState, document, getContext, stateChatKey, record:readRecord, isRoomReady = () => true, ownerPrompt, escapeHtml, selectCharacter, stableFingerprint, getAnalysisState = () => null, isStateCapturePending = () => true, isStateCaptureSaving = () => false, onBeforeRender = () => {},window}) {
 const record=()=>isRoomReady()?readRecord():null;
 const readState=()=>{const state=readRawState();return isRoomReady()?state:{...state,characterStore:{enabled:false,characters:[],npcs:[],persona:null,recordGroups:[]},activeInjectionPayload:''};};
-const services={getAnalysisState,readState,document,getContext,stateChatKey,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,isStateCaptureSaving,onBeforeRender,window};
+const services={emotionStorage,getAnalysisState,readState,document,getContext,stateChatKey,record,ownerPrompt,escapeHtml,selectCharacter,stableFingerprint,isStateCapturePending,isStateCaptureSaving,onBeforeRender,window};
 Object.defineProperty(services,'decisionTitle',{configurable:true,get:()=>decisionTitle});
 Object.defineProperty(services,'resultLabel',{configurable:true,get:()=>resultLabel});
 Object.defineProperty(services,'characterTurnLabel',{configurable:true,get:()=>characterTurnLabel});
@@ -39,7 +39,7 @@ Object.defineProperty(services,'SEXUAL_TURN_LABELS',{configurable:true,get:()=>S
 Object.defineProperty(services,'continuityLabels',{configurable:true,get:()=>continuityLabels,set:value=>{continuityLabels=value}});
 Object.defineProperty(services,'continuityLabel',{configurable:true,get:()=>continuityLabel,set:value=>{continuityLabel=value}});
 const {decisionTitle,resultLabel,renderJudgment,renderProfiles} = createJudgmentView(selectCapabilities(services,["RESULT_GROUPS","document","escapeHtml","getContext","ownerPrompt","readState","record"]));
-const {characterTurnLabel,renderCharacterTurnResults,renderCharacterStore,renderCharacterAnalysisBrowser} = createCharacterView(selectCapabilities(services,["CHARACTER_TURN_LABELS","SEXUAL_TURN_LABELS","characterCardOpen","characterCardViews","document","escapeHtml","getContext","isStateCapturePending","isStateCaptureSaving","readState","record","selectCharacter","stableFingerprint"]));
+const {characterTurnLabel,renderCharacterTurnResults,renderCharacterStore,renderCharacterAnalysisBrowser} = createCharacterView(selectCapabilities(services,["emotionStorage","CHARACTER_TURN_LABELS","SEXUAL_TURN_LABELS","characterCardOpen","characterCardViews","document","escapeHtml","getContext","isStateCapturePending","isStateCaptureSaving","readState","record","selectCharacter","stableFingerprint"]));
 const {renderStoredState,renderBackups} = createStorageView(selectCapabilities(services,["document","escapeHtml","getContext","readState","record"]));
 const {renderReasonerProfiles,renderContinuity} = createContinuityView(selectCapabilities(services,["getAnalysisState","window","continuityLabel","document","escapeHtml","readState","record","resultLabel","stateChatKey","getContext","stableFingerprint"]));
 
