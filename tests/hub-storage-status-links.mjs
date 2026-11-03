@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {createStorageHttp} from '../src/storage/http.js';
+import {createPagedTransport} from '../src/storage/paged-transport.js';
 import {createCurrentStatusModel} from '../src/ui/current-status-model.js';
 import {createHydration} from '../src/storage/hydrate.js';
 import {createOocLifecycle} from '../src/lifecycle/ooc.js';
@@ -41,6 +42,38 @@ const tick=()=>new Promise(resolve=>setImmediate(resolve));
  view.accept({stage:'storage_request',phase:'read',storageScope:'failed-read',status:'failed'});
  for(let i=0;i<300;i++)view.accept({stage:'storage_request',phase:'part',storageScope:`part-${i}`,status:'succeeded'});
  assert.equal(view.snapshot().tone,'error','many successful upload parts cannot evict an unresolved failure');
+}
+
+// A new save has a different operation ID, even for the same document.
+{
+ const view=createCurrentStatusModel(),begun=[];
+ let interrupted=true,alreadyCommitted=false,failCommit=false;
+ const storage=createPagedTransport(async (route,body)=>{
+  if(route.endsWith('/begin')){begun.push(body.operationId);return {operation:{status:alreadyCommitted?'committed':'pending',results:{}}};}
+  if(route.endsWith('/commit')&&failCommit)throw new Error('commit failed');
+  if(route.endsWith('/part')&&interrupted){
+   const failure={phase:route,storageScope:'interrupted',status:'failed',errorKind:'REQUEST_TIMEOUT'};
+   view.accept({stage:'storage_request',...failure});
+   throw Object.assign(new Error('upload timed out'),{code:failure.errorKind,storageScope:failure.storageScope});
+  }
+  if(route.endsWith('/commit'))return {operation:{status:'committed',results:Object.fromEntries(Object.keys(body.roots).map(key=>[key,{revision:1}]))}};
+  return {};
+ },{noteDiagnostic:(stage,event)=>view.accept({stage,...event})});
+ await assert.rejects(storage.write('room-a',{turn:1}));
+ view.accept({code:'RUN_STARTED',cycleId:'next'});
+ interrupted=false;
+ await storage.write('room-b',{turn:2});
+ assert.equal(view.snapshot().tone,'error');
+ alreadyCommitted=true;
+ await storage.write('room-a',{turn:0});
+ assert.equal(view.snapshot().tone,'error','an old committed receipt is not a new successful save');
+ alreadyCommitted=false;failCommit=true;
+ await assert.rejects(storage.write('room-a',{turn:2}));
+ assert.equal(view.snapshot().tone,'error','uploaded parts without confirmed commit cannot clear the warning');
+ failCommit=false;
+ await storage.write('room-a',{turn:2});
+ assert.notEqual(begun[0],begun.at(-1));
+ assert.notEqual(view.snapshot().tone,'error');
 }
 
 // Storage migrations finish independently of optional profile UI/module loading.

@@ -2,6 +2,7 @@ import {encodeTree,decodeTree,hashPart} from './tree-codec.js';
 import {digest,fail} from './shared-document.js';
 export function createPagedTransport(post,{noteDiagnostic}={}) {
  let capabilityPromise;const revisions=new Map(),cache=new Map(),uploaded=new Set();let used=0;
+ const interruptedUploads=new Map();
  async function capabilities(){return capabilityPromise ||=post('v2/capabilities',{}, {allowFailure:true}).catch(()=>null);}
  async function get(ref,signal) {
   if(cache.has(ref))return cache.get(ref).node;
@@ -19,18 +20,40 @@ export function createPagedTransport(post,{noteDiagnostic}={}) {
  async function select(key,path,{signal}={}){const response=await post('v2/read',{keys:[key],paths:{[key]:path}},{signal}),meta=response.documents[key];revisions.set(key,meta?.revision||0);return meta?.value??null;}
  async function writeMany(writes,{signal,operationId,prepare,chatKey}={}) {
   const descriptors=writes.map(item=>({key:item.key,expectedRevision:item.expectedRevision ?? revisions.get(item.key)??0,immutable:item.immutable===true}));
+  const destination=JSON.stringify(descriptors.map(item=>item.key).sort());
+  const previousFailures=[...interruptedUploads].filter(([,target])=>target===destination);
+  function resolveUploads(){
+   for(const [storageScope] of previousFailures){
+    interruptedUploads.delete(storageScope);
+    noteDiagnostic?.('storage_resolution',{module:'src/storage/paged-transport.js',phase:'v2/operations/part',storageScope,status:'succeeded',code:'STORAGE_UPLOAD_RECOVERED'});
+   }
+  }
   // Match the exact transaction, including revisions supplied by bootstrap.
   // A cold cache after reload/restore must not reuse an older transaction ID.
   operationId ||=digest(['paged-write-v2',descriptors,writes.map(item=>item.value)]);
   const prior=await post('v2/operations/begin',{operationId,writes:descriptors},{signal});
   if(prior.operation.status==='committed'){for(const [key,meta]of Object.entries(prior.operation.results))revisions.set(key,meta.revision);return prior.operation;}
   const roots={},known=new Set();
-  const emit=async(hash,text)=>{if(!known.has(hash)&&!uploaded.has(hash)){await post('v2/operations/part',{operationId,hash,text},{signal});known.add(hash);}return hash;};
+  const emit=async(hash,text)=>{
+   if(known.has(hash)||uploaded.has(hash))return hash;
+   try{await post('v2/operations/part',{operationId,hash,text},{signal});}
+   catch(error){
+    // A part timeout happens before commit. A later confirmed save of the
+    // same documents can replace that interrupted upload.
+    if(error.code==='REQUEST_TIMEOUT'&&error.storageScope&&!signal?.aborted){
+     interruptedUploads.set(error.storageScope,destination);
+     if(interruptedUploads.size>256)interruptedUploads.delete(interruptedUploads.keys().next().value);
+    }
+    throw error;
+   }
+   known.add(hash);
+   return hash;
+  };
   for(const item of writes)roots[item.key]=await encodeTree(prepare?await prepare(emit):item.value,emit,{signal});
   let result;
   try{result=await post('v2/operations/commit',{operationId,roots,...(chatKey?{chatKey}:{})},{signal});}
   catch(error){const status=await post('v2/operations/status',{operationId},{allowFailure:true});if(status?.operation?.status!=='committed')throw error;if(Object.entries(roots).some(([key,root])=>status.operation.results?.[key]?.root!==root))throw error;result=status;noteDiagnostic?.('storage_resolution',{module:'src/storage/paged-transport.js',phase:'v2/operations/commit',storageScope:error.storageScope||'',status:'succeeded',code:'STORAGE_COMMIT_RECOVERED'});}
-  for(const hash of known){uploaded.add(hash);if(uploaded.size>32768)uploaded.delete(uploaded.values().next().value);}for(const [key,meta]of Object.entries(result.operation.results))revisions.set(key,meta.revision);return result.operation;
+  for(const hash of known){uploaded.add(hash);if(uploaded.size>32768)uploaded.delete(uploaded.values().next().value);}for(const [key,meta]of Object.entries(result.operation.results))revisions.set(key,meta.revision);resolveUploads();return result.operation;
  }
  return {capabilities,read,select,write:(key,value,options={})=>writeMany([{key,value,immutable:options.immutable}],options),writeMany,clear(){capabilityPromise=undefined;revisions.clear();cache.clear();uploaded.clear();used=0;},revision:key=>revisions.get(key)||0};
 }
