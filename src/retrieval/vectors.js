@@ -1,7 +1,7 @@
 import { fixedEmbeddingModel, VERTEX_EMBEDDING_REGION } from './connection-settings.js';
 import { withRequestLifetime } from '../adapters/request-lifetime.js';
 import {createRetrievalSchedule} from './scheduling.js';
-import { requestFailure } from '../adapters/failure-info.js';
+import { retrievalRequestFailure, retrievalFailureMessage } from './failure.js';
 import { createEmbeddingCredentialDiagnostics, embeddingCredentialStore } from './credentials.js';
 import {hash32,hash53,queryText,recordText} from './identity.js';
 import {createSharedQuery} from './shared-query.js';
@@ -20,7 +20,7 @@ export const RETRIEVAL_PROVIDERS = Object.freeze({
 
 const status = error => String(error?.message || error || '검색 오류').slice(0, 180);
 
-export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, onProgress = () => {}, onDiagnostic = () => {}, timeoutMs = 60000, requestTimeouts = {} }) {
+export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, onProgress = () => {}, onDiagnostic = () => {}, timeoutMs, requestTimeouts = {} }) {
     const queries = new Map();
     let cacheEpoch=0;
     function invalidateQueries(collectionId) {
@@ -39,17 +39,21 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
         const relay = () => controller.abort(signal?.reason);
         if (signal?.aborted) relay();
         else signal?.addEventListener('abort', relay, { once: true });
-        const started=Date.now(),expire=()=>controller.abort(Object.assign(new Error('검색 연결 시간이 초과되었습니다.'),{code:'REQUEST_TIMEOUT'}));
-        let timer = setTimeout(expire, maintenance?300000:recovery?Math.max(timeoutMs,70000):timeoutMs);
-        return { signal: controller.signal, preparing:()=>{clearTimeout(timer);timer=setTimeout(expire,Math.max(1,300000-(Date.now()-started)));},finish: () => { clearTimeout(timer); signal?.removeEventListener('abort', relay); } };
+        const provider=getSettings().retrievalProvider||'transformers';
+        let totalMs=maintenance?300000:Math.max(timeoutMs??(provider==='nanogpt'?90000:60000),recovery?70000:0);
+        const started=Date.now(),expire=()=>{const detail={provider,phase:'total',timeoutMs:totalMs,errorKind:'RETRIEVAL_TOTAL_TIMEOUT'};report({module:'src/retrieval/vectors.js',...detail,status:'failed',durationMs:Date.now()-started});controller.abort(Object.assign(new Error(retrievalFailureMessage(detail)),{code:detail.errorKind,timeoutMs:totalMs}));};
+        let timer = setTimeout(expire, totalMs);
+        return { signal: controller.signal, preparing:()=>{totalMs=300000;clearTimeout(timer);timer=setTimeout(expire,Math.max(1,300000-(Date.now()-started)));},finish: () => { clearTimeout(timer); signal?.removeEventListener('abort', relay); } };
     }
     async function post(route, body, signal, recovery=false, sharedText='') {
         const started = Date.now();
+        const requestMs=requestTimeouts[route]??(body.source==='nanogpt'&&['query','insert'].includes(route)?(sharedText?65000:60000):budgets[route]);
+        const limitMs=recovery?Math.max(requestMs,60000):requestMs;
         const detail = {module:'src/retrieval/vectors.js',phase:route,provider:body.source,bankHash:hash32(body.collectionId),recordCount:body.items?.length || 0,
             transport:sharedText?'scene_reader_shared_vector':'sillytavern_vector_api',httpScope:'sillytavern',upstreamStatusKnown:false,credentialStore:embeddingCredentialStore(body),
             authMode:body.source==='vertexai'?body.vertexai_auth_mode:body.source==='transformers'?'local':'api',
             model:body.source==='transformers'?'host_configured':body.model===RETRIEVAL_PROVIDERS[body.source]?.model?body.model:'custom',
-            region:body.vertexai_region || 'default'};
+            region:body.vertexai_region || 'default',timeoutMs:limitMs};
         report({...detail,status:'started'});
         try {
             const result = await schedule.request(() => withRequestLifetime(async requestSignal => {
@@ -62,14 +66,14 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 const response = await fetch(`/api/vector/${route}`, { method:'POST', headers:getRequestHeaders(), body:JSON.stringify(body), signal:requestSignal });
                 if (!response.ok) throw Object.assign(new Error(`SillyTavern 검색 연결 오류 (${response.status})`), {code:'RETRIEVAL_HTTP_ERROR',httpStatus:response.status});
                 return route === 'insert' || route === 'delete' ? null : await response.json();
-            }, {signal, timeoutMs:recovery?Math.max(budgets[route],60000):budgets[route], timeoutMessage:'검색 연결 시간이 초과되었습니다.'}), {signal,exclusive:body.source==='transformers'||route==='insert'||route==='delete'});
+            }, {signal, timeoutMs:limitMs, timeoutMessage:'검색 연결 시간이 초과되었습니다.'}), {signal,exclusive:body.source==='transformers'||route==='insert'||route==='delete'});
             signal?.throwIfAborted();
             report({...detail,status:'succeeded',durationMs:Date.now()-started});
             return result;
         } catch(error) {
             const sharedFailures={EMBEDDING_BUSY:'앞선 임베딩 처리가 진행 중입니다. 완료 후 다시 시도하세요.',EMBEDDING_INDEX_MISSING:'임베딩이 준비되지 않아 기록 매칭으로 진행합니다. 임베딩 재시도를 사용해 주세요.',EMBEDDING_DIMENSION_MISMATCH:'저장된 벡터와 모델의 차원이 다릅니다. 해당 자료의 임베딩을 다시 준비해 주세요.',EMBEDDING_INVALID_VECTOR:'임베딩 응답 형식이 올바르지 않아 기록 매칭으로 진행합니다.'};
-            const failure=sharedFailures[error.code]?Object.assign(new Error(sharedFailures[error.code]),{code:error.code,httpStatus:error.httpStatus}):requestFailure(error,'RETRIEVAL','SillyTavern 임베딩 연결');
-            report({...detail,status:signal?.aborted && !/TIMEOUT/.test(error?.code || '')?'cancelled':'failed',durationMs:Date.now()-started,errorKind:failure.code,httpStatus:failure.httpStatus});
+            const failure=sharedFailures[error.code]?Object.assign(new Error(sharedFailures[error.code]),{code:error.code,httpStatus:error.httpStatus}):retrievalRequestFailure(error,detail);
+            report({...detail,status:signal?.aborted && !/TIMEOUT/.test(error?.code || '')?'cancelled':'failed',durationMs:Date.now()-started,timeoutMs:failure.timeoutMs??limitMs,errorKind:failure.code,httpStatus:failure.httpStatus});
             throw failure;
         }
     }
@@ -182,7 +186,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
             return { indices, status: 'ready',...(result.sharedVector?{sharedVector:true}:{}) };
         } catch (error) {
             if (signal?.aborted) throw signal.reason || error;
-            const reason = bounded.signal.aborted ? '검색 연결 시간이 초과되었습니다.' : status(error);
+            const reason = status(bounded.signal.aborted?bounded.signal.reason:error);
             if(preparing)report({module:'src/retrieval/vectors.js',phase:'index_sync',status:'failed',errorKind:error.code||'EMBEDDING_PREPARATION_FAILED',...indexCounts});
             progress({kind, phase:preparing?'prepare_failed':'fallback', error:reason});
             return { indices: [], status: 'fallback', error: reason, code:error.code || 'RETRIEVAL_FAILED',...(preparing?{preparationFailed:true}:{}) };

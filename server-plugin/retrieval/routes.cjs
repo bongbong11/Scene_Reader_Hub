@@ -3,7 +3,7 @@ const {createSceneCache}=require('./scene-cache.cjs');
 const SOURCES=new Set(['transformers','palm','vertexai','nanogpt']);
 const OWNED=/^scene-reader-(?:(?:character|world)-\d+|connection-test)$/;
 
-function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs=14000}={}){
+function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs}={}){
     let hostPromise;
     const getHost=()=>hostPromise||=(host?Promise.resolve(host):discoverHost());
     router.post('/retrieval/capabilities',async(request,response)=>{
@@ -13,6 +13,7 @@ function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs=14000
     });
     router.post('/retrieval/query',async(request,response)=>{
         let timer,expired=false;
+        const limitMs=timeoutMs??(request.body?.source==='nanogpt'?60000:14000);
         try{
             if(!request.user?.directories?.root||!request.user.directories.vectors)return response.status(401).json({code:'AUTH_REQUIRED'});
             const input=request.body||{};
@@ -27,9 +28,9 @@ function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs=14000
                 const started=Date.now(),found=await prepared.query(result.vector,input.topK,input.threshold);
                 return {...found,sharedVector:{cache:result.cache,embeddingMs:result.embeddingMs,indexMs:Date.now()-started}};
             })();
-            const result=await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(Object.assign(new Error('Embedding timed out.'),{code:'RETRIEVAL_TIMEOUT',status:504}));},timeoutMs);})]);
+            const result=await Promise.race([work,new Promise((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(Object.assign(new Error('Embedding timed out.'),{code:'RETRIEVAL_TIMEOUT',status:504}));},limitMs);})]);
             if(!response.destroyed&&result)return response.json(result);
-        }catch(error){if(!response.destroyed)return response.status(error.status||502).json({code:error.code||'RETRIEVAL_UPSTREAM_ERROR',error:'Shared embedding search failed. Retry or use record matching.'});}
+        }catch(error){const status=Number(error.status||error.httpStatus||error.cause?.status);if(!response.destroyed)return response.status(Number.isInteger(status)&&status>=400&&status<=599?status:502).json({code:error.code||'RETRIEVAL_UPSTREAM_ERROR',timeoutMs:limitMs,error:'Shared embedding search failed. Retry or use record matching.'});}
         finally{clearTimeout(timer);}
     });
 }

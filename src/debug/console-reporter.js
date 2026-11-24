@@ -1,4 +1,5 @@
 import {activitySummary,PHASE_LABELS} from './activity-summary.js';
+import {retrievalFailureMessage} from '../retrieval/failure.js';
 const code=value=>typeof value==='string'&&/^[A-Z][A-Z0-9_]{0,79}$/.test(value)?value:'';
 const phases=new Set(['prepare','request','response','items','storage','settings','cleanup','commit','read','write','render','query','list','insert','index_check','index_sync','connection_test','send','assembly']);
 const wrappers=new Set(['STAGE_FAILED','RUN_FAILED','GENERATION_PREPARATION_FAILED','UI_TASK_FAILED','EVENT_TASK_FAILED']);
@@ -44,6 +45,10 @@ export function createConsoleReporter({console:output=globalThis.console,now=()=
   seen.set(identity,time);if(seen.size>128)seen.delete(seen.keys().next().value);
   lastFailure={scope,time};
   const detail={기능:feature,코드:root};
+  if(event.stage==='retrieval_request'){
+   detail.결과=retrievalFailureMessage(event);
+   if(Number.isFinite(event.durationMs))detail.소요초=Math.round(event.durationMs/100)/10;
+  }
   if(phases.has(event.phase))detail.단계=PHASE_LABELS[event.phase];
   if(typeof event.module==='string'&&/^src\/[a-z0-9/-]+\.js$/.test(event.module)&&event.module.length<100)detail.담당=event.module;
   if(Number.isInteger(event.httpStatus)&&event.httpStatus>=400&&event.httpStatus<=599)detail.HTTP=event.httpStatus;

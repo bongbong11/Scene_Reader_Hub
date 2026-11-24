@@ -1,6 +1,6 @@
 {
   "name": "scene-reader-jev-plugin",
-  "version": "0.10.4",
+  "version": "0.10.5",
   "files": [
     {
       "path": "index.cjs",
@@ -15,7 +15,7 @@
     {
       "path": "package.json",
       "bytes": 127,
-      "sha256": "11ba031f57d00a29968172f5969857749e0714306bf9a4cf86529f6a29c6b28a"
+      "sha256": "30286cc672ed3ffb0c49b9754e83718dab7a9673d8deb2390fea9f423c448292"
     },
     {
       "path": "retrieval/host.cjs",
@@ -24,8 +24,8 @@
     },
     {
       "path": "retrieval/routes.cjs",
-      "bytes": 3127,
-      "sha256": "a5e3dc52883b7439c5a94188b1bc764a2741367ac2805a5acf8558a896e78a5e"
+      "bytes": 3335,
+      "sha256": "fd2579469132613e3ce585962ca3f4047dd0062b258715b19ea3163d7c3a52a4"
     },
     {
       "path": "retrieval/scene-cache.cjs",

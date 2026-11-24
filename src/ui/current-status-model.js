@@ -1,5 +1,6 @@
 // A read-only projection of diagnostic events. Never starts requests or changes Hub state.
 import {analysisFailureTitle} from '../continuity/failure.js';
+import {retrievalFailureMessage} from '../retrieval/failure.js';
 const ROWS = {
     embedding:'임베딩 생성·확인', search:'관련 기록 검색', scene:'Jev 장면 확인',
     decision:'Jev 인물·전개 판정', continuity:'연속성 추론', storage:'저장소',
@@ -14,6 +15,7 @@ function advice(id,event) {
     const code=errorCode(event);
     if(code==='EMBEDDING_BUSY')return '앞선 임베딩 작업이 아직 끝나지 않았습니다. 잠시 후 다시 시도하세요.';
     if(code==='EMBEDDING_DIMENSION_MISMATCH')return '현재 모델과 저장된 벡터의 차원이 다릅니다. 해당 자료의 임베딩을 다시 준비하세요.';
+    if(event.stage==='retrieval_request'&&['query','insert','list','delete','total'].includes(event.phase))return retrievalFailureMessage(event)+(id==='search'?' · 이번 판독은 단어 매칭으로 진행합니다.':id==='embedding'?' · 상단 임베딩 재시도로 다시 확인하세요.':'');
     if (/CREDENTIAL|AUTH|FORBIDDEN/.test(code) || [401,403].includes(event.httpStatus)) return '설정에서 발급처와 저장된 키를 확인해 주세요.';
     if (/RATE|QUOTA/.test(code) || event.httpStatus===429) return '사용 한도와 요금을 확인한 뒤 잠시 후 다시 시도해 주세요.';
     if(id==='embedding')return '상단 임베딩 재시도로 누락된 기록을 다시 처리하세요. 정상 완료된 기록은 재사용합니다.';
@@ -85,7 +87,7 @@ export function createCurrentStatusModel({getContinuityEnabled = () => true} = {
                 if(event.code==='EMBEDDING_PREPARE_ON_SEARCH'){set('embedding',event,{key:`${event.bankHash||''}:pending`,state:'idle',message:'해당 자료를 검색할 때 필요한 임베딩을 확인하고 준비합니다.'});return;}
                 set('embedding',event,{key:`${event.bankHash||''}:pending`,state:'needs_setup',message:'임베딩 재시도로 준비할 기록이 있습니다. 이번 판독은 기록 매칭으로 진행합니다.'});return;
             }
-            const id=event.phase==='query'?'search':'embedding';
+            const id=['query','total'].includes(event.phase)?'search':'embedding';
             const message=event.status==='succeeded'?(event.phase==='list'?'저장 색인 확인 완료':event.phase==='query'?`관련 기록 검색 완료${sharedSearch?' · '+sharedSearch:''}`:event.phase==='insert'?'요청한 기록 저장 응답 확인':'색인 정리 완료'):'';
             set(id,event,{key:`${event.bankHash || ''}:${event.phase}`,message});return;
         }

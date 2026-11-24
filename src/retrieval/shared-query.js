@@ -23,7 +23,7 @@ export function createSharedQuery({fetch,getRequestHeaders,report=()=>{}}){
             const result=await response.json().catch(()=>({}));
             if(response.status===404||result.code==='SHARED_RETRIEVAL_UNSUPPORTED'){capabilities=null;expires=Date.now()+60000;return null;}
             const code=/^(?:EMBEDDING_[A-Z_]+|RETRIEVAL_[A-Z_]+)$/.test(result.code)?result.code:'RETRIEVAL_HTTP_ERROR';
-            throw Object.assign(new Error(`공유 임베딩 검색 실패 (${response.status})`),{code,httpStatus:response.status});
+            throw Object.assign(new Error(`공유 임베딩 검색 실패 (${response.status})`),{code,httpStatus:response.status,...(code==='RETRIEVAL_TIMEOUT'?{timeoutMs:Number.isFinite(result.timeoutMs)?result.timeoutMs:0}:{})});
         }
         const result=await response.json();
         if(result.sharedVector)report({module:'src/retrieval/shared-query.js',phase:'scene_vector',status:'succeeded',provider:body.source,cache:result.sharedVector.cache,embeddingMs:result.sharedVector.embeddingMs,indexMs:result.sharedVector.indexMs});
