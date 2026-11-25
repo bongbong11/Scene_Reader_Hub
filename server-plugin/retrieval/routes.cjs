@@ -1,11 +1,13 @@
 const {discoverHost}=require('./host.cjs');
 const {createSceneCache}=require('./scene-cache.cjs');
+const {registerNativeVectors}=require('./native-vectors.cjs');
 const SOURCES=new Set(['transformers','palm','vertexai','nanogpt']);
 const OWNED=/^scene-reader-(?:(?:character|world)-\d+|connection-test)$/;
 
 function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs}={}){
     let hostPromise;
     const getHost=()=>hostPromise||=(host?Promise.resolve(host):discoverHost());
+    registerNativeVectors(router,{getHost});
     router.post('/retrieval/capabilities',async(request,response)=>{
         if(!request.user?.directories?.root)return response.status(401).json({code:'AUTH_REQUIRED'});
         const adapter=await getHost();
