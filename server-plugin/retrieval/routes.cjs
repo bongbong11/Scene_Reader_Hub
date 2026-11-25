@@ -4,10 +4,10 @@ const {registerNativeVectors}=require('./native-vectors.cjs');
 const SOURCES=new Set(['transformers','palm','vertexai','nanogpt']);
 const OWNED=/^scene-reader-(?:(?:character|world)-\d+|connection-test)$/;
 
-function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs}={}){
+function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs,getNanoKey=async()=>''}={}){
     let hostPromise;
     const getHost=()=>hostPromise||=(host?Promise.resolve(host):discoverHost());
-    registerNativeVectors(router,{getHost});
+    registerNativeVectors(router,{getHost,getNanoKey});
     router.post('/retrieval/capabilities',async(request,response)=>{
         if(!request.user?.directories?.root)return response.status(401).json({code:'AUTH_REQUIRED'});
         const adapter=await getHost();
@@ -24,7 +24,7 @@ function registerRetrieval(router,{host,cache=createSceneCache(),timeoutMs}={}){
             const body={source:input.source,collectionId:input.collectionId,model:input.model,api:input.source==='vertexai'?'vertexai':undefined,vertexai_auth_mode:input.vertexai_auth_mode==='full'?'full':'express',vertexai_region:String(input.vertexai_region||'global').slice(0,100),vertexai_express_project_id:String(input.vertexai_express_project_id||'').slice(0,200)};
             const scopedRequest={...request,body,user:request.user};
             const work=(async()=>{
-                const adapter=await getHost(),prepared=await adapter.prepare(scopedRequest);
+                const adapter=await getHost(),nanoKey=input.source==='nanogpt'?await getNanoKey(request):'',prepared=await adapter.prepare(scopedRequest,{nanoKey});
                 const result=await cache.get(request.user.directories.root,prepared.scope,input.searchText,prepared.embed);
                 if(expired||response.destroyed||response.writableEnded)return null;
                 const started=Date.now(),found=await prepared.query(result.vector,input.topK,input.threshold);
