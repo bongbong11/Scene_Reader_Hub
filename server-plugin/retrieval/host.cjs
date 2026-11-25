@@ -18,20 +18,21 @@ async function loadHost(root) {
     const [util,secrets]=await Promise.all([load('util.js'),load('endpoints/secrets.js')]);
     if(typeof vectra.LocalIndex!=='function'||typeof util.getConfigValue!=='function'||typeof secrets.readSecret!=='function')throw unsupported();
     const providers={};
-    for(const [source,file,fn] of [['transformers','embedding.js','getTransformersVector'],['palm','google-vectors.js','getMakerSuiteVector'],['vertexai','google-vectors.js','getVertexVector'],['nanogpt','openai-vectors.js','getOpenAIBatchVector']]){
+    for(const [source,file,fn] of [['transformers','embedding.js','getTransformersVector'],['palm','google-vectors.js','getMakerSuiteVector'],['vertexai','google-vectors.js','getVertexVector']]){
         try{const module=await load(`vectors/${file}`);if(typeof module[fn]==='function')providers[source]=module[fn];}catch{/* Older hosts may support only some providers. */}
     }
     return {
-        sources:Object.keys(providers),
-        async prepare(request,{createIndex=false}={}) {
+        sources:[...Object.keys(providers),'nanogpt'],
+        async prepare(request,{createIndex=false,nanoKey=''}={}) {
             const body=request.body,source=body.source,embed=providers[source];
-            if(!embed)throw unsupported();
+            if(source!=='nanogpt'&&!embed)throw unsupported();
             const model=source==='transformers'?String(util.getConfigValue('extensions.models.embedding','')):body.model;
             if(typeof model!=='string'||model.length>200||(!model&&source!=='transformers'))throw unsupported();
             const directories=request.user.directories;
-            const secretNames={palm:['MAKERSUITE'],vertexai:['VERTEXAI','VERTEXAI_SERVICE_ACCOUNT'],nanogpt:['NANOGPT']}[source]||[];
+            const secretNames={palm:['MAKERSUITE'],vertexai:['VERTEXAI','VERTEXAI_SERVICE_ACCOUNT']}[source]||[];
             if(secretNames.some(key=>!secrets.SECRET_KEYS[key]))throw unsupported();
-            const credentials=secretNames.map(key=>secrets.readSecret(directories,secrets.SECRET_KEYS[key])||'');
+            const credentials=source==='nanogpt'?[String(nanoKey||'').trim()]:secretNames.map(key=>secrets.readSecret(directories,secrets.SECRET_KEYS[key])||'');
+            if(source==='nanogpt'&&!credentials[0])throw Object.assign(new Error('Scene Reader NanoGPT embedding key is missing.'),{code:'EMBEDDING_CREDENTIAL_MISSING',status:401});
             const authHash=crypto.createHash('sha256').update(JSON.stringify(credentials)).digest('hex');
             const scope=[source,model,body.vertexai_auth_mode,body.vertexai_region,body.vertexai_express_project_id,authHash];
             const base=path.resolve(directories.vectors);
@@ -50,12 +51,27 @@ async function loadHost(root) {
                 await index.createIndex();
             }
             if(!(await fs.realpath(folder)).startsWith(realBase+path.sep))throw unsupported();
+            const nanoEmbedBatch=async texts=>{
+                const response=await fetch('https://api.nano-gpt.com/api/v1/embeddings',{
+                    method:'POST',
+                    headers:{Authorization:`Bearer ${credentials[0]}`,'Content-Type':'application/json',Accept:'application/json'},
+                    body:JSON.stringify({model,input:texts}),
+                    signal:request.signal,
+                    redirect:'error',
+                });
+                let data={};try{data=await response.json();}catch{/* status below */}
+                if(!response.ok)throw Object.assign(new Error('NanoGPT embedding request failed.'),{code:response.status===401||response.status===403?'EMBEDDING_AUTH_FAILED':'EMBEDDING_UPSTREAM_ERROR',status:response.status});
+                const rows=Array.isArray(data?.data)?[...data.data].sort((a,b)=>(a.index??0)-(b.index??0)):[];
+                const vectors=rows.map(row=>row?.embedding);
+                if(vectors.length!==texts.length||vectors.some(vector=>!Array.isArray(vector)||!vector.length||vector.some(value=>!Number.isFinite(value))))throw Object.assign(new Error('Invalid NanoGPT embedding response.'),{code:'EMBEDDING_INVALID_VECTOR',status:502});
+                return vectors;
+            };
             return {scope,index,async embedBatch(texts){
                 if(source!=='nanogpt')throw unsupported();
-                return embed(texts,source,directories,model,'https://api.nano-gpt.com/api/v1');
+                return nanoEmbedBatch(texts);
             },async embed(text){
                 if(source==='transformers')return embed(text);
-                if(source==='nanogpt'){const vectors=await embed([text],source,directories,model,'https://api.nano-gpt.com/api/v1');return vectors[0];}
+                if(source==='nanogpt')return (await nanoEmbedBatch([text]))[0];
                 return embed(text,model,request);
             },async query(vector,topK,threshold){
                 const items=await index.listItems();
