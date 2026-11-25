@@ -1,11 +1,11 @@
 {
   "name": "scene-reader-jev-plugin",
-  "version": "0.10.6",
+  "version": "0.10.7",
   "files": [
     {
       "path": "index.cjs",
-      "bytes": 19117,
-      "sha256": "5afad7a463f4430f0fe50e22f548bab32ce9b2966408ae5e2ea9e69274b7181e"
+      "bytes": 20662,
+      "sha256": "17c66be9f62817379cc9b45b21579d42147d06bd9d55466b7f90eeedad498782"
     },
     {
       "path": "nanogpt-jev.cjs",
@@ -15,7 +15,7 @@
     {
       "path": "package.json",
       "bytes": 127,
-      "sha256": "8db13c790202a3f064fc2ec24c2fc29c3e6bbfb54d23d2fb0ab3a1251257d50e"
+      "sha256": "88581ee0077fef6a0f47e60f9a7b2ade40752a78688ab3bdfaf75dc015f4bc23"
     },
     {
       "path": "retrieval-cache.cjs",
@@ -24,18 +24,18 @@
     },
     {
       "path": "retrieval/host.cjs",
-      "bytes": 5526,
-      "sha256": "be6dd1798ff56bd5d3399c75432b3c3ccf4269bd21548a143f22b42a944503bf"
+      "bytes": 6877,
+      "sha256": "12761df0af4c2d62ce382434393df048f3c72fbe46ec0a7c7b62d43b70bf9376"
     },
     {
       "path": "retrieval/native-vectors.cjs",
-      "bytes": 4973,
-      "sha256": "460090e7f009d2e2ea6fe18aff97352e4bc80d45be53e4c58250300371ac013c"
+      "bytes": 5199,
+      "sha256": "a6c42965a310717d62fe9198b57e989c244f5c9a0b279ca5ad4e4fdde67255ab"
     },
     {
       "path": "retrieval/routes.cjs",
-      "bytes": 3443,
-      "sha256": "cd5fe21d18aed60344735a1e94f984408b0f8809ab776dade877f4a26b5645f7"
+      "bytes": 3549,
+      "sha256": "d30e33dc8c94a2d77847536b6597161be356a651bbc29ffc32a7b6cf9d17f7ae"
     },
     {
       "path": "retrieval/scene-cache.cjs",
