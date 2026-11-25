@@ -140,7 +140,11 @@ async function migrateChatIdentity(request, chatKey, legacyChatKey) {
 }
 async function init(router) {
     require('./nanogpt-jev.cjs').register(router,{pathsFor,load:legacyV2.load,save:legacyV2.save,storageHandler});
-    registerRetrieval(router);
+    const getNanoEmbeddingKey=async request=>{
+        const files=pathsFor(request),saved=await legacyV2.load(files.root,files.secret,{});
+        return String(saved.nanoEmbeddingKey||'').trim();
+    };
+    registerRetrieval(router,{getNanoKey:getNanoEmbeddingKey});
     storageV2.register(router,{safeRoot,serialize});
     router.get('/health', (_request, response) => response.json({ ok: true, service: 'scene-reader-jev', model: MODEL, storage: true }));
 
@@ -157,7 +161,7 @@ async function init(router) {
         const [settings, chat, history, characters, secret, backups] = await Promise.all([
             context.load(files.settings, {}), session.chat, session.history, session.chat?.sharedLinkV1?null:context.load(files.characters, null), context.load(files.secret, {}), listBackups(request),
         ]);
-        response.json({ ok: true, storageVersion: 3, storageV2:{scope:recordId(files.root),active:context.active,sessionRevision:(await context.entry(files.session))?.revision||0,charactersRevision:(await context.entry(files.characters))?.revision||0}, migrated: context.active || Boolean(await readJson(files.session, null)), settings, chat, history: Array.isArray(history) ? history : [], characters, keyStatus: secret.jevKey ? `저장됨 ····${String(secret.jevKey).slice(-4)}` : '저장된 키 없음', backups });
+        response.json({ ok: true, storageVersion: 3, storageV2:{scope:recordId(files.root),active:context.active,sessionRevision:(await context.entry(files.session))?.revision||0,charactersRevision:(await context.entry(files.characters))?.revision||0}, migrated: context.active || Boolean(await readJson(files.session, null)), settings, chat, history: Array.isArray(history) ? history : [], characters, keyStatus: secret.jevKey ? `저장됨 ····${String(secret.jevKey).slice(-4)}` : '저장된 키 없음', retrievalNanoKeyStatus: secret.nanoEmbeddingKey ? '키 저장됨 · 씬판독기 전용' : '저장된 키 없음', backups });
     }));
 
     router.post('/storage/settings', storageHandler(async (request, response) => {
@@ -202,6 +206,19 @@ async function init(router) {
         if(key)secret.jevKey=key;else delete secret.jevKey;
         if(Object.keys(secret).length||await legacyV2.active(files.root))await legacyV2.save(files.root,file,secret);else await removeFile(file);
         response.json({ ok: true, keyStatus: key ? `저장됨 ····${key.slice(-4)}` : '저장된 키 없음' });
+    }));
+
+    router.post('/storage/retrieval/nanogpt/key-status', storageHandler(async (request, response) => {
+        const files=pathsFor(request),secret=await legacyV2.load(files.root,files.secret,{});
+        response.json({ok:true,saved:Boolean(String(secret.nanoEmbeddingKey||'').trim()),keyStatus:secret.nanoEmbeddingKey?'키 저장됨 · 씬판독기 전용':'저장된 키 없음'});
+    }));
+    router.post('/storage/retrieval/nanogpt/key', storageHandler(async (request, response) => {
+        const key=String(request.body?.key||'').trim();
+        if(key.length>2048||/[\r\n]/.test(key))throw Object.assign(new Error('NanoGPT API 키 형식을 확인하세요.'),{code:'NANO_EMBEDDING_KEY_INVALID',status:400});
+        const files=pathsFor(request),file=files.secret,secret={...await legacyV2.load(files.root,file,{})};
+        if(key)secret.nanoEmbeddingKey=key;else delete secret.nanoEmbeddingKey;
+        if(Object.keys(secret).length||await legacyV2.active(files.root))await legacyV2.save(files.root,file,secret);else await removeFile(file);
+        response.json({ok:true,saved:Boolean(key),keyStatus:key?'키 저장됨 · 씬판독기 전용':'저장된 키 없음'});
     }));
 
     router.post('/storage/backup/create', storageHandler(async (request, response) => {
