@@ -2,6 +2,15 @@
 
 현재 설치·사용 방법은 [README](README.md)를 확인하세요. 아래의 과거 내역은 각 버전이 배포됐을 때의 변경 사항입니다.
 
+## Hub 0.2.45 · NanoGPT 임베딩 키 격리
+
+- NanoGPT 임베딩 키를 SillyTavern 공용 API 키 저장소가 아니라 Scene Reader 서버 플러그인 전용 `secrets.json`에 저장합니다. 일반 RP 연결 프로필은 이 전용 키를 읽을 수 없습니다.
+- NanoGPT 임베딩 생성·검색도 SillyTavern 공용 NanoGPT 키를 더 이상 사용하지 않고 Scene Reader 전용 키만 사용합니다.
+- 기존 SillyTavern 공용 NanoGPT 키는 다른 용도를 망가뜨리지 않도록 자동 삭제하지 않습니다. 0.2.45에서 전용 키를 다시 저장한 뒤 공용 키가 필요 없다면 SillyTavern에서 직접 삭제하세요.
+- TypeSafe Jev와 NanoGPT Jev의 기존 Scene Reader 전용 키 저장은 그대로 유지합니다. Gemini·Vertex 연결 방식은 변경하지 않았습니다.
+
+**화면 확장 0.2.45와 서버 플러그인 0.10.7을 함께 업데이트**하고 SillyTavern을 재시작한 뒤, NanoGPT 임베딩 키를 Scene Reader 설정에서 한 번 다시 저장하세요.
+
 ## Hub 0.2.44 · NanoGPT Qwen 8B 기본값 및 임베딩 연결 경로 통일
 
 - NanoGPT의 기본 임베딩 모델을 `qwen/qwen3-embedding-8b`로 변경했습니다. 기존 사용자 지정 모델 설정을 덮어쓰지 않으며 수동 모델 변경 기능도 유지합니다.
