@@ -21,7 +21,7 @@ export function renderRetrievalSettings(deps) {
     node('sr-retrieval-key-help').textContent = provider === 'vertexai'
         ? '저장된 키·서비스 계정은 자동 사용합니다. 새 Express 키만 입력하세요. 서비스 계정 JSON은 SillyTavern에서 설정하세요.'
         : provider === 'palm' ? '저장된 Google AI Studio 키를 사용합니다. 새 AI Studio 키만 입력하세요. Vertex 키는 Vertex AI를 선택하세요.'
-        : 'SillyTavern에 저장된 키를 그대로 사용합니다. 키를 새로 등록하거나 바꿀 때만 입력하세요.';
+        : provider === 'nanogpt' ? '씬판독기 전용으로 저장합니다. 일반 RP 연결 프로필에서는 이 키를 사용할 수 없습니다.' : 'SillyTavern에 저장된 키를 그대로 사용합니다. 키를 새로 등록하거나 바꿀 때만 입력하세요.';
     node('sr-retrieval-google-note').hidden = !fixedEmbeddingModel(provider);
     node('sr-retrieval-google-note').textContent = provider === 'vertexai'
         ? '모델·리전(global)은 자동 설정됩니다. SillyTavern에 저장된 Vertex 인증 정보를 사용합니다.'
@@ -30,10 +30,18 @@ export function renderRetrievalSettings(deps) {
 
 async function secretRequest(deps,route,body) {
     const started=Date.now(),provider=deps.settings.retrievalProvider;
-    const credentialStore=body?.key || configuredSecret(deps.settings) || deps.RETRIEVAL_PROVIDERS[provider]?.secret || 'none';
+    const credentialStore=provider==='nanogpt'?'scene_reader_nanogpt_key':body?.key || configuredSecret(deps.settings) || deps.RETRIEVAL_PROVIDERS[provider]?.secret || 'none';
     const report=detail=>{try{deps.noteDiagnostic?.('embedding_credential',{module:'src/ui/retrieval-settings.js',phase:route,provider,credentialStore,...detail});}catch{/* diagnostic only */}};
     report({status:'started'});
     try { const result=await withRequestLifetime(async signal=>{
+        if(provider==='nanogpt'){
+            const endpoint=route==='read'?'/api/plugins/scene-reader-jev/storage/retrieval/nanogpt/key-status':'/api/plugins/scene-reader-jev/storage/retrieval/nanogpt/key';
+            const payload=route==='write'?{key:String(body?.value||'').trim()}:{};
+            const response=await deps.fetch(endpoint,{method:'POST',headers:{...deps.getRequestHeaders(),'Content-Type':'application/json'},signal,body:JSON.stringify(payload)});
+            if(!response.ok)throw Object.assign(new Error(`씬판독기 전용 키 ${route==='read'?'확인':'저장'} 실패 (${response.status})`),{code:'CREDENTIAL_STORAGE_HTTP_ERROR',httpStatus:response.status});
+            const data=await response.json();
+            return route==='read'?{scene_reader_nanogpt_key:Boolean(data?.saved)}:data;
+        }
         const response = await deps.fetch(`/api/secrets/${route}`,{method:'POST',headers:deps.getRequestHeaders(),signal,...(body?{body:JSON.stringify(body)}:{})});
         if (!response.ok) throw Object.assign(new Error(`키 ${route==='read'?'확인':'저장'} 실패 (${response.status})`),{code:'CREDENTIAL_STORAGE_HTTP_ERROR',httpStatus:response.status});
         return route === 'read' ? await response.json() : null;
@@ -53,7 +61,7 @@ export async function refreshRetrievalSecret(deps) {
     try {
         const state = await secretRequest(deps,'read');
         if (settings !== deps.settings || provider !== settings.retrievalProvider || auth !== settings.retrievalVertexAuth) return;
-        let secret = configuredSecret(settings) || deps.RETRIEVAL_PROVIDERS[provider]?.secret;
+        let secret = provider==='nanogpt' ? 'scene_reader_nanogpt_key' : configuredSecret(settings) || deps.RETRIEVAL_PROVIDERS[provider]?.secret;
         if (provider === 'vertexai' && !activeKey(state,secret)) {
             const alternate = auth === 'full' ? 'api_key_vertexai' : 'vertexai_service_account_json';
             if (activeKey(state,alternate)) {
@@ -62,7 +70,7 @@ export async function refreshRetrievalSecret(deps) {
                 secret = alternate;
             }
         }
-        node.textContent = activeKey(state,secret) ? (secret === 'vertexai_service_account_json' ? '인증 정보 저장됨 · SillyTavern 서비스 계정 사용' : '키 저장됨') : '저장된 키 없음';
+        node.textContent = activeKey(state,secret) ? (provider==='nanogpt' ? '키 저장됨 · 씬판독기 전용' : secret === 'vertexai_service_account_json' ? '인증 정보 저장됨 · SillyTavern 서비스 계정 사용' : '키 저장됨') : '저장된 키 없음';
     } catch { if (settings === deps.settings && provider === settings.retrievalProvider) node.textContent='저장된 키 상태를 확인하지 못했습니다. 연결 확인으로 다시 확인해 주세요.'; }
 }
 
@@ -98,7 +106,7 @@ export function bindRetrievalSettings(deps) {
                 deps.vectorRetrieval.clear();
                 await deps.retrievalSecretState();
             }
-            notifySceneReaderToast(deps.window,'success','키를 저장했습니다.','씬판독기');
+            notifySceneReaderToast(deps.window,'success',provider==='nanogpt'?'씬판독기 전용 키로 저장했습니다. 일반 RP에서는 이 키를 사용하지 않습니다.':'키를 저장했습니다.','씬판독기');
         } finally { button.disabled=false; }
     })(),'임베딩 키를 저장하지 못했습니다.'));
     node('sr-retrieval-test')?.addEventListener('click',()=>deps.runUiTask((async()=>{
