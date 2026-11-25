@@ -11,7 +11,7 @@ export const RETRIEVAL_PROVIDERS = Object.freeze({
     transformers: { label: 'SillyTavern 로컬', model: '', secret: '' },
     palm: { label: 'Gemini · AI Studio', model: 'gemini-embedding-001', secret: 'api_key_makersuite' },
     vertexai: { label: 'Google Vertex AI', model: 'gemini-embedding-001', secret: 'api_key_vertexai' },
-    nanogpt: { label: 'NanoGPT Qwen', model: 'Qwen/Qwen3-Embedding-0.6B', secret: 'api_key_nanogpt' },
+    nanogpt: { label: 'NanoGPT Qwen', model: 'qwen/qwen3-embedding-8b', secret: 'api_key_nanogpt' },
 });
 
 
@@ -63,8 +63,23 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                     if(shared)return shared;
                     detail.transport='sillytavern_vector_api';
                 }
-                const response = await fetch(`/api/vector/${route}`, { method:'POST', headers:getRequestHeaders(), body:JSON.stringify(body), signal:requestSignal });
-                if (!response.ok) throw Object.assign(new Error(`SillyTavern 검색 연결 오류 (${response.status})`), {code:'RETRIEVAL_HTTP_ERROR',httpStatus:response.status});
+                const init={ method:'POST', headers:getRequestHeaders(), body:JSON.stringify(body), signal:requestSignal };
+                const nativeUrl=`/api/vector/${route}`;
+                const pluginUrl=`/api/plugins/scene-reader-jev/retrieval/vector/${route}`;
+                let response;
+                if(body.source==='nanogpt'){
+                    detail.transport='scene_reader_plugin_vector';
+                    response=await fetch(pluginUrl,init);
+                    // Older server plugins do not have this endpoint.
+                    if(response.status===404){
+                        detail.transport='sillytavern_vector_api';
+                        response=await fetch(nativeUrl,init);
+                    }
+                }else response=await fetch(nativeUrl,init);
+                if (!response.ok){
+                    const failure=body.source==='nanogpt'&&detail.transport==='scene_reader_plugin_vector'&&typeof response.json==='function'?await response.json().catch(()=>({})):{};
+                    throw Object.assign(new Error(`검색 연결 오류 (${response.status})`), {code:typeof failure.code==='string'&&/^(?:EMBEDDING_[A-Z_]+|RETRIEVAL_[A-Z_]+)$/.test(failure.code)?failure.code:'RETRIEVAL_HTTP_ERROR',httpStatus:response.status});
+                }
                 return route === 'insert' || route === 'delete' ? null : await response.json();
             }, {signal, timeoutMs:limitMs, timeoutMessage:'검색 연결 시간이 초과되었습니다.'}), {signal,exclusive:body.source==='transformers'||route==='insert'||route==='delete'});
             signal?.throwIfAborted();

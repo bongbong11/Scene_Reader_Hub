@@ -18,12 +18,12 @@ async function loadHost(root) {
     const [util,secrets]=await Promise.all([load('util.js'),load('endpoints/secrets.js')]);
     if(typeof vectra.LocalIndex!=='function'||typeof util.getConfigValue!=='function'||typeof secrets.readSecret!=='function')throw unsupported();
     const providers={};
-    for(const [source,file,fn] of [['transformers','embedding.js','getTransformersVector'],['palm','google-vectors.js','getMakerSuiteVector'],['vertexai','google-vectors.js','getVertexVector'],['nanogpt','openai-vectors.js','getOpenAIVector']]){
+    for(const [source,file,fn] of [['transformers','embedding.js','getTransformersVector'],['palm','google-vectors.js','getMakerSuiteVector'],['vertexai','google-vectors.js','getVertexVector'],['nanogpt','openai-vectors.js','getOpenAIBatchVector']]){
         try{const module=await load(`vectors/${file}`);if(typeof module[fn]==='function')providers[source]=module[fn];}catch{/* Older hosts may support only some providers. */}
     }
     return {
         sources:Object.keys(providers),
-        async prepare(request) {
+        async prepare(request,{createIndex=false}={}) {
             const body=request.body,source=body.source,embed=providers[source];
             if(!embed)throw unsupported();
             const model=source==='transformers'?String(util.getConfigValue('extensions.models.embedding','')):body.model;
@@ -45,11 +45,17 @@ async function loadHost(root) {
                 try{if((await fs.lstat(current)).isSymbolicLink())throw unsupported();}catch(error){if(error.code==='ENOENT')break;throw error;}
             }
             const index=new vectra.LocalIndex(folder);
-            if(!await index.isIndexCreated())throw Object.assign(new Error('Embedding index is not ready.'),{code:'EMBEDDING_INDEX_MISSING',status:409});
+            if(!await index.isIndexCreated()){
+                if(!createIndex)throw Object.assign(new Error('Embedding index is not ready.'),{code:'EMBEDDING_INDEX_MISSING',status:409});
+                await index.createIndex();
+            }
             if(!(await fs.realpath(folder)).startsWith(realBase+path.sep))throw unsupported();
-            return {scope, async embed(text){
+            return {scope,index,async embedBatch(texts){
+                if(source!=='nanogpt')throw unsupported();
+                return embed(texts,source,directories,model,'https://api.nano-gpt.com/api/v1');
+            },async embed(text){
                 if(source==='transformers')return embed(text);
-                if(source==='nanogpt')return embed(text,source,directories,model);
+                if(source==='nanogpt'){const vectors=await embed([text],source,directories,model,'https://api.nano-gpt.com/api/v1');return vectors[0];}
                 return embed(text,model,request);
             },async query(vector,topK,threshold){
                 const items=await index.listItems();

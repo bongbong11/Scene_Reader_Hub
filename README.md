@@ -2,11 +2,11 @@
 
 캐릭터의 성격과 설정을 지키며, 대화·관계·사건이 자연스럽게 이어지도록 돕는 SillyTavern 확장입니다. Jev가 최근 롤플레잉 대화를 판독하고, 다음 답변에 필요한 진행 방향과 인물 기록을 골라 전달합니다.
 
-**Hub 0.2.43 · Jev 서버 플러그인 0.10.5**
+**Hub 0.2.44 · Jev 서버 플러그인 0.10.6**
 
 실제 이야기는 채팅 모델이 작성합니다. 판독 결과가 전달되어도 모델이 지시를 놓치거나 다르게 표현할 수 있습니다. 씬판독기의 결과 화면에서는 **주입 준비 → 실제 요청 포함 → 답변에서 실행됐는지 확인**을 구분합니다.
 
-나노GPT 임베딩의 늘어난 대기 시간을 적용하려면 **화면 확장과 서버 플러그인 0.10.5를 함께 업데이트**한 뒤 SillyTavern을 재시작하고 브라우저를 새로고침하세요. 기존 인물 JSON을 다시 만들거나 재임베딩할 필요는 없습니다. 플러그인은 아래 명령어로 덮어쓸 수 있습니다. 자세한 변경 사항은 [업데이트 내역](CHANGELOG.md)을 확인하세요.
+나노GPT Qwen 기본 임베딩 모델은 **qwen/qwen3-embedding-8b**이며 모델명을 직접 변경할 수도 있습니다. 연결 확인·인물 기록 생성·장면 검색에는 서버 플러그인의 동일한 NanoGPT 임베딩 주소를 사용합니다. **Hub 0.2.44와 서버 플러그인 0.10.6을 함께 업데이트**한 뒤 SillyTavern을 재시작하고 브라우저를 새로고침하세요. 기존에 저장한 모델 설정과 인물 JSON은 유지됩니다. 모델을 변경한 경우에만 해당 모델의 임베딩을 새로 준비합니다. 플러그인은 아래 명령어로 덮어쓸 수 있습니다. 자세한 변경 사항은 [업데이트 내역](CHANGELOG.md)을 확인하세요.
 
 감정 독립 저장은 공유 저장소 V2에서 적용됩니다. 구형 파일 저장소는 기존 방식으로 유지하며 자동 전환하지 않습니다. 새 방식으로 저장한 최신 감정은 구버전 Hub에서 읽지 못할 수 있습니다.
 
@@ -38,7 +38,7 @@ https://github.com/bongbong11/Scene_Reader_Hub.git
 
 ### 서버 플러그인
 
-**[서버 플러그인 0.10.5 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.10.5.zip)**
+**[서버 플러그인 0.10.6 ZIP 다운로드](https://raw.githubusercontent.com/bongbong11/Scene_Reader_Hub/main/downloads/scene-reader-jev-plugin-v0.10.6.zip)**
 
 압축을 직접 풀지 않고 아래 명령으로 설치하거나 업데이트할 수도 있습니다. **SillyTavern을 종료한 뒤, SillyTavern 폴더에서** 해당 명령 한 줄을 실행하세요. Node.js와 curl이 필요합니다. 완료 후에는 SillyTavern을 다시 시작하세요.
 
@@ -118,7 +118,7 @@ Jev 판독은 TypeSafe 공홈 또는 나노GPT 구독 전용 연결을 선택합
 
 ### 나노GPT 구독으로 Jev 사용하기
 
-서버 플러그인 **0.10.5**로 업데이트하고 SillyTavern을 재시작한 뒤 설정하세요.
+서버 플러그인 **0.10.6**으로 업데이트하고 SillyTavern을 재시작한 뒤 설정하세요.
 
 1. [나노GPT API 키 관리](https://nano-gpt.com/api)에서 사용할 키의 Billing을 **Subscription only**로 설정합니다.
 2. Hub의 **Jev 판독 → 나노GPT · 구독 전용**을 선택합니다.
@@ -135,7 +135,7 @@ Jev 판독은 TypeSafe 공홈 또는 나노GPT 구독 전용 연결을 선택합
 
 - **Gemini · AI Studio:** AI Studio를 선택하고 해당 키를 저장합니다.
 - **Gemini · Vertex AI:** Vertex AI를 선택합니다. Express 키는 새 키 입력란에 넣고, 서비스 계정 JSON은 SillyTavern 연결 설정에서 등록합니다. 리전은 `global`로 고정됩니다.
-- **NanoGPT Qwen:** 해당 서비스의 키를 저장합니다.
+- **NanoGPT Qwen:** 기본 모델은 `qwen/qwen3-embedding-8b`이며, 모델명 입력란에서 다른 모델로 변경할 수 있습니다. 해당 서비스의 키를 저장합니다.
 - **SillyTavern 로컬:** API 키 없이 서버의 내장 임베딩을 사용합니다. 처음에는 모델 다운로드·준비로 시간이 걸릴 수 있으며 속도는 실행 환경에 따라 달라집니다.
 
 Gemini 임베딩 모델은 자동으로 설정됩니다. 선택한 서비스에 인증 정보가 저장되어 있다면 다시 입력하지 않아도 됩니다. **키 저장됨**은 저장 여부를 뜻하므로, 사용 가능 여부는 **연결 확인**으로 확인하세요. 임베딩을 완전히 끄는 설정은 없습니다.

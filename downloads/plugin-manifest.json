@@ -1,6 +1,6 @@
 {
   "name": "scene-reader-jev-plugin",
-  "version": "0.10.5",
+  "version": "0.10.6",
   "files": [
     {
       "path": "index.cjs",
@@ -15,17 +15,27 @@
     {
       "path": "package.json",
       "bytes": 127,
-      "sha256": "30286cc672ed3ffb0c49b9754e83718dab7a9673d8deb2390fea9f423c448292"
+      "sha256": "8db13c790202a3f064fc2ec24c2fc29c3e6bbfb54d23d2fb0ab3a1251257d50e"
+    },
+    {
+      "path": "retrieval-cache.cjs",
+      "bytes": 3847,
+      "sha256": "fe3546ae43881614d52f668a30ce70281657eb38d8237f8608a31d9435873066"
     },
     {
       "path": "retrieval/host.cjs",
-      "bytes": 5139,
-      "sha256": "5b73ea689c51ec22e6a8e12b80ac04873f86a4844cbeb58bfcfeb7353fd820e1"
+      "bytes": 5526,
+      "sha256": "be6dd1798ff56bd5d3399c75432b3c3ccf4269bd21548a143f22b42a944503bf"
+    },
+    {
+      "path": "retrieval/native-vectors.cjs",
+      "bytes": 4973,
+      "sha256": "460090e7f009d2e2ea6fe18aff97352e4bc80d45be53e4c58250300371ac013c"
     },
     {
       "path": "retrieval/routes.cjs",
-      "bytes": 3335,
-      "sha256": "fd2579469132613e3ce585962ca3f4047dd0062b258715b19ea3163d7c3a52a4"
+      "bytes": 3443,
+      "sha256": "cd5fe21d18aed60344735a1e94f984408b0f8809ab776dade877f4a26b5645f7"
     },
     {
       "path": "retrieval/scene-cache.cjs",
@@ -33,9 +43,9 @@
       "sha256": "ebd7e179b607b20805766ea8a5d6e54d5d3a1eb2bb3ee4d6744349ae6e86d986"
     },
     {
-      "path": "retrieval-cache.cjs",
-      "bytes": 3847,
-      "sha256": "fe3546ae43881614d52f668a30ce70281657eb38d8237f8608a31d9435873066"
+      "path": "storage.cjs",
+      "bytes": 6702,
+      "sha256": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873"
     },
     {
       "path": "storage/backup-archive.cjs",
@@ -171,11 +181,6 @@
       "path": "storage/world-library.cjs",
       "bytes": 1552,
       "sha256": "7ff6af39cbad208a277cebae247be542a865914f7d100f411cc9fc102ab0d1b5"
-    },
-    {
-      "path": "storage.cjs",
-      "bytes": 6702,
-      "sha256": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873"
     },
     {
       "path": "vendor/character-core.mjs",
