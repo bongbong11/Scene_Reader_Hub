@@ -859,9 +859,9 @@ await mkdir(path.join(root,'artifacts'),{recursive:true});await page.screenshot(
     assert.equal(store.settings.global.retrievalModel,'gemini-embedding-001');
     assert.equal(await page.locator('#sr-retrieval-model-row').isVisible(),false);
     await page.locator('#sr-retrieval-provider').selectOption('nanogpt');
-    await page.waitForFunction(()=>document.getElementById('sr-retrieval-model').value==='Qwen/Qwen3-Embedding-0.6B');
+    await page.waitForFunction(()=>document.getElementById('sr-retrieval-model').value==='qwen/qwen3-embedding-8b');
     assert.equal(store.settings.global.retrievalProvider,'nanogpt');
-    assert.equal(store.settings.global.retrievalModel,'Qwen/Qwen3-Embedding-0.6B','provider and model save together');
+    assert.equal(store.settings.global.retrievalModel,'qwen/qwen3-embedding-8b','provider and model save together');
     await page.locator('#sr-retrieval-key').fill('nano-test-secret');
     await page.locator('#sr-retrieval-key-save').click();
     await page.waitForFunction(()=>document.getElementById('sr-retrieval-key-status').textContent.includes('저장됨'));
