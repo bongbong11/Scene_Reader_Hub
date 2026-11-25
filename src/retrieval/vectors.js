@@ -70,11 +70,7 @@ export function createVectorRetrieval({ fetch, getRequestHeaders, getSettings, o
                 if(body.source==='nanogpt'){
                     detail.transport='scene_reader_plugin_vector';
                     response=await fetch(pluginUrl,init);
-                    // Older server plugins do not have this endpoint.
-                    if(response.status===404){
-                        detail.transport='sillytavern_vector_api';
-                        response=await fetch(nativeUrl,init);
-                    }
+                    if(response.status===404)throw Object.assign(new Error('NanoGPT 임베딩에는 Scene Reader 서버 플러그인 0.10.7 이상이 필요합니다. 업데이트 후 SillyTavern을 다시 시작하세요.'),{code:'RETRIEVAL_PLUGIN_UPDATE_REQUIRED',httpStatus:404});
                 }else response=await fetch(nativeUrl,init);
                 if (!response.ok){
                     const failure=body.source==='nanogpt'&&detail.transport==='scene_reader_plugin_vector'&&typeof response.json==='function'?await response.json().catch(()=>({})):{};
