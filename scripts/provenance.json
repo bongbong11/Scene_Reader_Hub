@@ -4,15 +4,17 @@
   "sceneVersion": "0.26.2",
   "characterRepository": "https://github.com/bongbong11/Character_Reasoner",
   "characterCommit": "3d3787e512052ff4de787dde2ca86f1b9523c0e5",
-  "sharedPluginVersion": "0.10.5",
+  "sharedPluginVersion": "0.10.6",
   "sharedPluginFiles": {
     "server-plugin/index.cjs": "5afad7a463f4430f0fe50e22f548bab32ce9b2966408ae5e2ea9e69274b7181e",
     "server-plugin/nanogpt-jev.cjs": "fc0d696600eaf64968b9ab48716df896092368e038c71e404dadb0ff74ebd383",
-    "server-plugin/package.json": "30286cc672ed3ffb0c49b9754e83718dab7a9673d8deb2390fea9f423c448292",
-    "server-plugin/retrieval/host.cjs": "5b73ea689c51ec22e6a8e12b80ac04873f86a4844cbeb58bfcfeb7353fd820e1",
-    "server-plugin/retrieval/routes.cjs": "fd2579469132613e3ce585962ca3f4047dd0062b258715b19ea3163d7c3a52a4",
-    "server-plugin/retrieval/scene-cache.cjs": "ebd7e179b607b20805766ea8a5d6e54d5d3a1eb2bb3ee4d6744349ae6e86d986",
+    "server-plugin/package.json": "8db13c790202a3f064fc2ec24c2fc29c3e6bbfb54d23d2fb0ab3a1251257d50e",
     "server-plugin/retrieval-cache.cjs": "fe3546ae43881614d52f668a30ce70281657eb38d8237f8608a31d9435873066",
+    "server-plugin/retrieval/host.cjs": "be6dd1798ff56bd5d3399c75432b3c3ccf4269bd21548a143f22b42a944503bf",
+    "server-plugin/retrieval/native-vectors.cjs": "460090e7f009d2e2ea6fe18aff97352e4bc80d45be53e4c58250300371ac013c",
+    "server-plugin/retrieval/routes.cjs": "cd5fe21d18aed60344735a1e94f984408b0f8809ab776dade877f4a26b5645f7",
+    "server-plugin/retrieval/scene-cache.cjs": "ebd7e179b607b20805766ea8a5d6e54d5d3a1eb2bb3ee4d6744349ae6e86d986",
+    "server-plugin/storage.cjs": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873",
     "server-plugin/storage/backup-archive.cjs": "b1009d846086c2e352f61ef69d7f971058d3b15bca022ff6f47282f9a99f19a8",
     "server-plugin/storage/backup-label.cjs": "f1296e120181707e76da95b4c3d67b3a926ee9af0eebd6f3819ca9c588392cd7",
     "server-plugin/storage/backups.cjs": "ee9e3513be4c135a863d50153c0de7d34f47f9dae8f3a744bb507353e916ea52",
@@ -40,7 +42,6 @@
     "server-plugin/storage/story-delete.cjs": "ee912581d6b2566dcec8631f5667b14ff33bb8a731fec3db095902e014758edc",
     "server-plugin/storage/transactions.cjs": "72a4d1cd321b447e71414bef1b4454f3c07414af057b4da52e072831e3675dfd",
     "server-plugin/storage/world-library.cjs": "7ff6af39cbad208a277cebae247be542a865914f7d100f411cc9fc102ab0d1b5",
-    "server-plugin/storage.cjs": "7186b2e83838ed9a45290a73e26460cfbe774132737ea4554fc5bb509b0f9873",
     "server-plugin/vendor/character-core.mjs": "57958076cb49fbc4c5bec8f4ef30f4570fa9ee7c07d34bb43cdb4d84045787b7"
   }
 }
