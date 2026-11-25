@@ -23,7 +23,7 @@ async function loadHost(root) {
     }
     return {
         sources:Object.keys(providers),
-        async prepare(request) {
+        async prepare(request,{createIndex=false}={}) {
             const body=request.body,source=body.source,embed=providers[source];
             if(!embed)throw unsupported();
             const model=source==='transformers'?String(util.getConfigValue('extensions.models.embedding','')):body.model;
@@ -45,9 +45,15 @@ async function loadHost(root) {
                 try{if((await fs.lstat(current)).isSymbolicLink())throw unsupported();}catch(error){if(error.code==='ENOENT')break;throw error;}
             }
             const index=new vectra.LocalIndex(folder);
-            if(!await index.isIndexCreated())throw Object.assign(new Error('Embedding index is not ready.'),{code:'EMBEDDING_INDEX_MISSING',status:409});
+            if(!await index.isIndexCreated()){
+                if(!createIndex)throw Object.assign(new Error('Embedding index is not ready.'),{code:'EMBEDDING_INDEX_MISSING',status:409});
+                await index.createIndex();
+            }
             if(!(await fs.realpath(folder)).startsWith(realBase+path.sep))throw unsupported();
-            return {scope, async embed(text){
+            return {scope,index,async embedBatch(texts){
+                if(source!=='nanogpt')throw unsupported();
+                return embed(texts,source,directories,model,'https://api.nano-gpt.com/api/v1');
+            },async embed(text){
                 if(source==='transformers')return embed(text);
                 if(source==='nanogpt'){const vectors=await embed([text],source,directories,model,'https://api.nano-gpt.com/api/v1');return vectors[0];}
                 return embed(text,model,request);
