@@ -11,7 +11,7 @@ export const RETRIEVAL_PROVIDERS = Object.freeze({
     transformers: { label: 'SillyTavern 로컬', model: '', secret: '' },
     palm: { label: 'Gemini · AI Studio', model: 'gemini-embedding-001', secret: 'api_key_makersuite' },
     vertexai: { label: 'Google Vertex AI', model: 'gemini-embedding-001', secret: 'api_key_vertexai' },
-    nanogpt: { label: 'NanoGPT Qwen', model: 'Qwen/Qwen3-Embedding-0.6B', secret: 'api_key_nanogpt' },
+    nanogpt: { label: 'NanoGPT Qwen', model: 'qwen/qwen3-embedding-8b', secret: 'api_key_nanogpt' },
 });
 
 
