@@ -50,7 +50,7 @@ async function runNative(prepared,action,body){
     const result=await store.queryItems(vector,body.topK);
     return {metadata:result.filter(hit=>hit.score>=body.threshold).map(hit=>hit.item.metadata),hashes:result.map(hit=>Number(hit.item.metadata.hash))};
 }
-function registerNativeVectors(router,{getHost}){
+function registerNativeVectors(router,{getHost,getNanoKey=async()=>''}){
     router.post('/retrieval/vector/:action',async(request,response)=>{
         try{
             if(!request.user?.directories?.root||!request.user?.directories?.vectors)return response.status(401).json({code:'AUTH_REQUIRED'});
@@ -60,7 +60,8 @@ function registerNativeVectors(router,{getHost}){
             validate(body,action);
             const host=await getHost();
             if(!host.sources?.includes('nanogpt'))throw Object.assign(new Error('NanoGPT native vector transport unsupported.'),{code:'SHARED_RETRIEVAL_UNSUPPORTED',status:501});
-            const prepared=await host.prepare({...request,body,user:request.user},{createIndex:true});
+            const nanoKey=await getNanoKey(request);if(!nanoKey)throw Object.assign(new Error('Scene Reader NanoGPT embedding key is missing.'),{code:'EMBEDDING_CREDENTIAL_MISSING',status:401});
+            const prepared=await host.prepare({...request,body,user:request.user},{createIndex:true,nanoKey});
             const result=await runNative(prepared,action,body);
             if(!response.destroyed)return result===null?response.sendStatus(200):response.json(result);
         }catch(error){
