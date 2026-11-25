@@ -3,7 +3,7 @@ import { withRequestLifetime,createRequestQueue } from '../adapters/request-life
 export function embeddingCredentialStore(config) {
     return config.source === 'vertexai' ? (config.vertexai_auth_mode === 'full' ? 'vertexai_service_account_json' : 'api_key_vertexai')
         : config.source === 'palm' ? 'api_key_makersuite'
-        : config.source === 'nanogpt' ? 'api_key_nanogpt' : 'none';
+        : config.source === 'nanogpt' ? 'scene_reader_nanogpt_key' : 'none';
 }
 
 export function normalizeEmbeddingCredential(value) {
@@ -20,6 +20,10 @@ export function createEmbeddingCredentialDiagnostics({fetch,getRequestHeaders,on
     let epoch=0;
     async function inspect(config,signal) {
         const credentialStore=embeddingCredentialStore(config);
+        if(config.source==='nanogpt'){
+            try { onDiagnostic({module:'src/retrieval/credentials.js',phase:'credential_metadata',status:'info',provider:'nanogpt',credentialStore,credentialPresence:'server_private',credentialUse:'scene_reader_plugin',upstreamAuthentication:'not_verified'}); } catch {/* diagnostic only */}
+            return;
+        }
         if (credentialStore==='none') return;
         const memo=cache.get(credentialStore);
         let presence=memo?.expires>Date.now()?memo.presence:null;
