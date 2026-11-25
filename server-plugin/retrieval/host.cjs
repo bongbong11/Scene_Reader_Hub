@@ -18,7 +18,7 @@ async function loadHost(root) {
     const [util,secrets]=await Promise.all([load('util.js'),load('endpoints/secrets.js')]);
     if(typeof vectra.LocalIndex!=='function'||typeof util.getConfigValue!=='function'||typeof secrets.readSecret!=='function')throw unsupported();
     const providers={};
-    for(const [source,file,fn] of [['transformers','embedding.js','getTransformersVector'],['palm','google-vectors.js','getMakerSuiteVector'],['vertexai','google-vectors.js','getVertexVector'],['nanogpt','openai-vectors.js','getOpenAIVector']]){
+    for(const [source,file,fn] of [['transformers','embedding.js','getTransformersVector'],['palm','google-vectors.js','getMakerSuiteVector'],['vertexai','google-vectors.js','getVertexVector'],['nanogpt','openai-vectors.js','getOpenAIBatchVector']]){
         try{const module=await load(`vectors/${file}`);if(typeof module[fn]==='function')providers[source]=module[fn];}catch{/* Older hosts may support only some providers. */}
     }
     return {
@@ -49,7 +49,7 @@ async function loadHost(root) {
             if(!(await fs.realpath(folder)).startsWith(realBase+path.sep))throw unsupported();
             return {scope, async embed(text){
                 if(source==='transformers')return embed(text);
-                if(source==='nanogpt')return embed(text,source,directories,model);
+                if(source==='nanogpt'){const vectors=await embed([text],source,directories,model,'https://api.nano-gpt.com/api/v1');return vectors[0];}
                 return embed(text,model,request);
             },async query(vector,topK,threshold){
                 const items=await index.listItems();
